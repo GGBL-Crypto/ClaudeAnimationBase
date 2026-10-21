@@ -1,38 +1,64 @@
 <!doctype html>
-<html>
+<html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<title>Clawd studio</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Permanent+Marker&display=block">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estúdio de animação</title>
 <style>
-  html, body { margin: 0; background: #1b1820; color: #eee; font: 13px system-ui, sans-serif; }
-  main { padding: 12px; display: grid; gap: 8px; }
-  #out { width: min(100%, 1280px); aspect-ratio: 16 / 9; height: auto; background: #F3EBDC; }
+  :root { color-scheme: dark; --bg: #1b1820; --surface: #29252f; --text: #f3ebdc; --muted: #c7bccc; --accent: #f2a283; --line: #5e5265; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
+  main { padding: 20px; max-width: 1440px; margin: auto; }
+  h1 { font-size: 24px; margin: 0 0 16px; }
+  #out { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto; background: #f3ebdc; }
   .p5Canvas { display: none !important; }
-  .bar { display: flex; gap: 10px; align-items: center; max-width: 1280px; }
-  #scrub { flex: 1; }
-  #tt { font-variant-numeric: tabular-nums; min-width: 190px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 14px 0; }
+  .bar label { display: flex; gap: 8px; align-items: center; }
+  select, button { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; min-height: 42px; }
+  button { cursor: pointer; }
+  button:hover, select:hover { border-color: var(--accent); }
+  button:disabled { cursor: wait; opacity: .6; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  ::selection { background: var(--accent); color: var(--bg); }
+  #scrub { flex: 1; min-width: 140px; accent-color: var(--accent); }
+  #tt { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 200px; }
+  #error { color: #ffc4b6; }
+  #error:empty { display: none; }
+  #story { max-width: 75ch; color: var(--muted); }
+  #shots { padding: 0; list-style: none; display: grid; gap: 12px; }
+  #shots li { padding: 12px 0; border-top: 1px solid var(--line); }
+  #shots p { margin: 6px 0; color: var(--muted); }
+  #shots button[aria-current="true"] { border-color: var(--accent); color: var(--accent); }
+  input { caret-color: var(--accent); }
+  * { scrollbar-color: var(--line) var(--bg); }
+  @media (max-width: 600px) { main { padding: 12px; } .bar label { width: 100%; } select { flex: 1; min-width: 0; } #tt { width: 100%; } }
 </style>
-<script src="node_modules/p5/lib/p5.min.js"></script>
-<script src="node_modules/p5.brush/dist/p5.brush.js"></script>
 </head>
 <body>
 <main>
-  <canvas id="out" width="1920" height="1080"></canvas>
-  <div class="bar"><input id="scrub" type="range" min="0" max="11" step="0.0417" value="0"><span id="tt">loading…</span></div>
+  <h1>Estúdio de animação</h1>
+  <div class="bar">
+    <label>Projeto <select id="project" aria-label="Projeto" disabled></select></label>
+    <label>Estilo <select id="style" aria-label="Estilo visual" disabled></select></label>
+  </div>
+  <canvas id="out" width="1920" height="1080" aria-label="Prévia do vídeo"></canvas>
+  <div class="bar">
+    <button id="play" disabled>Reproduzir</button>
+    <input id="scrub" aria-label="Tempo do vídeo" type="range" min="0" max="11" step="0.041666667" value="0" disabled>
+    <span id="tt" role="status">Carregando projeto…</span>
+    <button id="save" disabled>Salvar quadro PNG</button>
+  </div>
+  <p id="error" role="alert"></p>
+  <p id="story"></p>
+  <ol id="shots" aria-label="Storyboard"></ol>
 </main>
-<!-- engine -->
+<script src="src/platform.js"></script>
+<script src="src/styles/watercolor/config.js"></script>
+<script src="src/styles/cartoon/config.js"></script>
+<script src="src/styles/pixel/config.js"></script>
 <script src="src/config.js"></script>
-<script src="src/core.js"></script>
-<script src="src/clawd.js"></script>
-<script src="src/timeline.js"></script>
-<!-- reference sheets (standalone loops) -->
-<script src="src/sheets.js"></script>
-<!-- your video: add a script per scene file, in order -->
-<script src="src/scenes/demo.js"></script>
-<script>
-  // Open studio.html?loop=emotions (or views) to scrub a standalone loop instead of the video.
-  const q = new URLSearchParams(location.search).get('loop'); if (q && LOOPS[q]) window.LOOP = LOOPS[q];
-</script>
+<script src="src/preview.js"></script>
+<script src="src/crop.js"></script>
+<script src="src/runtime.js"></script>
 </body>
 </html>

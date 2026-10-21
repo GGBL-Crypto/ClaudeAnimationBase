@@ -3,10 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "license": "MIT",
-  "description": "Clawd, painted in p5.brush: a character kit and guide for making hand-painted Clawd animations",
+  "description": "Modular animation studio: watercolor, vector cartoon and pixel art",
   "scripts": {
     "sheet": "node render.mjs --sheet=0,1,2,3,4,5 --out=out/sheet.jpg",
-    "video": "node render.mjs --clip --out=out/video.mp4"
+    "video": "node render.mjs --clip --out=out/video.mp4",
+    "test": "node --test tests/*.test.mjs",
+    "test:visual": "node scripts/check-visuals.mjs",
+    "storyboard": "node render.mjs --project=visit --storyboard",
+    "review": "node scripts/review.mjs",
+    "verify": "node scripts/verify-video.mjs"
   },
   "dependencies": {
     "p5": "^2.3.3",
