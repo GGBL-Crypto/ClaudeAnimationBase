@@ -2,6 +2,8 @@ function initPreview() {
   const $ = id => document.getElementById(id), params = new URLSearchParams(location.search);
   const project = $('project'), style = $('style'), scrub = $('scrub'), play = $('play'), save = $('save');
   const duration = window.LOOP?.len || PROJECT.duration;
+  const hasPreview = !!AnimationPlatform.styles[PROJECT.style].preview;
+  $('quality-label').hidden = !hasPreview;
   let busy = false, wanted = null, playing = false, time = 0;
   function stop() { playing = false; play.textContent = 'Reproduzir'; }
   async function render() {
@@ -10,8 +12,8 @@ function initPreview() {
     try {
       while (wanted !== null) {
         const t = wanted; wanted = null; const start = performance.now();
-        await renderAt(t); time = t; scrub.value = t;
-        $('tt').textContent = t.toFixed(2) + ' / ' + duration.toFixed(2) + ' s · ' + Math.round(performance.now() - start) + ' ms/quadro';
+        await renderAt(t, 'image/png', .92, hasPreview ? { preview: $('quality').value === 'light' } : undefined); time = t; scrub.value = t;
+        $('tt').textContent = t.toFixed(2) + ' / ' + duration.toFixed(2) + ' s · ' + Math.round(performance.now() - start) + ' ms/quadro' + (hasPreview ? ' · prévia ' + ($('quality').value === 'light' ? 'leve' : 'final') : '');
         document.querySelectorAll('#shots button').forEach((button, i) => button.setAttribute('aria-current', String(t >= PROJECT.storyboard[i].start && t < PROJECT.storyboard[i].end)));
       }
       $('error').textContent = '';
@@ -23,8 +25,10 @@ function initPreview() {
   project.value = PROJECT.id;
   for (const id of PROJECT.compatibleStyles) style.add(new Option(AnimationPlatform.styles[id].name, id));
   style.value = PROJECT.style;
-  project.onchange = () => { params.set('project', project.value); params.delete('style'); params.delete('loop'); params.delete('t'); location.search = params; };
-  style.onchange = () => { params.set('style', style.value); params.delete('loop'); location.search = params; };
+  project.onchange = () => { params.set('project', project.value); for (const key of ['style','loop','t','resolution','projection','shadows']) params.delete(key); disposeAnimation(); location.search = params; };
+  style.onchange = () => { params.set('style', style.value); params.delete('loop'); disposeAnimation(); location.search = params; };
+  $('quality').onchange = () => { stop(); seek(time); };
+  window.stopPreview = stop;
   scrub.max = duration - 1 / PROJECT.fps; scrub.step = 1 / PROJECT.fps;
   scrub.oninput = () => { stop(); seek(+scrub.value); };
   play.onclick = async () => {
@@ -38,7 +42,15 @@ function initPreview() {
       await new Promise(resolve => setTimeout(resolve, 1000 / PROJECT.fps));
     }
   };
-  save.onclick = () => { const a = document.createElement('a'); a.href = animationEngine.canvas.toDataURL('image/png'); a.download = PROJECT.id + '-' + PROJECT.style + '-' + time.toFixed(2) + '.png'; a.click(); };
+  save.onclick = async () => {
+    if (hasPreview) { stop(); busy = true; save.disabled = true; }
+    try {
+      const a = document.createElement('a'); a.href = hasPreview ? await renderAt(time) : animationEngine.canvas.toDataURL('image/png');
+      a.download = PROJECT.id + '-' + PROJECT.style + '-' + time.toFixed(2) + '.png'; a.click();
+      if (hasPreview) $('tt').textContent = time.toFixed(2) + ' s · PNG em qualidade final';
+    } catch (error) { $('error').textContent = 'Falha ao salvar: ' + error.message; }
+    finally { if (hasPreview) { busy = false; save.disabled = false; } }
+  };
   $('story').textContent = PROJECT.story;
   if (!window.LOOP) PROJECT.storyboard.forEach(shot => {
     const li = document.createElement('li'), button = document.createElement('button'), detail = document.createElement('p');

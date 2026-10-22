@@ -7,6 +7,7 @@ Crie histórias com Codex, escolha um estilo e produza animações com storyboar
 | `watercolor` | Aquarela e tinta, p5.brush original | [Aquarela](src/styles/watercolor/GUIDE.md) |
 | `cartoon` | Formas vetoriais, contornos limpos, Canvas2D | [Cartoon](src/styles/cartoon/GUIDE.md) |
 | `pixel` | Sprites em 320×180, paleta limitada, ampliação 6× | [Pixel art](src/styles/pixel/GUIDE.md) |
+| `lowpoly-3d` | Three.js 0.186.1, geometria procedural, WebGL2 | [Low poly 3D](src/styles/lowpoly-3d/GUIDE.md) |
 
 ## Começar
 
@@ -30,6 +31,41 @@ O estúdio pré-visualiza histórias implementadas em código; não contém um s
 
 - **`demo`**: “A estrela caída”, 11 s, somente aquarela. É o padrão para preservar o uso original.
 - **`visit`**: “Uma visita”, 6 s, nos três estilos. Uma borboleta chega, pousa na cabeça de Clawd e parte; ele se despede. [Storyboard](STORYBOARD.md).
+- **`mars-discovery`**: “Um sinal na poeira”, 3 s/12 fps, somente 3D low poly. Robô explorador encontra uma pedra luminosa. [Storyboard](docs/storyboards/mars-discovery.md).
+- **`ocean-encounter`**: “O farol que nadava”, 8 s, 3D low poly. Submarino encontra uma água-viva luminosa e a acompanha. [Storyboard](docs/storyboards/ocean-encounter.md). Usa o mesmo backend de Marte, com [componentes reutilizáveis](docs/COMPONENTS_3D.md), cenário e bíblia visual próprios.
+
+## Usar o motor 3D
+
+```sh
+npm run studio
+# Abra http://127.0.0.1:8080/studio.html?project=mars-discovery
+node render.mjs --project=mars-discovery --resolution=720p --clip --out=out/mars-720.mp4
+# Inspecione o MP4 e seus quadros antes de avançar:
+node render.mjs --project=mars-discovery --resolution=1080p --clip --out=out/mars-1080.mp4
+# Mesmo motor, render por software:
+node render.mjs --project=mars-discovery --resolution=1080p --soft-gl --clip --out=out/mars-software.mp4
+node render.mjs --project=mars-discovery --png --workers=1 --out=out/mars-png
+node render.mjs --project=mars-discovery --sheet=1.5 --crop-at=.95,.2,0,450,350 --out=out/stone.jpg
+```
+
+O CLI abre/fecha seu próprio servidor loopback para o estilo ES. O servidor manual também aceita `npm run studio -- --port=8081`; escuta somente em `127.0.0.1` e serve apenas studio, JS de src e arquivos explicitamente permitidos das dependências. Documentos, renders, Git e caminhos codificados ou de travessia não são servidos. Os três estilos 2D continuam funcionando por `file://` e HTTP. O 3D aberto por `file://` apresenta a instrução do servidor.
+
+A prévia leve do 3D desenha em metade da resolução interna (960×540 na saída 1080p) e desativa sombras, mantendo o canvas público no tamanho de saída. Escolha “Final” para comparar; “Salvar quadro PNG” sempre captura qualidade final. `--projection=orthographic` e `--shadows=off` são alternativas fixadas para a sessão inteira. Falhas de WebGL2, shader e contexto são explícitas. Não há fallback 2D.
+
+O [relatório do motor 3D](docs/LOWPOLY_3D_REPORT.md) reúne arquivos, vídeos, testes, ambiente e medições reais. Artefatos locais ficam em `out/mars-discovery/`, sem sobrescrever os filmes anteriores.
+
+O [relatório de generalização](docs/GENERALIZATION_REPORT.md) registra o segundo filme e o impacto de 720p/12 FPS para 1080p/24 FPS. Para reproduzir a sequência de revisão:
+
+```sh
+node scripts/benchmark-ocean.mjs --resolution=720p --fps=12
+# Abra o MP4, decoded-sheet.png e detalhes; só então:
+node scripts/benchmark-ocean.mjs --resolution=1080p --fps=24
+# Acrescente --soft-gl para medir cada caso em software.
+npm run test:generalization
+node scripts/check-generalization-suite.mjs
+```
+
+O benchmark preserva saídas existentes e registra os tempos por revisão. A [proposta de prompts para storyboards](docs/PROMPT_TO_STORYBOARD_PLAN.md) é planejamento, sem interface de geração implementada.
 
 Vídeos de teste locais:
 
@@ -90,11 +126,12 @@ node scripts/check-render.mjs
 - [Arquitetura e etapas](ARCHITECTURE.md)
 - [Validação e evidências](docs/VALIDATION.md)
 - [Auditoria anterior ao 3D](docs/AUDIT_STAGE1.md)
-- [Plano Three.js low poly — aguardando aprovação](docs/LOWPOLY_3D_PLAN.md)
+- [Plano aprovado Three.js low poly](docs/LOWPOLY_3D_PLAN.md)
+- [Implementação e validação do quarto motor](docs/LOWPOLY_3D_REPORT.md)
 - [Adicionar estilos; preparar anime, motion graphics e 3D](docs/ADDING_STYLES.md)
 - [Instruções permanentes para Codex](AGENTS.md)
 - [Guia original de aquarela preservado](docs/WATERCOLOR_ORIGINAL.md)
 
-A API original de Clawd, emoções, vistas, pintura e câmera permanece na aquarela. Os outros motores têm APIs de desenho próprias; a coreografia de “Uma visita” exemplifica uma história portável. Não há conversão automática de qualquer cena entre meios. Anime, motion graphics e 3D são extensões previstas pelo contrato, ainda não implementadas.
+A API original de Clawd, emoções, vistas, pintura e câmera permanece na aquarela. Os outros motores têm APIs de desenho próprias; a coreografia de “Uma visita” exemplifica uma história portável. Não há conversão automática de qualquer cena entre meios. Anime e motion graphics continuam como extensões futuras; o quarto motor é o 3D low poly.
 
 Base original: Claude Animation Base de John Heibel, licença MIT mantida em [LICENSE](LICENSE). [PDoomVideo](https://github.com/JohnHeibel/PDoomVideo) foi consultado apenas como referência técnica e artística.

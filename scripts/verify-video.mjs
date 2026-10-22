@@ -10,7 +10,7 @@ try {
   const report = await verifyVideo(file);
   // Rechecking a video cannot establish its source revision. Preserve it only for identical bytes.
   if (previous?.videoSha256 === videoSha256) {
-    for (const key of ['project', 'style', 'sourceHash', 'sourceFiles', 'startedAt', 'elapsedMs', 'environment', 'arguments']) {
+    for (const key of ['project', 'style', 'sourceHash', 'sourceFiles', 'startedAt', 'elapsedMs', 'environment', 'arguments', 'timing', 'performance']) {
       if (previous[key] !== undefined) report[key] = previous[key];
     }
   }

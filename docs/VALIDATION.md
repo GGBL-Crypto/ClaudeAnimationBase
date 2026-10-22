@@ -1,5 +1,9 @@
 # Validação da plataforma — 21/10/2026
 
+Generalização 3D: [relatório do filme submarino](GENERALIZATION_REPORT.md). Nova revisão `66fd1e989802`: 8 s, 720p/12 FPS e 1080p/24 FPS, ambos em hardware e SwiftShader. O histórico abaixo é preservado; a seção antiga de limitações descreve o estado da primeira entrega, anterior ao quarto motor.
+
+Quarto motor: [relatório de implementação e validação 3D](LOWPOLY_3D_REPORT.md). Filmes de 3 s/12 fps/36 quadros foram produzidos e inspecionados em 720p antes de 1080p, com hardware e SwiftShader. As três implementações artísticas anteriores permanecem sem alterações; o relatório reúne regressões, hashes e tempos.
+
 Atualização posterior: [auditoria anterior ao 3D](AUDIT_STAGE1.md) registra a correção de rastreabilidade, remoção de `eval`, regressões e entregas regeneradas na revisão `8085d0383acb`. O histórico abaixo foi preservado; seus caminhos de vídeos referem-se às entregas anteriores. [Plano Three.js](LOWPOLY_3D_PLAN.md), aguardando aprovação.
 
 Ambiente: Windows, Node 24.15, Chrome headless, FFmpeg/FFprobe. Aquarela: ANGLE / AMD Radeon R9 200 Series / D3D11. Nenhuma dependência npm foi adicionada; a alteração prévia do usuário no package-lock foi preservada.

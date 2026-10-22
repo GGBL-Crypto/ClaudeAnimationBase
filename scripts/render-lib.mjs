@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
 import vm from 'node:vm';
+import { DEPENDENCY_ROUTES } from './studio-server.mjs';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export function catalog() {
@@ -16,7 +17,7 @@ export function catalog() {
 export function sourceSnapshot() {
   const hash = createHash('sha256'), files = {};
   const walk = dir => readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(`${dir}/${entry.name}`) : /\.js$/.test(entry.name) ? [`${dir}/${entry.name}`] : []);
-  for (const path of [...walk('src'), 'studio.html', 'package-lock.json', 'render.mjs', 'scripts/render-lib.mjs'].sort()) {
+  for (const path of [...walk('src'), ...DEPENDENCY_ROUTES, 'node_modules/three/package.json', 'studio.html', 'package.json', 'package-lock.json', 'render.mjs', 'scripts/render-lib.mjs', 'scripts/studio-server.mjs'].sort()) {
     const bytes = readFileSync(join(ROOT, path));
     hash.update(path); hash.update(bytes); files[path] = createHash('sha256').update(bytes).digest('hex');
   }
@@ -63,12 +64,36 @@ export async function launchBrowser(args = {}) {
   const gpu = args['soft-gl'] ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : args['gpu-angle'] ? angle[args['gpu-angle']] : [process.platform === 'win32' ? '--use-angle=d3d11' : process.platform === 'darwin' ? '--use-angle=metal' : '--use-gl=angle'];
   return puppeteer.launch({ executablePath: chrome, headless: true, protocolTimeout: 180000, args: [...(process.platform === 'linux' ? ['--no-sandbox'] : []), '--allow-file-access-from-files', '--ignore-gpu-blocklist', ...gpu, '--disable-renderer-backgrounding', '--disable-background-timer-throttling'] });
 }
+// Chromium can acknowledge Browser.close yet leave its Windows process alive. Bound only our child tree.
+export async function closeBrowser(browser, timeoutMs = 5000) {
+  if (!browser) return { forced: false };
+  const child = browser.process(); let timer, exceeded = false;
+  const forced = new Promise((resolve, reject) => {
+    timer = setTimeout(async () => {
+      exceeded = true;
+      try {
+        if (child?.pid && child.exitCode === null) {
+          if (process.platform === 'win32') await run('taskkill', ['/PID', String(child.pid), '/T', '/F'], { capture: true });
+          else child.kill('SIGKILL');
+        }
+        await browser.disconnect();resolve({ forced: true });
+      } catch (error) { reject(error); }
+    }, timeoutMs);
+  });
+  const graceful = (async () => {
+    for (const page of await browser.pages()) await page.evaluate(() => window.disposeAnimation?.()).catch(() => {});
+    await browser.close();return { forced: exceeded };
+  })();
+  try { return await Promise.race([graceful, forced]); }
+  finally { clearTimeout(timer); }
+}
 export async function openPage(browser, args = {}, { preview = false } = {}) {
   const page = await browser.newPage(), errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const query = new URLSearchParams(preview ? {} : { render: '' });
-  for (const key of ['project', 'style', 'loop']) if (args[key]) query.set(key, args[key]);
-  await page.goto(pathToFileURL(join(ROOT, 'studio.html')).href + '?' + query, { waitUntil: 'networkidle0' });
+  for (const key of ['project', 'style', 'loop', 'resolution', 'projection', 'shadows']) if (args[key]) query.set(key, args[key]);
+  const entry = args.origin ? args.origin + '/studio.html' : pathToFileURL(join(ROOT, 'studio.html')).href;
+  await page.goto(entry + '?' + query, { waitUntil: 'networkidle0' });
   await page.waitForFunction('window.ready || window.bootError', { timeout: 60000 });
   const error = await page.evaluate(() => window.bootError);
   if (error || errors.length) { await page.close(); throw new Error(error || errors.join('\n')); }

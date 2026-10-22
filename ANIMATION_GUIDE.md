@@ -9,6 +9,7 @@ Este guia vale para todos os estilos. A referência original completa está em [
 | Aquarela | [guia artístico](src/styles/watercolor/GUIDE.md) | p5.brush e motor original |
 | Cartoon vetorial | [guia artístico](src/styles/cartoon/GUIDE.md) | paths Canvas2D |
 | Pixel art | [guia artístico](src/styles/pixel/GUIDE.md) | sprites, grade e paleta limitada |
+| 3D low poly | [guia artístico](src/styles/lowpoly-3d/GUIDE.md) | Three.js/WebGL2, geometria procedural |
 
 Não há uma regra universal proibindo 3D, texto, preto, branco ou formas geométricas. Essas decisões dependem do meio e do pedido. Texto deve ajudar a história; não substitua uma ação por uma legenda sem necessidade.
 
@@ -38,7 +39,7 @@ Não há uma regra universal proibindo 3D, texto, preto, branco ou formas geomé
 
 `src/motion.js` preserva as funções originais: `clamp`, `lerp`, `seg`, `kf`, `ease/easeIn/easeOut/backOut/elasticOut`, `hash`, `wob`, `spring`, `ring`, `jump`, `take`, `stroll`, `arcPt`, `onTwos`, `pulse`, `beatN` e `mixCol`. O desenho é responsabilidade do motor. As opções de pose retornadas pelos helpers são dados; outros personagens podem interpretá-las por adaptadores.
 
-As coordenadas de mundo atuais são 1920×1080, origem no canto superior esquerdo, Y para baixo. Para renderizações fora de ordem, compute movimentos a partir de `t`. Sem `Math.random()`, relógio de parede ou integração de física acumulada. No motor aquarela, sementes estáveis por elemento impedem reboil acidental.
+Os motores 2D usam coordenadas 1920×1080, origem no canto superior esquerdo e Y para baixo. O motor 3D usa unidades de mundo e Y para cima; não reinterpretar helpers 2D como movimentos 3D. Para renderizações fora de ordem, compute movimentos a partir de `t`. Sem `Math.random()`, relógio de parede ou integração de física acumulada. No motor aquarela, sementes estáveis por elemento impedem reboil acidental.
 
 ## Revisão por quadros
 
@@ -54,6 +55,8 @@ npm run review
 Abra as imagens; um arquivo gerado não equivale a uma imagem revisada. Confira por plano: evento, tamanho, olhos, expressão e contraste. Nas tiras: antecipação, pausas, arcos, pouso e partida, corte e íris. Nos recortes: pés, mãos, acessórios, contatos e deformações. No pixel art, julgue fontes sem perdas: JPEG e MP4 introduzem cores de compressão.
 
 Recortes `--crop-at` aceitam números ou aritmética segura com `W`, `H`, `+ - * /` e parênteses. Por exemplo, `"--crop-at=W/2-10,(H+440)/2,500,400"`. Não aceitam execução de JavaScript, chamadas de função ou propriedades; a menção a expressões livres no guia original arquivado descreve apenas o comportamento histórico.
+
+No 3D, use também cinco valores `x,y,z,largura,altura`; o motor projeta o ponto pela câmera do quadro. Largura/altura são pixels, mesmo quando XYZ são unidades de mundo. O estúdio 3D usa HTTP local por `npm run studio`; a captura CLI cuida desse transporte. Para detalhes de projeção, prévia e descarte, consulte o guia do estilo.
 
 Documente defeito → causa → correção → evidência. Os testes automáticos verificam determinismo, workers, grade, paleta, configuração, alinhamento de cortes e controles da prévia; não entendem a história nem substituem inspeção visual.
 

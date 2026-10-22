@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { launchBrowser, openPage, frameOf, parseArgs } from './render-lib.mjs';
+import { launchBrowser, closeBrowser, openPage, frameOf, parseArgs } from './render-lib.mjs';
 
 const args=parseArgs(process.argv.slice(2)), browser=await launchBrowser(args), out='out/checks';
 mkdirSync(out,{recursive:true});const report=[];
@@ -58,4 +58,4 @@ try {
   assert.equal(preview.renderErrors.length,0);await preview.close();
   writeFileSync(join(out,'checks.json'),JSON.stringify({status:'passed',styles:report,legacyBaseline:'compared when available',preview:'desktop/mobile, storyboard, play/pause, style selection'},null,2)+'\n');
   console.log('PASS: determinismo, workers, contato, isolamento, paleta/grade, aquarela original, loops e prévia. Evidências: '+out);
-} finally {await browser.close();}
+} finally {await closeBrowser(browser);}

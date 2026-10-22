@@ -1,6 +1,8 @@
 # Plano de arquitetura — 21/10/2026
 
-Continuação: [auditoria e correções anteriores ao 3D](docs/AUDIT_STAGE1.md) e [plano Three.js low poly](docs/LOWPOLY_3D_PLAN.md). O documento abaixo preserva o plano original; a integração 3D ainda depende de aprovação.
+Evolução atual: [generalização do 3D](docs/GENERALIZATION_REPORT.md), [catálogo de componentes](docs/COMPONENTS_3D.md) e [proposta de prompts/storyboards](docs/PROMPT_TO_STORYBOARD_PLAN.md). Duas histórias 3D usam o mesmo backend sem alterações; os quatro estilos continuam disponíveis.
+
+Continuação: [auditoria anterior ao 3D](docs/AUDIT_STAGE1.md), [plano aprovado Three.js](docs/LOWPOLY_3D_PLAN.md) e [implementação/validação do quarto motor](docs/LOWPOLY_3D_REPORT.md). O documento abaixo preserva o plano original.
 
 Registrado antes da implementação. Objetivo: descrever uma história ao Codex, escolher um estilo, desenvolver cenas, revisar e produzir PNGs e MP4 verificáveis.
 

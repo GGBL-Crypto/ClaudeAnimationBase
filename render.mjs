@@ -5,10 +5,11 @@ import { pipeline } from 'node:stream/promises';
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, renameSync, statSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { catalog, sourceSnapshot, assertSourceHash, parseArgs, number, interval, run, launchBrowser, openPage, frameOf, verifyVideo } from './scripts/render-lib.mjs';
+import { startStudioServer } from './scripts/studio-server.mjs';
+import { catalog, sourceSnapshot, assertSourceHash, parseArgs, number, interval, run, launchBrowser, closeBrowser, openPage, frameOf, verifyVideo } from './scripts/render-lib.mjs';
 
 const HELP = `
-node render.mjs --project=visit --style=watercolor|cartoon|pixel <operação>
+node render.mjs --project=<id> --style=watercolor|cartoon|pixel|lowpoly-3d <operação>
   --storyboard                  folha dos tempos de revisão do projeto
   --sheet=0.5,2.5 --cols=3 --w=480
   --strip=1.9:2.7 --crop=600,340,400,300
@@ -21,19 +22,25 @@ node render.mjs --project=visit --style=watercolor|cartoon|pixel <operação>
   --out=out/arquivo.mp4 --fps=24 --audio=assets/musica.mp3
   --loop=emotions|views          folhas originais da aquarela
   --chrome=caminho --soft-gl --gpu-angle=vulkan|gl-egl
+  --resolution=720p|1080p        somente 3D; padrão 1080p
+  --projection=perspective|orthographic --shadows=on|off  (3D)
+  --crop-at=x,y,z,w,h            recorte XYZ; formato x,y,w,h preservado
 A prévia funciona ao abrir studio.html. Sem --project, preserva a demo original.
 `;
-let browser;
+let browser, studio, activePage;
+const jobStarted = performance.now(), timing = { initializationMs: 0, captureMs: 0, encodePipelineMs: 0, verificationMs: 0 }, reports = [];
 async function main() {
   const startedAt = new Date().toISOString(), started = performance.now();
   const args = parseArgs(process.argv.slice(2));
   if (args.help || !Object.keys(args).length) { console.log(HELP); return; }
-  const allowed = new Set(['help','project','style','storyboard','sheet','strip','stills','clip','frames','png','encode','frames-dir','range','workers','fps','out','audio','loop','crop','crop-at','cols','w','chrome','soft-gl','gpu-angle']);
+  const allowed = new Set(['help','project','style','storyboard','sheet','strip','stills','clip','frames','png','encode','frames-dir','range','workers','fps','out','audio','loop','crop','crop-at','cols','w','chrome','soft-gl','gpu-angle','resolution','projection','shadows']);
   for (const key of Object.keys(args)) if (!allowed.has(key)) throw new Error('Opção desconhecida: --' + key);
   const operations = ['storyboard','sheet','strip','stills','clip','frames','png','encode'].filter(key => args[key] !== undefined);
   if (operations.length !== 1) throw new Error('Escolha exatamente uma operação. Use --help.');
   const mode = operations[0], project = catalog().resolveProject(args.project || 'demo', args.style);
   args.project = project.id; args.style = project.style;
+  const style = catalog().styles[project.style];
+  if (style.dimensions !== 3 && ['resolution','projection','shadows'].some(key => args[key] !== undefined)) throw new Error('Opções de resolução/projeção/sombras exigem motor 3D');
   const base = join('out', project.id, project.style, ...(args.loop ? [String(args.loop)] : []));
   const framesDir = args['frames-dir'] || (mode === 'png' && args.out ? args.out : join(base, 'frames'));
   const manifestPath = join(framesDir, 'manifest.json');
@@ -45,9 +52,12 @@ async function main() {
     mkdirSync(dirname(out), { recursive: true });
     // Keep any prior final output intact if rendering, encoding or verification fails.
     const pending = out.replace(/\.mp4$/i, '') + '.partial-' + process.pid + '.mp4';
-    await encode(pending);
+    const encodeStarted = performance.now(); await encode(pending); timing.encodePipelineMs = performance.now() - encodeStarted;
+    if(activePage&&!activePage.isClosed())info.engine=await activePage.evaluate(()=>animationEngine.info());
     const reviewDir = out + '.review';
+    const verifyStarted = performance.now();
     const report = await verifyVideo(pending, expected, reviewDir);
+    timing.verificationMs = performance.now() - verifyStarted;
     assertSourceHash(stamp);
     renameSync(pending, out);
     report.file = resolve(out); report.project = project.id; report.style = project.style; report.sourceHash = stamp;
@@ -56,6 +66,7 @@ async function main() {
     report.startedAt = startedAt; report.elapsedMs = Math.round(performance.now() - started);
     report.environment = { platform: process.platform, arch: process.arch, node: process.version, browser: browser ? await browser.version() : null, engine: info.engine || null };
     report.arguments = process.argv.slice(2);
+    reports.push({ path: join(reviewDir, 'report.json'), report });
     writeFileSync(join(reviewDir, 'report.json'), JSON.stringify(report, null, 2) + '\n');
     console.log('MP4 verificado: ' + out + ' (' + report.frames + ' quadros, ' + report.duration + ' s). Inspeção visual pendente: ' + join(reviewDir, 'decoded-sheet.png'));
   }
@@ -73,6 +84,7 @@ async function main() {
     fps = manifest.fps;
     const { count, extension, range, project: saved } = manifest;
     info = saved;
+    for (const key of ['resolution','projection','shadows']) if (args[key] !== undefined && args[key] !== saved.engine?.settings?.[key]) throw new Error('Opção diverge da sequência: ' + key);
     const files = readdirSync(framesDir).filter(name => /^f\d+\.(jpg|png)$/.test(name));
     if (files.length !== count) throw new Error('Sequência incompleta ou com quadros excedentes');
     for (let i=0;i<count;i++) if (!existsSync(join(framesDir, filename(i,extension))) || statSync(join(framesDir, filename(i,extension))).size < 100) throw new Error('Quadro ausente ou vazio: ' + i);
@@ -81,9 +93,14 @@ async function main() {
       { width: saved.width, height: saved.height, fps, frames: count, duration: count/fps });
     return;
   }
+  const initStarted = performance.now();
+  if (style.scripts.some(item => typeof item === 'object' && item.type === 'module')) { studio = await startStudioServer(); args.origin = studio.origin; }
   browser = await launchBrowser(args);
   const page = await openPage(browser,args);
+  activePage = page;
   info = await page.evaluate(() => projectInfo());
+  timing.initializationMs = performance.now() - initStarted;
+  async function capture(page, t, type) { const started = performance.now(); const bytes = await frameOf(page, t, type); timing.captureMs += performance.now() - started; return bytes; }
   const duration = info.duration;
   number(duration, 'duração retornada pelo motor', { min: .001 });
   const range = interval(args.range ?? (typeof args.clip === 'string' ? args.clip : undefined), duration);
@@ -105,7 +122,7 @@ async function main() {
     if(args.crop){crop=String(args.crop).split(',').map(v=>number(v,'crop'));if(crop.length!==4||crop[2]<=0||crop[3]<=0)throw new Error('Use --crop=x,y,largura,altura');}
     if(args['crop-at']){
       at=String(args['crop-at']).split(',');
-      if(at.length!==4)throw new Error('Use --crop-at=x,y,largura,altura');
+      if(![4,5].includes(at.length))throw new Error('Use --crop-at=x,y[,z],largura,altura');
     }
     if(crop&&at)throw new Error('Escolha crop ou crop-at');
     const sheet=await page.evaluate((ts,c,w,crop,at)=>renderSheet(ts,c,w,crop,at),times,cols,width,crop,at);
@@ -115,15 +132,15 @@ async function main() {
     console.log(out+' · '+times.length+' quadros · ms/quadro: '+sheet.ms.join(' '));
   } else if(mode==='stills') {
     const out=args.out||join(base,'stills');mkdirSync(out,{recursive:true});
-    for(const t of parseTimes(args.stills)){const file=join(out,'t'+t.toFixed(2).replace('.','_')+'.png');writeFileSync(file,await frameOf(page,t));console.log(file);}
+    for(const t of parseTimes(args.stills)){const file=join(out,'t'+t.toFixed(2).replace('.','_')+'.png');writeFileSync(file,await capture(page,t));console.log(file);}
   } else if(mode==='frames'||mode==='png') {
     const extension=mode==='png'?'png':'jpg';
-    const workers=number(args.workers??2,'workers',{min:1,max:8,integer:true});
+    const workers=number(args.workers??(style.dimensions===3?1:2),'workers',{min:1,max:8,integer:true});
     const manifest={version:1,sourceHash:stamp,sourceFiles:source.files,project:info,loop:args.loop||'',fps,range,count,extension};
     if(existsSync(manifestPath)) {
       const saved=JSON.parse(readFileSync(manifestPath,'utf8'));
       // GPU strings can differ between workers; only configuration and provenance define the cache.
-      const identity=m=>JSON.stringify([m.sourceHash,m.project.id,m.project.style,m.project.styleConfig,m.loop,m.fps,m.range,m.count,m.extension]);
+      const identity=m=>JSON.stringify([m.sourceHash,m.project.id,m.project.style,m.project.styleConfig,m.project.width,m.project.height,m.project.engine?.settings,m.project.engine?.device,m.loop,m.fps,m.range,m.count,m.extension]);
       if(identity(saved)!==identity(manifest))throw new Error('Cache incompatível. Escolha um novo --frames-dir.');
     } else if(existsSync(framesDir)&&readdirSync(framesDir).some(name=>/^f\d+\.(jpg|png)$/.test(name)))throw new Error('Quadros sem manifesto; escolha um novo --frames-dir.');
     mkdirSync(framesDir,{recursive:true});writeFileSync(manifestPath,JSON.stringify(manifest,null,2)+'\n');
@@ -132,7 +149,7 @@ async function main() {
     await page.close();
     await Promise.all(Array.from({length:workers},async()=>{
       const worker=await openPage(browser,args);
-      try {while(next<todo.length){const i=todo[next++],file=join(framesDir,filename(i,extension));writeFileSync(file+'.tmp',await frameOf(worker,range[0]+i/fps,extension==='png'?'image/png':'image/jpeg'));renameSync(file+'.tmp',file);if(++done%24===0||done===todo.length)console.log('quadro '+done+'/'+todo.length);}}
+      try {while(next<todo.length){const i=todo[next++],file=join(framesDir,filename(i,extension));writeFileSync(file+'.tmp',await capture(worker,range[0]+i/fps,extension==='png'?'image/png':'image/jpeg'));renameSync(file+'.tmp',file);if(++done%24===0||done===todo.length)console.log('quadro '+done+'/'+todo.length);}}
       finally {await worker.close();}
     }));
     assertSourceHash(stamp);
@@ -142,7 +159,7 @@ async function main() {
     await videoOutput(args.out||join(base,'video.mp4'),async pending=>{
       const ff=spawn('ffmpeg',['-y','-v','error','-f','image2pipe','-framerate',String(fps),'-c:v','png','-i','-',...audioArgs(audio,range[0],count/fps),...codec,'-frames:v',String(count),pending],{windowsHide:true,stdio:['pipe','inherit','inherit']});
       const exited=new Promise((ok,bad)=>{ff.on('error',bad);ff.on('close',code=>code===0?ok():bad(new Error('FFmpeg terminou com código '+code)));});
-      async function* frames(){for(let i=0;i<count;i++){yield await frameOf(page,range[0]+i/fps);if(i%24===0||i===count-1)console.log('quadro '+(i+1)+'/'+count);}}
+      async function* frames(){for(let i=0;i<count;i++){yield await capture(page,range[0]+i/fps);if(i%24===0||i===count-1)console.log('quadro '+(i+1)+'/'+count);}}
       try {await Promise.all([pipeline(Readable.from(frames()),ff.stdin),exited]);}
       catch(error){ff.kill();throw error;}
     },{width:info.width,height:info.height,fps,frames:count,duration:count/fps});
@@ -150,4 +167,10 @@ async function main() {
 }
 function filename(i,extension){return 'f'+String(i).padStart(5,'0')+'.'+extension;}
 try {await main();} catch(error){console.error('Render falhou: '+error.message);process.exitCode=1;}
-finally {await browser?.close();}
+finally {
+  const cleanupStarted=performance.now();
+  const shutdown = await closeBrowser(browser);
+  await studio?.close();
+  timing.cleanupMs=performance.now()-cleanupStarted;timing.totalMs=performance.now()-jobStarted;
+  for(const {path,report} of reports){report.environment.forcedBrowserShutdown=shutdown.forced;report.timing=Object.fromEntries(Object.entries(timing).map(([key,value])=>[key,Math.round(value)]));writeFileSync(path,JSON.stringify(report,null,2)+'\n');}
+}

@@ -3,12 +3,22 @@
   "version": "1.0.0",
   "private": true,
   "license": "MIT",
-  "description": "Modular animation studio: watercolor, vector cartoon and pixel art",
+  "description": "Modular animation studio: watercolor, vector cartoon, pixel art and low poly 3D",
   "scripts": {
+    "studio": "node scripts/studio-server.mjs",
     "sheet": "node render.mjs --sheet=0,1,2,3,4,5 --out=out/sheet.jpg",
     "video": "node render.mjs --clip --out=out/video.mp4",
     "test": "node --test tests/*.test.mjs",
     "test:visual": "node scripts/check-visuals.mjs",
+    "test:integration": "node scripts/check-integration.mjs",
+    "test:three": "node scripts/check-three.mjs",
+    "test:render-three": "node scripts/check-render-three.mjs",
+    "review:three": "node scripts/review-three.mjs",
+    "benchmark:three": "node scripts/benchmark-three.mjs",
+    "test:generalization": "node scripts/check-generalization.mjs",
+    "test:mars-baseline": "node scripts/check-mars-baseline.mjs",
+    "review:ocean": "node scripts/review-ocean.mjs",
+    "benchmark:ocean": "node scripts/benchmark-ocean.mjs",
     "storyboard": "node render.mjs --project=visit --storyboard",
     "review": "node scripts/review.mjs",
     "verify": "node scripts/verify-video.mjs"
@@ -16,6 +26,7 @@
   "dependencies": {
     "p5": "^2.3.3",
     "p5.brush": "^2.2.3",
-    "puppeteer-core": "^25.11.0"
+    "puppeteer-core": "^25.11.0",
+    "three": "0.186.1"
   }
 }

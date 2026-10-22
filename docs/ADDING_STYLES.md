@@ -1,6 +1,6 @@
 # Adicionar um estilo ou motor
 
-Para o quarto estilo, consulte o [plano Three.js low poly](LOWPOLY_3D_PLAN.md): inclui prova de carregamento, contrato, transporte HTTP, dependências e critérios de aceite. É planejamento para revisão, não um motor disponível.
+O quarto estilo segue o [plano Three.js low poly](LOWPOLY_3D_PLAN.md); a implementação e suas evidências estão no [relatório do motor](LOWPOLY_3D_REPORT.md).
 
 1. Crie `src/styles/<id>/config.js`, `engine.js`, `GUIDE.md` e `AGENTS.md`.
 2. Registre `{ id, name, backend, scripts, config, validate? }` via `AnimationPlatform.registerStyle`. `config` tem cinco grupos: `palette`, `texture`, `outline`, `character` (unit/width/height positivos) e `effects`. Declare os controles que o motor realmente usa; valide restrições específicas.
@@ -12,10 +12,11 @@ Para o quarto estilo, consulte o [plano Three.js low poly](LOWPOLY_3D_PLAN.md): 
 ```js
 window.animationEngine = {
   async init() { /* preparar recursos */ },
-  async render(t) { /* limpar e desenhar o quadro completo em canvas */ },
+  async render(t, options) { /* quadro completo; options é opcional */ },
   canvas, // HTMLCanvasElement em 1920×1080, capturável por toDataURL
   worldToScreen(x, y) { return [x, y]; }, // câmera do último quadro para --crop-at
-  info() { return 'nome e versão do backend'; }
+  info() { return 'nome e versão do backend'; }, // ou objeto JSON sem ciclos
+  dispose() { /* opcional; obrigatório para motores que alocam recursos GPU */ }
 };
 ```
 
@@ -29,6 +30,8 @@ O runtime oferece `renderAt`, `renderSheet`, `projectInfo` e seleção de projet
 | Motion graphics | tempo, easing, storyboard, exportação | tipografia, composição, formas, transições e regras de marca |
 | 3D | tempo, cortes, revisão, captura, MP4 | engine WebGL, cena, câmera/projeção, materiais, luzes, assets e animação por tempo absoluto |
 
-`worldToScreen` em 3D deve projetar o ponto no plano/câmera adequado; estenda o formato de recorte explicitamente se precisar de Z. Nenhum dos três motores futuros está implementado. A arquitetura atual não obriga 3D a usar `paint`, paletas sem preto, pixelização ou vistas 2D.
+`worldToScreen(x,y,z=0)` em 3D projeta o ponto pela câmera do último quadro. `--crop-at=x,y,z,w,h` só é aceito por estilos com `dimensions:3`; quatro valores legados continuam válidos. Low poly 3D está implementado; anime e motion graphics continuam futuros. A arquitetura não obriga 3D a usar `paint`, paletas sem preto, pixelização ou vistas 2D.
+
+Estilos podem declarar `scripts: [{src:'...',type:'module'}]`: o loader aguarda o grafo ES via HTTP loopback, enquanto strings continuam scripts clássicos. Declare `preview:true` somente se `render(t,{preview:true})` suporta o perfil leve. O runtime chama `dispose()` ao sair/trocar de projeto e em falhas de boot. O motor deve liberar recursos uma única vez e recusar render após descarte. Novos assets/rotas/dependências precisam entrar no inventário e na lista explícita do servidor.
 
 As três implementações atuais são APIs artísticas próprias. O contrato comum exporta quadros; não promete converter automaticamente uma cena arbitrária entre mídias.

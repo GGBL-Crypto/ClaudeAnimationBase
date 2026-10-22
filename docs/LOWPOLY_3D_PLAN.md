@@ -1,6 +1,6 @@
 # Three.js low poly — plano das Etapas 2–5
 
-Data: 21/10/2026. **Status: planejamento; Etapa 3 depende de aprovação expressa do usuário.** A auditoria/correção dos estilos atuais está em [AUDIT_STAGE1.md](AUDIT_STAGE1.md). Nenhum estilo 3D, projeto de Marte ou servidor de produção foi registrado nesta etapa.
+Data: 21/10/2026. **Plano aprovado expressamente pelo usuário em 21/10/2026.** Implementação e evidências das Etapas 3–5 em [LOWPOLY_3D_REPORT.md](LOWPOLY_3D_REPORT.md). O texto abaixo preserva o planejamento anterior à aprovação; suas referências à espera de aprovação descrevem aquela fase. A auditoria inicial está em [AUDIT_STAGE1.md](AUDIT_STAGE1.md).
 
 ## Compatibilidade confirmada
 

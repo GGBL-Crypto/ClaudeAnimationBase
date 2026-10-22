@@ -4,9 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Estúdio de animação</title>
+<script type="importmap">
+{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}
+</script>
 <style>
   :root { color-scheme: dark; --bg: #1b1820; --surface: #29252f; --text: #f3ebdc; --muted: #c7bccc; --accent: #f2a283; --line: #5e5265; }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
   main { padding: 20px; max-width: 1440px; margin: auto; }
   h1 { font-size: 24px; margin: 0 0 16px; }
@@ -40,6 +44,7 @@
   <div class="bar">
     <label>Projeto <select id="project" aria-label="Projeto" disabled></select></label>
     <label>Estilo <select id="style" aria-label="Estilo visual" disabled></select></label>
+    <label id="quality-label" hidden>Prévia <select id="quality" aria-label="Qualidade da prévia"><option value="light">Leve</option><option value="final">Final</option></select></label>
   </div>
   <canvas id="out" width="1920" height="1080" aria-label="Prévia do vídeo"></canvas>
   <div class="bar">
@@ -56,9 +61,11 @@
 <script src="src/styles/watercolor/config.js"></script>
 <script src="src/styles/cartoon/config.js"></script>
 <script src="src/styles/pixel/config.js"></script>
+<script src="src/styles/lowpoly-3d/config.js"></script>
 <script src="src/config.js"></script>
 <script src="src/preview.js"></script>
 <script src="src/crop.js"></script>
+<script src="src/loader.js"></script>
 <script src="src/runtime.js"></script>
 </body>
 </html>
