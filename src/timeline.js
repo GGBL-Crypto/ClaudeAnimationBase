@@ -13,6 +13,14 @@ function shots(list) {
   }
   SHOTS.sort((a, b) => a[0] - b[0]);
 }
+// shotsById({id: fn}): como shots(), mas o início vem do storyboard pelo ID do plano.
+function shotsById(map) {
+  shots(Object.entries(map).map(([id, fn]) => {
+    const shot = PROJECT.storyboard.find(s => s.id === id);
+    if (!shot) throw new Error(`Plano desconhecido: ${id}`);
+    return [shot.start, fn];
+  }));
+}
 function validateShots() {
   if (SHOTS.length !== PROJECT.storyboard.length || SHOTS.some((shot, i) => shot[0] !== PROJECT.storyboard[i].start)) throw new Error('Cenas e storyboard têm cortes diferentes');
 }

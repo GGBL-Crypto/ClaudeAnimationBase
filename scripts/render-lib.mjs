@@ -11,7 +11,7 @@ import { DEPENDENCY_ROUTES } from './studio-server.mjs';
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export function catalog() {
   const context = vm.createContext({});
-  for (const file of ['src/platform.js', ...readdirSync(join(ROOT, 'src/styles')).filter(name => existsSync(join(ROOT, 'src/styles', name, 'config.js'))).map(name => `src/styles/${name}/config.js`), 'src/config.js']) vm.runInContext(readFileSync(join(ROOT, file), 'utf8'), context, { filename: file });
+  for (const file of ['src/platform.js', ...readdirSync(join(ROOT, 'src/styles')).filter(name => existsSync(join(ROOT, 'src/styles', name, 'config.js'))).map(name => `src/styles/${name}/config.js`), 'src/config.js', ...(existsSync(join(ROOT, 'src/episodes.js')) ? ['src/episodes.js'] : [])]) vm.runInContext(readFileSync(join(ROOT, file), 'utf8'), context, { filename: file });
   return context.AnimationPlatform;
 }
 export function sourceSnapshot() {
