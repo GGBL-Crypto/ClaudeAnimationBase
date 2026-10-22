@@ -11,3 +11,7 @@ Movimento é calculado no tempo contínuo. Antecipe mudanças de expressão com 
 `animationEngine.context` expõe o contexto nativo para novas cenas. `VisitArt` é apenas a porta artística da história de demonstração: acrescente os objetos que uma nova história realmente precisa. Não tente traduzir chamadas de p5.brush para cartoon implicitamente.
 
 Validação: ausência de bibliotecas p5 na página, curvas sem serrilhado indevido, olhos legíveis, contornos uniformes, determinismo e dimensões estáveis.
+
+## Kit
+
+`kit.js` (carregado depois de `engine.js`) expõe `window.Kit` com primitivas gerais para cenas de natureza e criaturas: `cam`/`camEnd` (câmera com save/restore), `poly`, `ellipse`, `line` (opção `smooth`), `gradient`, `text` (`k` 0–1 com `backOut`), `wipe`, `iris`, `flash`, `vignette`. Todas são funções puras dos argumentos e usam `STYLE.palette` e `STYLE.outline.weight`. `VisitArt` não usa o Kit.
