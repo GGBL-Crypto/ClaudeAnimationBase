@@ -14,6 +14,13 @@ export function createLowpolyEngine(canvas, config) {
   const contextLost=event=>{if(!disposed){event.preventDefault();failure='Contexto WebGL2 perdido. Recarregue o projeto.';window.dispatchEvent(new CustomEvent('animationerror',{detail:failure}));}};
   internal.addEventListener('webglcontextlost',contextLost);
   const art={THREE,scene,config,
+    own:track,
+    environment(room){
+      if(!config.assets.enabled)throw Error('Ambiente importado exige perfil de assets');
+      const generator=new THREE.PMREMGenerator(renderer);let target;
+      try{target=generator.fromScene(room,.04,.1,30,{size:128});track(target);scene.environment=target.texture;return target.texture;}
+      finally{generator.dispose();room.dispose();}
+    },
     group(parent=scene){const group=new THREE.Group();parent.add(group);return group;},
     material(color,options={}){return track(new THREE.MeshLambertMaterial({color,flatShading:config.materials.flat,...options}));},
     geometry(value){return track(value);},
@@ -26,12 +33,14 @@ export function createLowpolyEngine(canvas, config) {
   const engine={canvas,scene,art,settings,
     async init(){
       try {
+        assertLive();
         canvas.width=width;canvas.height=height;
         const attributes={alpha:false,antialias:true,preserveDrawingBuffer:true,powerPreference:'low-power'};
         const gl=internal.getContext('webgl2',attributes);
         if(!gl)throw new Error('WebGL2 indisponível; este motor exige WebGL2. Use um navegador compatível ou --soft-gl.');
         renderer=new THREE.WebGLRenderer({canvas:internal,context:gl,...attributes});
         renderer.setPixelRatio(1);renderer.setSize(width,height,false);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.NoToneMapping;
+        if(config.assets.enabled){renderer.toneMapping=config.assets.toneMapping==='aces'?THREE.ACESFilmicToneMapping:THREE.NoToneMapping;renderer.toneMappingExposure=config.assets.exposure;}
         renderer.debug.onShaderError=(gl,program)=>{failure='Falha de shader WebGL2: '+gl.getProgramInfoLog(program);throw new Error(failure);};
         const ext=gl.getExtension('WEBGL_debug_renderer_info');device=gl.getParameter(ext?ext.UNMASKED_RENDERER_WEBGL:gl.RENDERER);
         scene.background=new THREE.Color(config.palette.sky);
@@ -46,15 +55,18 @@ export function createLowpolyEngine(canvas, config) {
         window.Lowpoly=art;
         if(typeof window.buildLowpolyScene!=='function')throw new Error('Projeto sem construtor de cena 3D');
         buildLowpolyScene(art);drawWorld(0);scene.updateMatrixWorld(true);
-        let meshes=0,triangles=0;const geometries=new Set();
-        scene.traverse(o=>{if(o.isMesh){meshes++;geometries.add(o.geometry);}});
-        for(const g of geometries)triangles+=(g.index?.count||g.attributes.position.count)/3;
+        let meshes=0,triangles=0;
+        scene.traverse(o=>{if(o.isMesh){meshes++;triangles+=(o.geometry.index?.count||o.geometry.attributes.position.count)/3;}});
         if(meshes>config.texture.meshBudget||triangles>config.texture.triangleBudget)throw new Error(`Orçamento 3D excedido: ${meshes} meshes, ${triangles} triângulos`);
         await renderer.compileAsync(scene,camera);assertLive();await engine.render(0);
       }catch(error){engine.dispose();throw error;}
     },
     async render(t,{preview=false}={}){
-      assertLive();profile=preview?'light':'final';
+      assertLive();const nextProfile=preview?'light':'final';
+      // Refresh cached material variants when preview switches shadow features.
+      // Without this, the first final skinned frame can retain a preview program state.
+      if(profile!==nextProfile)scene.traverse(o=>{for(const material of Array.isArray(o.material)?o.material:o.material?[o.material]:[])material.needsUpdate=true;});
+      profile=nextProfile;
       const scale=preview?config.preview.scale:1,w=Math.round(width*scale),h=Math.round(height*scale);
       if(internal.width!==w||internal.height!==h)renderer.setSize(w,h,false);
       renderer.shadowMap.enabled=settings.shadows==='on'&&!preview;renderer.shadowMap.needsUpdate=true;
@@ -69,7 +81,7 @@ export function createLowpolyEngine(canvas, config) {
       if(view.z>=0||ndc.z < -1||ndc.z>1)throw new Error('Ponto fora da profundidade da câmera');
       return [(ndc.x+1)*width/2,(1-ndc.y)*height/2];
     },
-    info(){return {backend:'Three.js / WebGL2',revision:THREE.REVISION,device,settings,profile,width,height,internalWidth:internal.width,internalHeight:internal.height,drawCalls:renderer?.info.render.calls||0,triangles:renderer?.info.render.triangles||0,disposed,released:{...released}};},
+    info(){return {backend:'Three.js / WebGL2',revision:THREE.REVISION,device,settings,profile,width,height,internalWidth:internal.width,internalHeight:internal.height,drawCalls:renderer?.info.render.calls||0,triangles:renderer?.info.render.triangles||0,...(config.assets.enabled?{assetProfile:{...config.assets},memory:renderer?{...renderer.info.memory}:null}:{}),disposed,released:{...released}};},
     dispose(){
       if(disposed)return;disposed=true;
       scene.traverse(o=>{

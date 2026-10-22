@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "id": "khronos-rigged-simple",
+  "version": "1.0.0",
+  "profile": "articulated",
+  "origin": {
+    "kind": "licensed",
+    "source": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/15cd02d304e54cb42a4db4eefe719f76190f4b68/Models/RiggedSimple/glTF-Binary/RiggedSimple.glb",
+    "author": "Cesium",
+    "commit": "15cd02d304e54cb42a4db4eefe719f76190f4b68"
+  },
+  "license": {
+    "identifier": "CC-BY-4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/",
+    "commercial": true,
+    "reviewedBy": "Codex: individual upstream README, pinned bytes",
+    "reviewedAt": "2026-10-22",
+    "evidence": [
+      "README.md",
+      "acquisition.json"
+    ],
+    "attribution": "Cesium"
+  },
+  "entry": "RiggedSimple.glb",
+  "style": "lowpoly-3d",
+  "identity": {
+    "name": "RiggedSimple",
+    "rigVersion": "1.0.0",
+    "units": "metres in imported hierarchy",
+    "front": "+Z"
+  },
+  "available": {
+    "views": [
+      "3d"
+    ],
+    "expressions": [],
+    "poses": []
+  },
+  "files": [
+    {
+      "path": "RiggedSimple.glb",
+      "bytes": 15104,
+      "sha256": "3a79dabb67bb0cd598a18d08b954d9d357c27c30672f82ef5d3f4e7fe6ca3401"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "README.md",
+      "bytes": 917,
+      "sha256": "7fd42e0fee9302eaaac8dd9eb82cd16e7beb4699e1d08480c8fd4a19ad01c257"
+    },
+    {
+      "path": "acquisition.json",
+      "bytes": 681,
+      "sha256": "c266fcceba7f17d901df5767bca1188b518cb08f2c5a42147d8e13909ca95007"
+    }
+  ]
+}

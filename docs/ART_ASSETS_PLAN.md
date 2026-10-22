@@ -1,6 +1,10 @@
 # Evolução artística dos quatro motores — auditoria e plano
 
+Atualização em 22/10/2026: a etapa de [PNG em camadas para aquarela](WATERCOLOR_ASSET_ACTOR_REPORT.md) foi autorizada separadamente e tem relatório próprio. As afirmações históricas abaixo de ausência de adaptadores 2D não descrevem esse incremento. O perfil procedural, os packs e a entrega 3D foram preservados. SVG/cartoon, atlas/pixel e compilador JSON continuam fora desta etapa.
+
 21/10/2026, horário de São Paulo. **Documento para revisão; implementação não iniciada.** Não inclui compilador de storyboard JSON, geração automática por prompt, aquisição de recursos, dependências novas ou novos renders.
+
+**Atualização autorizada:** o usuário aprovou a implementação incremental de infraestrutura comum e um piloto 3D estático, após acrescentar a seção 15. A ordem/escopo da seção 16 prevalecem sobre a sequência abrangente da seção 13. As descrições de auditoria acima/abaixo preservam o estado anterior; resultados de implementação serão registrados em relatório próprio.
 
 Recomendação: acrescentar um catálogo de assets e quatro adaptadores pequenos, mantendo os backends, o contrato `animationEngine`, a timeline, a captura e a verificação existentes. O ganho visual depende tanto de arte preparada para animação quanto de importação. Mais curvas, polígonos ou efeitos, isoladamente, não garantem acabamento profissional.
 
@@ -374,3 +378,51 @@ Resultado esperado desta próxima implementação: suporte comprovado a quatro p
 Foi realizada auditoria de código e inspeção das quatro referências e quadros atuais; foi produzido apenas este plano. Não foram alterados motores, instalado pacote, adquirido/importado asset, executado compilador de storyboard, produzido novo vídeo ou proclamada equivalência às referências. A implementação permanece aguardando revisão do usuário.
 
 Conferência ao finalizar: `sourceHash()` continua exatamente `66fd1e9898025395092effec18fb8db9c0bb838e7fc7eb7eec8b323923ffa701`; `git diff --check` não apontou erros nas alterações rastreadas. A única criação desta auditoria é `docs/ART_ASSETS_PLAN.md`; as referências foram fornecidas pelo usuário. Não foi necessário executar novamente testes/renderizações para uma alteração apenas documental.
+
+## 15. Assets originais gerados por modelos de imagem
+
+O catálogo aceita duas rotas de origem independentes: pacotes licenciados (incluindo CC0) e arte original, inclusive imagens produzidas externamente por modelos como Nano Banana. A segunda rota é **importação manual de arquivos locais**; não integra API, conta, pagamento ou automação da interface web do provedor.
+
+PNG/JPG de conceito, folha de personagem, expressões e poses são fontes raster, com capacidades verificadas. PNG não implica alpha útil; fundo quadriculado pode estar pintado. JPEG não tem alpha. Uma folha pode ter desenhos desalinhados, membros ocultos e poses inconsistentes. Aparência vetorial/pixelada não comprova SVG, grade/paleta correta ou sprites animáveis. Nenhuma imagem é declarada geometria, textura PBR, rig ou clip 3D.
+
+### Proveniência obrigatória
+
+- Categoria de origem: `cc0`, `licensed`, `original` ou `generated`; autor/operador informado, fonte e data.
+- Para `generated`: provedor, nome/modelo exato informado (incluindo versão se disponível), prompt integral, negative prompt/parâmetros quando conhecidos, seed/job ID quando disponibilizados e registro explícito de campos desconhecidos. Não preencher detalhes inventados.
+- Referências utilizadas: arquivos locais e hashes, finalidade (qualidade/identidade/composição), origem e condição de uso revista. Referências apenas visuais não ganham automaticamente permissão para incorporação.
+- Condições de uso aplicáveis à geração: URL, data da consulta, evidência local/snapshot e hash, revisão de uso comercial e restrições registradas. Ser gerado por IA não equivale a CC0 ou autorização comercial universal.
+- Hash do original recebido, das folhas/poses/expressões, de cada arquivo de referência/evidência e dos derivados. Registrar ferramenta, parâmetros e responsável pelas operações de recorte/máscara/retoque/redimensionamento.
+- Vínculo entre gerações/edições e versão publicada; fontes originais imutáveis. Prompts, provas e referências não são servidos publicamente ao estúdio: só os arquivos de produção e metadados técnicos necessários.
+
+Sem condições comprovadas/revisão registrada, o candidato continua na inbox. Suporte à proveniência não transforma o catálogo em um verificador jurídico automático. Pacotes CC0 mantêm a evidência do autor/pacote e não precisam de campos de modelo/prompt.
+
+### Preparação 2D planejada
+
+Fluxo: imagem original → seleção/revisão de identidade → recortes explícitos de poses/expressões → máscaras/remoção de fundo e retoque → reconstrução das áreas escondidas nas juntas → exportação de partes PNG com alpha real → pivôs, parentesco, anchors, sobreposição e limites de rotação → poses de teste → publicação de versão preparada.
+
+As etapas de máscara/limpeza/reconstrução são trabalho de preparação artística, não garantias do gerador. Salvar original e derivados separadamente. Uma folha de expressões é recortada por retângulos revisados, não por presumir uma grade uniforme. Validar alinhamento dos olhos/rosto, escala, roupa, paleta e proporções entre desenhos. Testar braços/cabelo em amplitudes extremas para detectar buracos e aparência de recorte. Pose inteira pode ser mais adequada que articulação ampla de uma única vista.
+
+Aquarela poderá usar essas camadas com papel/tinta. Cartoon poderá usar partes raster num perfil explicitamente ilustrado; só um SVG real, preparado e validado, entra na via SVG. Pixel exige redesenho/limpeza de clusters e paleta/grade antes de publicar sprites, se a fonte gerada não atender aos critérios. Nesta primeira implementação há admissão/catalogação de imagens e metadados, **sem os três adaptadores 2D**.
+
+### Conceito e personagem 3D são etapas separadas
+
+Conceito visual raster → model sheet/vistas consistentes → modelagem/conversão autorizada → retopologia/UVs/materiais → exportação GLB/glTF e inspeção → rigging/skinning → clips/morphs e revisão temporal. Cada derivação tem fontes, ferramentas, direitos e hashes próprios. Conversão/modelagem e rigging não são presumidos, não serão automatizados por um gerador de imagem e ficam fora do piloto estático atual. Só o arquivo 3D efetivamente inspecionado pode declarar essas capacidades.
+
+## 16. Primeira implementação aprovada: infraestrutura + 3D estático
+
+1. Commit de referência do estado encontrado, seguido de testes e inventário de vídeos/baselines. Referência criada antes de alterar produção: `1ea2f6cf4ab8accedb58131b2d8cffb1e5730b8a`.
+2. Pesquisar Kenney Mini Characters, Space Kit e Poly Haven. Verificar licença oficial antes de baixar, registrar a aquisição e inspecionar arquivo/licença/capacidades reais em quarentena antes da publicação. Nenhuma referência de `docs/imgs` é asset.
+3. Catálogo versionado, importação manual local, metadados de origem/condições, validação PNG/JPG/GLB/glTF/BIN e limites, rotas exatas HTTP, sessão assíncrona e assetHash. Sem suporte SVG/sprites/rigs fingido por extensão de nome.
+4. Adaptador 3D estático mínimo: modelo local verificado, materiais/texturas importados preservados, transforms absolutos por tempo e descarte único. Rejeitar skins, animações e morphs nesta versão, em vez de anunciar suporte parcial.
+5. Novo piloto P0/P1/P2 com câmera/ação/duração fixadas; P0 procedural, P1 importado e P2 apenas acabamento/luz refinados. Stills reais primeiro, depois 2 s/720p/12 FPS. 1080p/24 FPS condicionado à aprovação da versão inicial.
+6. Regressões e relatório: modelos, materiais, luz, profundidade, composição, consistência temporal, memória, tempos, hashes e MP4 real decodificado/inspecionado. Atualizar a proposta futura dos três estilos 2D e de rigging, sem implementá-los.
+
+Arquitetura desta entrega: **importação manual → candidato local e provas → validação/admissão → pack imutável e assetHash → rotas explícitas → sessão preparada antes do init → GLTFLoader estático → motor Three.js existente → captura/verificação atual**. A origem pode ser CC0 ou geração externa documentada; origem não decide o decoder nem substitui revisão artística/técnica.
+
+### Contratos concretos e evolução seguinte
+
+Documentação de uso: [catálogo](ASSET_CATALOG.md); revisão dos candidatos: [fontes verificadas](ASSET_SOURCES.md). A primeira implementação usa `scripts/asset-catalog.mjs`/`import-assets.mjs`, `src/assets/{format,session}.js` e `src/styles/lowpoly-3d/assets.js`. `sourceHash` inclui o novo código, servidor e addons reais; `assetHash` cobre somente a closure dos pins do projeto, inclusive provas. Projetos anteriores não recebem sessão nem decoder de assets.
+
+Depois do piloto rígido, implementar **um adaptador por etapa**: PNG em camadas para aquarela; SVG real/grupos para cartoon; atlas e tiles para pixel. Fontes geradas precisam de máscaras/retoque, reconstrução das regiões escondidas e pivôs revisados; salvar lineage e originais. Avaliar juntas extremas e identidade entre poses antes de vídeos de 2 s. Não fazer conversão automática entre os meios.
+
+Para 3D com rig, Mini Characters só é candidato após inspecionar GLB, colormap externo, skins e clips reais. Acrescentar ownership de Skeleton/boneTexture, instâncias independentes, AnimationMixer por tempo absoluto e política de root motion. Um clip de corpo não comprova morph facial. Conceitos de modelos de imagem exigem modelagem/conversão separada, UV/material e só depois rigging. O compilador JSON permanece fora do escopo; seus futuros recursos devem referenciar esses mesmos IDs/versões/capacidades.

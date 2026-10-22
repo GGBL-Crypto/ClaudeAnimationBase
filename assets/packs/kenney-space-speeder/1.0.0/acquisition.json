@@ -1,0 +1,27 @@
+{
+  "id": "space-kit",
+  "source": "https://kenney.nl/assets/space-kit",
+  "license": "CC0-1.0",
+  "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "reviewedAt": "2026-10-22T01:12:57.847Z",
+  "pageSha256": "9b2794f33eeb53615e15432b78a86dabb347e4a9e8616a76da72cde0ac9bc0f6",
+  "download": "https://kenney.nl/media/pages/assets/space-kit/20874c75ac-1677698978/kenney_space-kit.zip",
+  "capabilities": "Unverified until archive inspection",
+  "status": "approved for quarantine only",
+  "archiveBytes": 6677531,
+  "archiveSha256": "d5d7cdf2635ed5a43a9187deaf409b6f47484e402321128341d3c3698e9ef4d9",
+  "archiveModelPath": "Models/GLTF format/craft_speederA.glb",
+  "archiveLicensePath": "License.txt",
+  "inspection": {
+    "glbVersion": 2,
+    "meshes": 1,
+    "primitives": 4,
+    "triangles": 280,
+    "skins": 0,
+    "clips": 0,
+    "morphs": 0,
+    "textures": 0,
+    "pbrMaterials": 4
+  },
+  "archiveLabel": "Space Kit (2.0); official webpage says 1.0; archive bytes are authoritative"
+}

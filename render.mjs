@@ -6,6 +6,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, rename
 import { dirname, resolve, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { startStudioServer } from './scripts/studio-server.mjs';
+import {assetSnapshot} from './scripts/asset-catalog.mjs';
 import { catalog, sourceSnapshot, assertSourceHash, parseArgs, number, interval, run, launchBrowser, closeBrowser, openPage, frameOf, verifyVideo } from './scripts/render-lib.mjs';
 
 const HELP = `
@@ -47,6 +48,8 @@ async function main() {
   let fps = number(args.fps ?? project.fps, 'fps', { min: 1, max: 120, integer: true });
   let info = { ...project, width: 1920, height: 1080 };
   const source = sourceSnapshot(), stamp = source.hash;
+  const assets=assetSnapshot(project.assetRefs),assetHash=assets.hash;
+  const assertAssets=()=>{if(assetSnapshot(project.assetRefs).hash!==assetHash)throw Error('Assets mudaram durante o render; saída não promovida');};
 
   async function videoOutput(out, encode, expected) {
     mkdirSync(dirname(out), { recursive: true });
@@ -59,9 +62,11 @@ async function main() {
     const report = await verifyVideo(pending, expected, reviewDir);
     timing.verificationMs = performance.now() - verifyStarted;
     assertSourceHash(stamp);
+    assertAssets();
     renameSync(pending, out);
     report.file = resolve(out); report.project = project.id; report.style = project.style; report.sourceHash = stamp;
     report.sourceFiles = source.files;
+    report.assetHash=assetHash;report.assetFiles=assets.files;
     report.videoSha256 = createHash('sha256').update(readFileSync(out)).digest('hex');
     report.startedAt = startedAt; report.elapsedMs = Math.round(performance.now() - started);
     report.environment = { platform: process.platform, arch: process.arch, node: process.version, browser: browser ? await browser.version() : null, engine: info.engine || null };
@@ -79,7 +84,7 @@ async function main() {
   if (mode === 'encode') {
     if (!existsSync(manifestPath)) throw new Error('Sequência sem manifesto. Execute --frames ou --png primeiro.');
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-    if (manifest.sourceHash !== stamp || manifest.project.id !== project.id || manifest.project.style !== project.style || (manifest.loop || '') !== (args.loop || '')) throw new Error('Sequência de outra revisão/projeto/estilo/loop. Renderize em um novo --frames-dir.');
+    if ((manifest.assetHash||null)!==assetHash||manifest.sourceHash !== stamp || manifest.project.id !== project.id || manifest.project.style !== project.style || (manifest.loop || '') !== (args.loop || '')) throw new Error('Sequência de outra revisão/assets/projeto/estilo/loop. Renderize em um novo --frames-dir.');
     if (args.fps !== undefined && fps !== manifest.fps) throw new Error('FPS diverge da sequência');
     fps = manifest.fps;
     const { count, extension, range, project: saved } = manifest;
@@ -94,11 +99,12 @@ async function main() {
     return;
   }
   const initStarted = performance.now();
-  if (style.scripts.some(item => typeof item === 'object' && item.type === 'module')) { studio = await startStudioServer(); args.origin = studio.origin; }
+  if (project.assetRefs?.length||[...style.scripts,...project.scripts].some(item => typeof item === 'object' && item.type === 'module')) { studio = await startStudioServer(); args.origin = studio.origin; }
   browser = await launchBrowser(args);
   const page = await openPage(browser,args);
   activePage = page;
   info = await page.evaluate(() => projectInfo());
+  if((info.assets?.assetHash||null)!==assetHash)throw Error('Sessão do navegador diverge do snapshot de assets');
   timing.initializationMs = performance.now() - initStarted;
   async function capture(page, t, type) { const started = performance.now(); const bytes = await frameOf(page, t, type); timing.captureMs += performance.now() - started; return bytes; }
   const duration = info.duration;
@@ -136,11 +142,11 @@ async function main() {
   } else if(mode==='frames'||mode==='png') {
     const extension=mode==='png'?'png':'jpg';
     const workers=number(args.workers??(style.dimensions===3?1:2),'workers',{min:1,max:8,integer:true});
-    const manifest={version:1,sourceHash:stamp,sourceFiles:source.files,project:info,loop:args.loop||'',fps,range,count,extension};
+    const manifest={version:1,sourceHash:stamp,sourceFiles:source.files,assetHash,assetFiles:assets.files,project:info,loop:args.loop||'',fps,range,count,extension};
     if(existsSync(manifestPath)) {
       const saved=JSON.parse(readFileSync(manifestPath,'utf8'));
       // GPU strings can differ between workers; only configuration and provenance define the cache.
-      const identity=m=>JSON.stringify([m.sourceHash,m.project.id,m.project.style,m.project.styleConfig,m.project.width,m.project.height,m.project.engine?.settings,m.project.engine?.device,m.loop,m.fps,m.range,m.count,m.extension]);
+      const identity=m=>JSON.stringify([m.sourceHash,m.assetHash||null,m.project.id,m.project.style,m.project.styleConfig,m.project.width,m.project.height,m.project.engine?.settings,m.project.engine?.device,m.loop,m.fps,m.range,m.count,m.extension]);
       if(identity(saved)!==identity(manifest))throw new Error('Cache incompatível. Escolha um novo --frames-dir.');
     } else if(existsSync(framesDir)&&readdirSync(framesDir).some(name=>/^f\d+\.(jpg|png)$/.test(name)))throw new Error('Quadros sem manifesto; escolha um novo --frames-dir.');
     mkdirSync(framesDir,{recursive:true});writeFileSync(manifestPath,JSON.stringify(manifest,null,2)+'\n');
@@ -149,10 +155,12 @@ async function main() {
     await page.close();
     await Promise.all(Array.from({length:workers},async()=>{
       const worker=await openPage(browser,args);
+      if((await worker.evaluate(()=>projectInfo().assets?.assetHash||null))!==assetHash)throw Error('Assets divergentes no worker');
       try {while(next<todo.length){const i=todo[next++],file=join(framesDir,filename(i,extension));writeFileSync(file+'.tmp',await capture(worker,range[0]+i/fps,extension==='png'?'image/png':'image/jpeg'));renameSync(file+'.tmp',file);if(++done%24===0||done===todo.length)console.log('quadro '+done+'/'+todo.length);}}
       finally {await worker.close();}
     }));
     assertSourceHash(stamp);
+    assertAssets();
     console.log('Sequência: '+framesDir);
   } else if(mode==='clip') {
     const audio=args.audio||info.audio;

@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "id": "khronos-morph-cube",
+  "version": "1.0.0",
+  "profile": "articulated",
+  "origin": {
+    "kind": "cc0",
+    "source": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/15cd02d304e54cb42a4db4eefe719f76190f4b68/Models/AnimatedMorphCube/glTF-Binary/AnimatedMorphCube.glb",
+    "author": "Microsoft",
+    "commit": "15cd02d304e54cb42a4db4eefe719f76190f4b68"
+  },
+  "license": {
+    "identifier": "CC0-1.0",
+    "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "commercial": true,
+    "reviewedBy": "Codex: individual upstream README, pinned bytes",
+    "reviewedAt": "2026-10-22",
+    "evidence": [
+      "README.md",
+      "acquisition.json"
+    ],
+    "attribution": "Microsoft"
+  },
+  "entry": "AnimatedMorphCube.glb",
+  "style": "lowpoly-3d",
+  "identity": {
+    "name": "AnimatedMorphCube",
+    "rigVersion": "1.0.0",
+    "units": "metres in imported hierarchy",
+    "front": "+Z"
+  },
+  "available": {
+    "views": [
+      "3d"
+    ],
+    "expressions": [],
+    "poses": []
+  },
+  "files": [
+    {
+      "path": "AnimatedMorphCube.glb",
+      "bytes": 6752,
+      "sha256": "214ee56160a50dbf22543a1d66dbf860986e87f0efac3d89feac1359d0e6aeab"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "README.md",
+      "bytes": 1244,
+      "sha256": "b872b016a274f02a0060117976150b1180f4090aa5042e1b5861d5d178d0971d"
+    },
+    {
+      "path": "acquisition.json",
+      "bytes": 696,
+      "sha256": "965b67adc0b0e7ff8684125b1f31bb48e41d7aa43e87cd31502cfc3283c95524"
+    }
+  ]
+}

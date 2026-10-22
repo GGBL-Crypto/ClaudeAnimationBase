@@ -1,5 +1,7 @@
 # Motor low poly 3D
 
+Incremento posterior autorizado em 22/10/2026: GLB articulado com clips e morphs por tempo absoluto. Consulte `docs/ARTICULATED_ACTOR_REPORT.md`. Use perfil explícito e `components/animated-actor.js`; mantenha o perfil estático e os limites existentes. Clones têm skeleton/mixer próprios, contatos pertencem à história e toda troca de ação/expressão deve sobreviver a seek fora de ordem. As restrições do piloto estático abaixo permanecem históricas para aquele escopo.
+
 Leia `GUIDE.md` e `docs/LOWPOLY_3D_PLAN.md`. O usuário aprovou a implementação em 21/10/2026.
 
 - Implemente o contrato do runtime; Three.js pertence somente a este estilo. A dependência autorizada é `three@0.186.1` exata.
@@ -12,3 +14,4 @@ Leia `GUIDE.md` e `docs/LOWPOLY_3D_PLAN.md`. O usuário aprovou a implementaçã
 - Server: somente 127.0.0.1 e rotas explícitas, sem paths codificados, travessia, diretórios ou symlinks externos. Mantenha testes de fronteira.
 - Valide primeiro o filme 720p; só depois avance ao 1080p. Não substitua vídeos anteriores. Registre código/dependências, ambiente, tempos e evidências abertas.
 - Novas histórias: consulte `docs/COMPONENTS_3D.md`; use o catálogo antes de duplicar primitivas/atores. Coreografia e eventos ficam no filme, fábricas não importam histórias. Não altere `engine.js` para acomodar elenco ou cenário. Preserve Marte com a comparação dos 36 PNGs quando refatorar seus componentes.
+- Assets estáticos: leia `docs/ASSET_CATALOG.md`. Somente recursos licenciados e publicados, com pins, async readiness e ownership explícito. Preserve materiais/mapas; não substitua por Lambert automaticamente. Os hooks do backend nesta etapa são genéricos (adoção/perfil/ambiente), sem conhecer o veículo. Rigging/clips/morphs e os importadores 2D ficam fora desta entrega.

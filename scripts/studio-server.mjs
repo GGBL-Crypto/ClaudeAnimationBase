@@ -3,12 +3,14 @@ import { createServer } from 'node:http';
 import { readFile, readdir, realpath } from 'node:fs/promises';
 import { resolve, dirname, relative, isAbsolute, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { loadCatalog, sha256 } from './asset-catalog.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const DEPENDENCY_ROUTES = Object.freeze([
   'node_modules/p5/lib/p5.min.js', 'node_modules/p5.brush/dist/p5.brush.js',
   'node_modules/three/build/three.module.js', 'node_modules/three/build/three.core.js',
   'node_modules/three/examples/jsm/loaders/GLTFLoader.js',
+  'node_modules/three/examples/jsm/environments/RoomEnvironment.js',
   'node_modules/three/examples/jsm/utils/BufferGeometryUtils.js',
   'node_modules/three/examples/jsm/utils/SkeletonUtils.js'
 ]);
@@ -17,6 +19,14 @@ export async function startStudioServer({ port = 0, root = ROOT } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Porta inválida');
   root = await realpath(root);
   const routes = new Map([['/studio.html', resolve(root, 'studio.html')]]);
+  const assets=loadCatalog(root),assetRoutes=new Map();
+  if(assets.length){
+    routes.set('/assets/index.json',null);
+    for(const asset of assets)for(const file of asset.manifest.files){
+      const route='/'+asset.prefix+'/'+file.path;
+      routes.set(route,resolve(asset.packRoot,file.path));assetRoutes.set(route,{...file,root:asset.packRoot});
+    }
+  }
   async function walk(dir) {
     for (const entry of await readdir(resolve(root, dir), { withFileTypes: true })) {
       const name = dir + '/' + entry.name;
@@ -35,14 +45,21 @@ export async function startStudioServer({ port = 0, root = ROOT } = {}) {
     const raw = (req.url || '').split('?')[0];
     // Reject encoded paths altogether, before URL normalization: includes double encoding and encoded separators.
     if (!/^\/[A-Za-z0-9_./-]+$/.test(raw) || raw.split('/').slice(1).some(p => !p || p === '.' || p === '..')) return reject(403);
+    if (!routes.has(raw)) return reject(404);
     const file = routes.get(raw);
-    if (!file) return reject(404);
     try {
-      const actual = await realpath(file);
+      if(raw==='/assets/index.json'){
+        const bytes=Buffer.from(JSON.stringify({schemaVersion:1,entries:assets.map(a=>a.public)}));
+        res.writeHead(200,{'Content-Type':'application/json','Content-Length':bytes.length,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Cross-Origin-Resource-Policy':'same-origin'});res.end(req.method==='HEAD'?undefined:bytes);return;
+      }
+      const actual = await realpath(file),asset=assetRoutes.get(raw);
       if (!within(root, actual)) return reject(403);
+      if(asset&&!within(asset.root,actual))return reject(403);
       // Open the verified target itself, so a swapped source symlink is not followed again.
       const bytes = await readFile(actual);
-      res.writeHead(200, { 'Content-Type': raw.endsWith('.html') ? 'text/html; charset=utf-8' : 'text/javascript; charset=utf-8', 'Content-Length': bytes.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Cross-Origin-Resource-Policy': 'same-origin' });
+      if(asset&&(bytes.length!==asset.bytes||sha256(bytes)!==asset.sha256))return reject(409);
+      const mime={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',glb:'model/gltf-binary',gltf:'model/gltf+json',bin:'application/octet-stream',html:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8'};
+      res.writeHead(200, { 'Content-Type': mime[raw.split('.').pop()]||'application/octet-stream', 'Content-Length': bytes.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Cross-Origin-Resource-Policy': 'same-origin' });
       res.end(req.method === 'HEAD' ? undefined : bytes);
     } catch { reject(404); }
   });

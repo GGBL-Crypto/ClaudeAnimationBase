@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "kenney-space-speeder",
+  "version": "1.0.0",
+  "identity": "Kenney Space Kit craft_speederA original mesh",
+  "style": "lowpoly-3d",
+  "entry": "craft_speederA.glb",
+  "origin": {
+    "kind": "cc0",
+    "author": "Kenney",
+    "source": "https://kenney.nl/assets/space-kit",
+    "archiveSha256": "d5d7cdf2635ed5a43a9187deaf409b6f47484e402321128341d3c3698e9ef4d9",
+    "archiveVersion": "2.0 (license inside archive)"
+  },
+  "license": {
+    "identifier": "CC0-1.0",
+    "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "commercial": true,
+    "reviewedBy": "Codex: official page and archive License.txt compared",
+    "reviewedAt": "2026-10-22T01:20:48.148Z",
+    "evidence": [
+      "license.txt",
+      "source-page.html",
+      "acquisition.json"
+    ]
+  },
+  "available": {
+    "views": [
+      "free-3d"
+    ],
+    "poses": [
+      "rigid"
+    ],
+    "expressions": [],
+    "animations": [],
+    "rig": false,
+    "morphs": false
+  },
+  "files": [
+    {
+      "path": "craft_speederA.glb",
+      "sha256": "dc48652fa5c59088a5e3902abce7598199f32e0dcb8c91bac25e17bb8ce15876",
+      "bytes": 20496
+    }
+  ],
+  "evidence": [
+    {
+      "path": "license.txt",
+      "sha256": "bd4e050e69d41351282c4d53f943cd4d80a80b968593e60653ba5292637941b7",
+      "bytes": 610
+    },
+    {
+      "path": "source-page.html",
+      "sha256": "9b2794f33eeb53615e15432b78a86dabb347e4a9e8616a76da72cde0ac9bc0f6",
+      "bytes": 17101
+    },
+    {
+      "path": "acquisition.json",
+      "sha256": "ce6c051feb64ee47c16f06ef3bb86f4522fe7ddb9f547b145baccb8bf77ce066",
+      "bytes": 1010
+    }
+  ]
+}

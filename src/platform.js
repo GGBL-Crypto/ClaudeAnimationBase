@@ -11,6 +11,10 @@
     table[item.id] = freeze(item);
   }
   function validateStoryboard(project) {
+    if(project.assetRefs!==undefined){
+      if(!Array.isArray(project.assetRefs)||project.assetRefs.length>8)fail('assetRefs inválido');
+      const pins=new Set();for(const ref of project.assetRefs){if(!ref||!/^[a-z][a-z0-9-]*$/.test(ref.id)||!/^\d+\.\d+\.\d+$/.test(ref.version)||!/^[a-f0-9]{64}$/.test(ref.manifestSha256)||pins.has(ref.id))fail('Asset exige ID/versão/hash únicos');pins.add(ref.id);}
+    }
     const { duration, fps, bpm, storyboard } = project;
     if (!Number.isFinite(duration) || duration <= 0 || !Number.isInteger(fps) || fps < 1 || fps > 120 || !Number.isFinite(bpm) || bpm <= 0) fail('Duração, fps ou bpm inválidos');
     if (!Array.isArray(storyboard) || !storyboard.length) fail('Storyboard obrigatório');

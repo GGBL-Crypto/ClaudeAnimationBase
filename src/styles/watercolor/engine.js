@@ -1,9 +1,18 @@
+let watercolorInstance=null,watercolorOutput=null,watercolorDisposed=false;
 window.animationEngine = {
-  init: () => new Promise(resolve => { window.watercolorReady = resolve; new p5(); }),
-  async render(t) { T = t; await redraw(); composite(t); },
+  init: () => new Promise((resolve,reject) => { window.watercolorReady = () => {
+    try{
+      for(const item of window.assetSession?.items.values()||[])item.prepare();
+      if(STYLE.output.height!==1080){watercolorOutput=document.createElement('canvas');watercolorOutput.width=1280;watercolorOutput.height=720;}
+      resolve();
+    }catch(error){reject(error);}
+  }; const originalSetup=window.setup;window.setup=async()=>{try{await originalSetup();}catch(error){reject(error);}};p5.instance=null;watercolorInstance=new p5(); }),
+  async render(t) { if(watercolorDisposed)throw Error('Motor descartado');T = t; await redraw(); composite(t);if(watercolorOutput)watercolorOutput.getContext('2d').drawImage(outC,0,0,1280,720); },
   afterScene() { CAM = null; flushLetters(); },
-  get canvas() { return outC; },
-  worldToScreen: (x, y) => toScreen(x, y, LAST_CAM),
+  get canvas() { return watercolorOutput||outC; },
+  worldToScreen: (x, y) => toScreen(x, y, LAST_CAM).map(v=>v*STYLE.output.height/1080),
+  releaseActorImage(img){const textures=watercolorInstance?._renderer?.textures,texture=textures?.get(img);if(!texture)return false;texture.remove();textures.delete(img);return true;},
+  dispose(){if(watercolorDisposed)return;watercolorDisposed=true;window.assetSession?.dispose();for(const g of [paperG,letG,glowTex])g?.remove();watercolorInstance?.remove();if(watercolorOutput)watercolorOutput.width=watercolorOutput.height=0;},
   info() { const gl = drawingContext, ext = gl.getExtension('WEBGL_debug_renderer_info'); return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); }
 };
 

@@ -1,5 +1,11 @@
 # Plano de arquitetura — 21/10/2026
 
+Incremento de aquarela em 22/10/2026: [personagem PNG em camadas](docs/WATERCOLOR_ASSET_ACTOR_REPORT.md). Perfil opcional `layered-2d`, RGBA real, hierarquia/pivôs/variantes explícitos, origem/derivação versionadas e preparo antes de ready. O desenho procedural permanece padrão; cartoon/pixel não ganham adaptadores nesta etapa. A redação histórica abaixo sobre três adaptadores 2D planejados descreve o estado anterior a este incremento.
+
+Incremento aprovado em 22/10/2026: [ator GLB articulado determinístico](docs/ARTICULATED_ACTOR_REPORT.md), com perfil de admissão separado, controlador por instância e skeletons isolados. O importador estático e os quatro motores permanecem. Coreografia/apoios pertencem à história; renderer, câmera, captura e exportação são reutilizados. Os planos históricos abaixo não representam proibição deste incremento posterior.
+
+Evolução com assets: [plano incremental e geração externa](docs/ART_ASSETS_PLAN.md#15-assets-originais-gerados-por-modelos-de-imagem), [catálogo e limites](docs/ASSET_CATALOG.md), [fontes verificadas](docs/ASSET_SOURCES.md). `assetRefs` opcionais fixam ID/versão/hash; sessão prepara recursos antes de init. O primeiro adaptador importa somente GLB/glTF estático no backend 3D. O contrato dos quatro motores, timeline e pipeline de captura permanecem. Os três adaptadores 2D e rigging continuam planejados.
+
 Evolução atual: [generalização do 3D](docs/GENERALIZATION_REPORT.md), [catálogo de componentes](docs/COMPONENTS_3D.md) e [proposta de prompts/storyboards](docs/PROMPT_TO_STORYBOARD_PLAN.md). Duas histórias 3D usam o mesmo backend sem alterações; os quatro estilos continuam disponíveis.
 
 Continuação: [auditoria anterior ao 3D](docs/AUDIT_STAGE1.md), [plano aprovado Three.js](docs/LOWPOLY_3D_PLAN.md) e [implementação/validação do quarto motor](docs/LOWPOLY_3D_REPORT.md). O documento abaixo preserva o plano original.

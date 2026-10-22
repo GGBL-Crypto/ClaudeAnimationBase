@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "id": "expressive-robot",
+  "version": "1.0.0",
+  "profile": "articulated",
+  "origin": {
+    "kind": "cc0",
+    "source": "https://raw.githubusercontent.com/mrdoob/three.js/a8922b815c2b41196c956a0406a8978604fbfaae/examples/models/gltf/RobotExpressive/RobotExpressive.glb",
+    "author": "Tomás Laulhé; modifications Don McCurdy; consolidation ClaudeAnimationBase",
+    "commit": "a8922b815c2b41196c956a0406a8978604fbfaae"
+  },
+  "license": {
+    "identifier": "CC0-1.0",
+    "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "commercial": true,
+    "reviewedBy": "Codex: individual upstream README, pinned bytes",
+    "reviewedAt": "2026-10-22",
+    "evidence": [
+      "README.md",
+      "acquisition.json"
+    ],
+    "attribution": "Tomás Laulhé; modifications Don McCurdy; consolidation ClaudeAnimationBase"
+  },
+  "entry": "actor.glb",
+  "style": "lowpoly-3d",
+  "identity": {
+    "name": "RobotExpressive",
+    "rigVersion": "1.0.0",
+    "units": "metres in imported hierarchy",
+    "front": "+Z"
+  },
+  "available": {
+    "views": [
+      "3d"
+    ],
+    "expressions": [
+      "Angry",
+      "Surprised",
+      "Sad"
+    ],
+    "poses": []
+  },
+  "files": [
+    {
+      "path": "actor.glb",
+      "bytes": 846972,
+      "sha256": "a193d3013453b39227a4ca76c521249ed6547502ac8a1b43fc5abf9749de1acf"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "README.md",
+      "bytes": 364,
+      "sha256": "14687ac4a51d5e013b0fbc5486dabc743f76c1e37b7ca872af74cfb93115b4b2"
+    },
+    {
+      "path": "acquisition.json",
+      "bytes": 659,
+      "sha256": "a9502f9b32885752bc7f2d65122562c6ef64b491ab0c7abb7eb40a86294d25d1"
+    },
+    {
+      "path": "RobotExpressive.glb",
+      "bytes": 463988,
+      "sha256": "047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319"
+    },
+    {
+      "path": "prepare-actor-asset.mjs",
+      "bytes": 5984,
+      "sha256": "3888555b8472794f9ac6aab8b711dcf4c522d4196c9aab5c650f6384742e5bb0"
+    }
+  ]
+}

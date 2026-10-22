@@ -1,5 +1,15 @@
 # Direção artística — low poly
 
+## Personagens GLB articulados
+
+O perfil `articulated` do catálogo admite rigs/clips/morphs validados; o perfil estático mantém sua recusa. Veja [relatório do incremento](../../../docs/ARTICULATED_ACTOR_REPORT.md). Fixe o pack e use `item.createActor(art,{expressions:{surprise:'Surprised'}})`, parent próprio e `actor.apply(t,{actions:[{clip:'Walking',start:0,speed:1,loop:true,weight:1}],expressions:{}})`. O parent contém a posição/escala da história; cada seek restaura a pose importada. Nomes devem existir no asset; pesos semânticos não mencionados são neutralizados. Sem retargeting, física ou extração automática de root motion. A câmera deve permitir ler os morphs reais e os contatos precisam ser revistos para cada trajetória.
+
+## Perfil opcional de assets
+
+O piloto `quality-space-p0/p1/p2` usa o [catálogo local](../../../docs/ASSET_CATALOG.md). P0 mantém primitivas; P1 importa o GLB CC0 com materiais PBR preservados; P2 acrescenta reflexão procedural pequena, luz de preenchimento/recorte e ACES. As configurações são opt-in; Marte e Oceano mantêm seu desenho anterior. Uma malha importada simples não comprova acabamento da referência cinematográfica.
+
+Declare `assetRefs` fixos no projeto e `assets.enabled:true`. Mapas requerem `texture.bitmaps:true`; materiais não são convertidos para Lambert. `assetSession.items.get(id).adopt(art)` transfere recursos ao motor; posicione o root sob um grupo próprio, normalize unidades/envelope explicitamente e aplique animação por tempo absoluto. Não altere bytes de um pack publicado. PNG/JPG gerado é conceito/fonte raster, não modelo 3D. Rig, morph e clips estão recusados nesta versão.
+
 Volumes simples, facetas grandes, cores sólidas e silhuetas legíveis. Modelos procedurais têm identidade definida por proporção, paleta e pivôs fixos. Não tente reproduzir tinta, sprites ou contornos do cartoon.
 
 ## Mundo e câmera

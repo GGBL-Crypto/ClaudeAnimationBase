@@ -7,7 +7,7 @@ Crie histórias com Codex, escolha um estilo e produza animações com storyboar
 | `watercolor` | Aquarela e tinta, p5.brush original | [Aquarela](src/styles/watercolor/GUIDE.md) |
 | `cartoon` | Formas vetoriais, contornos limpos, Canvas2D | [Cartoon](src/styles/cartoon/GUIDE.md) |
 | `pixel` | Sprites em 320×180, paleta limitada, ampliação 6× | [Pixel art](src/styles/pixel/GUIDE.md) |
-| `lowpoly-3d` | Three.js 0.186.1, geometria procedural, WebGL2 | [Low poly 3D](src/styles/lowpoly-3d/GUIDE.md) |
+| `lowpoly-3d` | Three.js 0.186.1, procedural e GLB/glTF estático local, WebGL2 | [Low poly 3D](src/styles/lowpoly-3d/GUIDE.md) |
 
 ## Começar
 
@@ -35,6 +35,10 @@ O estúdio pré-visualiza histórias implementadas em código; não contém um s
 - **`ocean-encounter`**: “O farol que nadava”, 8 s, 3D low poly. Submarino encontra uma água-viva luminosa e a acompanha. [Storyboard](docs/storyboards/ocean-encounter.md). Usa o mesmo backend de Marte, com [componentes reutilizáveis](docs/COMPONENTS_3D.md), cenário e bíblia visual próprios.
 
 ## Usar o motor 3D
+
+O [catálogo de assets](docs/ASSET_CATALOG.md) admite importação manual com licença/proveniência/hashes, incluindo fontes PNG/JPG geradas externamente. Só o adaptador 3D estático está implementado; os adaptadores 2D e rigging continuam planejados. Consulte [fontes verificadas](docs/ASSET_SOURCES.md), [plano atualizado](docs/ART_ASSETS_PLAN.md) e [relatório do piloto](docs/ASSET_PILOT_REPORT.md).
+
+Para revisar o piloto importado, abra o servidor com `?project=quality-space-p2&resolution=720p`. Os projetos `quality-space-p0` e `quality-space-p1` mostram as variantes comparáveis. `node scripts/check-generalization-suite.mjs` executa a regressão conjunta, incluindo assets/CLI. `node scripts/benchmark-assets.mjs` produz as seis comparações 720p/12 FPS sequencialmente; revise-as antes de qualquer avanço para 1080p/24 FPS.
 
 ```sh
 npm run studio

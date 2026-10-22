@@ -1,0 +1,16 @@
+{
+  "repo": "KhronosGroup/glTF-Sample-Assets",
+  "commit": "15cd02d304e54cb42a4db4eefe719f76190f4b68",
+  "records": [
+    {
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/15cd02d304e54cb42a4db4eefe719f76190f4b68/Models/AnimatedMorphCube/README.md",
+      "bytes": 1244,
+      "sha256": "b872b016a274f02a0060117976150b1180f4090aa5042e1b5861d5d178d0971d"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/15cd02d304e54cb42a4db4eefe719f76190f4b68/Models/AnimatedMorphCube/glTF-Binary/AnimatedMorphCube.glb",
+      "bytes": 6752,
+      "sha256": "214ee56160a50dbf22543a1d66dbf860986e87f0efac3d89feac1359d0e6aeab"
+    }
+  ]
+}

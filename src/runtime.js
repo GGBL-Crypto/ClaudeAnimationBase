@@ -34,8 +34,8 @@
     return { url: sheet.toDataURL('image/jpeg', .92), ms };
   };
   window.gpuInfo = () => animationEngine.info();
-  window.projectInfo = () => ({ ...PROJECT, width: animationEngine.canvas.width, height: animationEngine.canvas.height, duration: window.LOOP?.len || PROJECT.duration, engine: animationEngine.info() });
-  window.disposeAnimation = () => { window.stopPreview?.(); window.animationEngine?.dispose?.(); window.ready = false; };
+  window.projectInfo = () => ({ ...PROJECT, ...(window.assetSession?{assets:assetSession.info()}:{}), width: animationEngine.canvas.width, height: animationEngine.canvas.height, duration: window.LOOP?.len || PROJECT.duration, engine: animationEngine.info() });
+  window.disposeAnimation = () => { window.stopPreview?.(); try{window.animationEngine?.dispose?.();}finally{window.assetSession?.dispose();window.ready=false;} };
   addEventListener('pagehide', () => disposeAnimation());
   addEventListener('animationerror', event => { window.ready=false;window.stopPreview?.();document.getElementById('error').textContent=event.detail; });
   async function boot() {
@@ -45,6 +45,12 @@
     if (AnimationPlatform.styles[projectConfig.style].dimensions !== 3 && ['resolution', 'projection', 'shadows'].some(key => params.has(key))) throw new Error('Resolução/projeção/sombras opcionais são exclusivas de motores 3D');
     await load('src/motion.js'); await load('src/timeline.js');
     for (const src of AnimationPlatform.styles[PROJECT.style].scripts) await load(src);
+    if(PROJECT.assetRefs?.length){
+      const style=AnimationPlatform.styles[PROJECT.style];
+      if(style.assetModule)await load({src:style.assetModule,type:'module'});
+      const {prepareAssets}=await load({src:'src/assets/session.js',type:'module'});
+      await prepareAssets(PROJECT.assetRefs,window.prepareStyleAsset);
+    }
     for (const src of PROJECT.scripts) await load(src);
     validateShots();
     if (params.has('loop')) {

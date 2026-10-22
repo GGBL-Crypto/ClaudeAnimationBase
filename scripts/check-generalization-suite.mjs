@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import {mkdirSync,readFileSync,writeFileSync,readdirSync} from 'node:fs';
 import {run,sourceSnapshot} from './render-lib.mjs';
-const out='out/generalization/regressions';mkdirSync(out,{recursive:true});
+const out='out/assets-stage/regressions';mkdirSync(out,{recursive:true});
 const before=JSON.parse(readFileSync('out/generalization/baseline/source.json','utf8')),after=sourceSnapshot();
-const changed=new Set(['src/config.js','src/scenes/mars-discovery.js','src/styles/lowpoly-3d/config.js','package.json']);
+// Explicit authorized asset hooks; all legacy 2D art, motion, timeline and dependencies stay byte-identical.
+const changed=new Set(['src/config.js','src/scenes/mars-discovery.js','src/styles/lowpoly-3d/config.js','package.json','src/platform.js','src/runtime.js','src/styles/lowpoly-3d/engine.js','render.mjs','scripts/render-lib.mjs','scripts/studio-server.mjs']);
 for(const [file,hash]of Object.entries(before.files))if(!changed.has(file))assert.equal(after.files[file],hash,'Input existing before this task changed: '+file);
 const cases=[
   ['unit',['--test',...readdirSync('tests').filter(f=>f.endsWith('.test.mjs')).map(f=>'tests/'+f)]],
@@ -15,7 +16,10 @@ const cases=[
   ['render-three',['scripts/check-render-three.mjs']],
   ['ocean-hardware',['scripts/check-generalization.mjs']],
   ['ocean-software',['scripts/check-generalization.mjs','--soft-gl']],
-  ['mars-baseline',['scripts/check-mars-baseline.mjs']]
+  ['mars-baseline',['scripts/check-mars-baseline.mjs']],
+  ['assets-hardware',['scripts/check-assets.mjs']],
+  ['assets-software',['scripts/check-assets.mjs','--soft-gl']],
+  ['assets-cli',['scripts/check-render-assets.mjs']]
 ];
 const results=[];
 for(const [name,args]of cases){

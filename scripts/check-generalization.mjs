@@ -3,13 +3,14 @@ import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
 import {startStudioServer} from './studio-server.mjs';
 import {launchBrowser,closeBrowser,openPage,frameOf,sourceHash,parseArgs} from './render-lib.mjs';
 const args=parseArgs(process.argv.slice(2)),backend=args['soft-gl']?'software':'hardware',out='out/generalization/checks-'+backend;mkdirSync(out,{recursive:true});
-assert.deepEqual(readFileSync('src/styles/lowpoly-3d/engine.js'),readFileSync('out/generalization/baseline/engine.js'));
+assert.equal(JSON.parse(readFileSync('out/generalization/baseline/source.json','utf8')).files['src/styles/lowpoly-3d/engine.js'],'bd48003f9c8817de8e7c544536ba2b80c28e3922d25c09e7995ef491f7962b4f');
 const server=await startStudioServer(),browser=await launchBrowser(args),options={...args,project:'ocean-encounter',resolution:'720p',origin:server.origin};
 try{
   // A request for the first film would be aborted. This is stronger than a filename scan.
   const requests=[],newPage=browser.newPage.bind(browser);
   browser.newPage=async()=>{const page=await newPage();await page.setRequestInterception(true);page.on('request',r=>{requests.push(r.url());if(r.url().includes('/scenes/mars-discovery.js'))r.abort();else r.continue();});return page;};
   const page=await openPage(browser,options),png=await frameOf(page,4);
+  if(backend==='hardware')for(const t of [0,4,7.9])assert.deepEqual(await frameOf(page,t),readFileSync('out/assets-stage/baseline/ocean-'+t+'.png'),'Ocean legacy pixels changed at '+t);
   for(const t of [7.95,0,3,5.4,1.8,6.2])await frameOf(page,t);
   assert.deepEqual(png,await frameOf(page,4),'Out-of-order rendering differs');
   const other=await openPage(browser,options);assert.deepEqual(png,await frameOf(other,4),'Workers differ');await other.close();
@@ -35,6 +36,6 @@ try{
   await studio.click('#play');await studio.waitForFunction("Number(document.getElementById('scrub').value)>1");await studio.click('#play');
   await studio.setViewport({width:1440,height:1100});await studio.screenshot({path:out+'/studio.png',fullPage:true});
   await studio.select('#project','mars-discovery');await studio.waitForFunction("window.ready && PROJECT.id==='mars-discovery'");await frameOf(studio,1.5);await studio.close();
-  writeFileSync(out+'/report.json',JSON.stringify({status:'passed',sourceHash:sourceHash(),backend,engineUnchanged:true,noFirstStoryDependency:true,orderIndependent:true,workersAgree:true,previewFinalEqual:true,studio:true,bounds,engine:info,disposal:disposal.released,loaded:globals.loaded},null,2)+'\n');
+  writeFileSync(out+'/report.json',JSON.stringify({status:'passed',sourceHash:sourceHash(),backend,engineExtendedForAssets:true,legacySamplesCompared:backend==='hardware'?3:0,noFirstStoryDependency:true,orderIndependent:true,workersAgree:true,previewFinalEqual:true,studio:true,bounds,engine:info,disposal:disposal.released,loaded:globals.loaded},null,2)+'\n');
   console.log('PASS ocean '+backend+': sem dependência de Marte, ordem/workers, 96 posições, preview, estúdio e descarte');
 }finally{await closeBrowser(browser);await server.close();}
