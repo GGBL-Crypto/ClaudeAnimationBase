@@ -26,12 +26,14 @@ function creaturePose(spec, o) {
   if (typeof gaitName === 'string' && !flying && !gait) throw new Error(`Marcha desconhecida: ${gaitName}`);
   const sv = view === 'side', air = flying || !!spec.swimmer, life = clamp(o.alive ?? 1), dead = 1 - life, ageK = 1 - .5 * clamp(age);
   const sB = s - .1 * flinch;  // o susto recua o corpo; os pés plantados ficam onde estão
-  const dir = sv ? o.facing || (Math.cos(path.at(sB * size).angle) < 0 ? -1 : 1) : 1;
+  // path.at limita d a [0, length]; aqui o caminho continua reto pela tangente das pontas, senão o corpo se amassa nelas.
+  const at = d => { const c = clamp(d, 0, path.length), p = path.at(c), e = d - c; return e ? { x: p.x + e * Math.cos(p.angle), y: p.y + e * Math.sin(p.angle), angle: p.angle } : p; };
+  const dir = sv ? o.facing || (Math.cos(at(sB * size).angle) < 0 ? -1 : 1) : 1;
   const groundAt = p => sv && !air ? (o.ground ? o.ground(p.x) : p.y) : p.y;
   // Desloca p em BL: dx à frente; dy para baixo na vista lateral, para a direita do ser na vista superior.
   const local = (p, a, dx, dy) => sv ? [p[0] + dir * dx * size, p[1] + dy * size]
     : [p[0] + (Math.cos(a) * dx - Math.sin(a) * dy) * size, p[1] + (Math.sin(a) * dx + Math.cos(a) * dy) * size];
-  const place = (back, h) => { const p = path.at((sB - back) * size), gy = groundAt(p); return { x: p.x, y: sv && !air ? gy - h * size : p.y, a: p.angle, gy }; };
+  const place = (back, h) => { const p = at((sB - back) * size), gy = groundAt(p); return { x: p.x, y: sv && !air ? gy - h * size : p.y, a: p.angle, gy }; };
   const rootOf = (lb, g) => sv ? local([g.x, g.y], 0, lb.along, -(lb.h || 0)) : local([g.x, g.y], g.a, lb.along, -lb.side * spec.spine[lb.attach].r * .5);
 
   // Coluna; nadadores ondulam numa onda viajante que cresce da cabeça para a cauda.
@@ -50,7 +52,7 @@ function creaturePose(spec, o) {
   if (!flying) for (const lb of legs) {
     const g = spec.spine[lb.attach], key = lb.key || lb.name, ph = gait.offsets[key], lat = -lb.side * (g.r * .5 + lb.rest[1]);
     if (ph === undefined) throw new Error(`A marcha não tem fase para o membro ${key}`);
-    const plant = sA => { const p = path.at((sA - g.offset + lb.along + lb.rest[0]) * size); return sv ? [p.x, groundAt(p)] : local([p.x, p.y], p.angle, 0, lat); };
+    const plant = sA => { const p = at((sA - g.offset + lb.along + lb.rest[0]) * size); return sv ? [p.x, groundAt(p)] : local([p.x, p.y], p.angle, 0, lat); };
     const f = footAt(s, ph, { stride: spec.stride, duty: gait.duty, lift: spec.lift * size * ageK, moving, plant });
     if (sv && !f.stance) f.pos = [f.pos[0], groundAt({ x: f.pos[0], y: f.pos[1] }) - f.lift];
     steps[lb.name] = f;
