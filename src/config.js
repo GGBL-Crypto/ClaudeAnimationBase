@@ -96,3 +96,29 @@ AnimationPlatform.registerProject({
     ] }
   ]
 });
+AnimationPlatform.registerProject({
+  id: 'teste-movimento', title: 'Teste de movimento', story: 'Pessoa e cão passeiam; ela para e aponta uma trilha de formigas; uma aranha cruza; um pássaro foge do cão; a chuva faz todos reagirem; um peixe nada sob a chuva.',
+  duration: 30, fps: 24, bpm: 100, offset: 0, style: 'cartoon', compatibleStyles: ['cartoon'],
+  scripts: ['src/nature/noise.js', 'src/nature/path.js', 'src/nature/gait.js', 'src/nature/creature.js', 'src/nature/specs.js', 'src/nature/env.js', 'src/scenes/teste-movimento.js'],
+  reviewTimes: [2, 7, 12, 17, 22, 27],
+  storyboard: [
+    { id: 'parque', start: 0, end: 5, event: 'Pessoa e cão caminham no solo irregular; a grama se curva e sobe poeira nos passos.', transition: 'Plano aberto fixo; corte para plano médio', reads: [
+      { start: 0, end: 2, text: 'Pessoa e cão no parque' }, { start: 2, end: 5, text: 'Passos sem deslizar, grama e poeira' }
+    ] },
+    { id: 'pausa', start: 5, end: 10, event: 'A pessoa para, olha para baixo surpresa e aponta; o cão fareja.', transition: 'Zoom rápido para o chão', reads: [
+      { start: 5, end: 6.4, text: 'Parada com os pés no chão' }, { start: 6.4, end: 7.3, text: 'Olhar, surpresa e gesto' }, { start: 7.3, end: 10, text: 'O cão fareja a trilha' }
+    ] },
+    { id: 'macro', start: 10, end: 15, event: 'No chão, formigas em trilha, uma carregando folha; uma aranha cruza.', transition: 'Acomodação do zoom; corte', reads: [
+      { start: 10, end: 11, text: 'Mudança de escala' }, { start: 11, end: 15, text: 'Formigas e aranha andando' }
+    ] },
+    { id: 'ave', start: 15, end: 20, event: 'Um pássaro pousa e dá saltinhos; o cão se aproxima e ele voa assustado.', transition: 'Plano médio fixo; corte', reads: [
+      { start: 15, end: 16.6, text: 'Voo e pouso' }, { start: 16.6, end: 18.2, text: 'Saltinhos; o cão se aproxima' }, { start: 18.2, end: 20, text: 'Susto e fuga' }
+    ] },
+    { id: 'chuva', start: 20, end: 25, event: 'A chuva começa; a pessoa cobre a cabeça e sai; gotas acertam o chão e as formigas recuam.', transition: 'Corte interno para o macro', reads: [
+      { start: 20, end: 21, text: 'A chuva começa' }, { start: 21, end: 22.5, text: 'Pessoa cobre a cabeça' }, { start: 22.5, end: 25, text: 'Formigas recuam das gotas' }
+    ] },
+    { id: 'lago', start: 25, end: 30, event: 'Um peixe nada sob a superfície; a chuva faz ondas na água.', transition: 'Íris de saída', reads: [
+      { start: 25, end: 29, text: 'Nado e ondas da chuva' }, { start: 29, end: 30, text: 'Íris de saída' }
+    ] }
+  ]
+});
