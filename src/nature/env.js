@@ -34,10 +34,11 @@ function stepEvents(sOf, t0, t1, offset, stride, duty) {
 // Folha de t0 em from [x, y] até groundY, balançando com ruído.
 function flutter(t, t0, from, groundY, seed) {
   const age = Math.max(0, t - t0), y = Math.min(groundY, from[1] + 90 * age);
-  return { x: from[0] + 60 * noise1(seed, age * .8), y, angle: .8 * noise1(seed + 1, age * 1.3), landed: y >= groundY };
+  return { x: from[0] + 60 * (noise1(seed, age * .8) - noise1(seed, 0)), y, angle: .8 * noise1(seed + 1, age * 1.3), landed: y >= groundY };
 }
 // n pessoas espaçadas ao longo do caminho, andando em loop; s sempre em [0, length).
-function crowd(path, t, n, seed, o = { speed: 1.1, spacing: 1.6, carryEvery: 3, sizeVar: .25 }) {
+function crowd(path, t, n, seed, o = {}) {
+  o = { speed: 1.1, spacing: 1.6, carryEvery: 3, sizeVar: .25, ...o };
   const out = [], L = path.length;
   for (let j = 0; j < n; j++) {
     const s0 = j * o.spacing + hash(seed + j) * o.spacing * .5;

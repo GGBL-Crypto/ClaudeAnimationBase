@@ -14,3 +14,10 @@ test('flutter falls, sways and lands on the ground', () => {
   assert.equal(a.y, 50); assert.ok(b.y > a.y && !b.landed);
   const c = ctx.flutter(1e3, 0, [100, 50], 800, 2); assert.equal(c.y, 800); assert.equal(c.landed, true);
 });
+test('crowd merges partial options with defaults', () => {
+  const p = ctx.makePath([[0, 0], [3000, 0]]);
+  for (const a of ctx.crowd(p, 7, 5, 3, { speed: 40 })) { assert.ok(Number.isFinite(a.s)); assert.ok(Number.isFinite(a.size)); }
+});
+test('flutter starts exactly at its source point', () => {
+  const f = ctx.flutter(2, 2, [100, 50], 800, 2); assert.equal(f.x, 100); assert.equal(f.y, 50);
+});
