@@ -85,3 +85,14 @@ AnimationPlatform.registerProject({
     ] }
   ]
 });
+AnimationPlatform.registerProject({
+  id: 'modelos', title: 'Folha de modelos', story: 'Todos os seres andando no lugar, vistas superiores, multidão simplificada e as oito expressões do humano.',
+  duration: 8, fps: 24, bpm: 100, offset: 0, style: 'cartoon', compatibleStyles: ['cartoon'],
+  scripts: ['src/nature/noise.js', 'src/nature/path.js', 'src/nature/gait.js', 'src/nature/creature.js', 'src/nature/specs.js', 'src/nature/env.js', 'src/scenes/modelos.js'],
+  reviewTimes: [.5, 4],
+  storyboard: [
+    { id: 'modelos', start: 0, end: 8, event: 'Cada ser anda no lugar sobre o chão que rola; humano mostra as oito expressões.', transition: 'Plano contínuo', reads: [
+      { start: 0, end: 4, text: 'Marchas, pés de apoio e apêndices' }, { start: 4, end: 8, text: 'Silhuetas, expressões e contraste' }
+    ] }
+  ]
+});
