@@ -36,12 +36,13 @@ function creaturePose(spec, o) {
   const place = (back, h) => { const p = at((sB - back) * size), gy = groundAt(p); return { x: p.x, y: sv && !air ? gy - h * size : p.y, a: p.angle, gy }; };
   const rootOf = (lb, g) => sv ? local([g.x, g.y], 0, lb.along, -(lb.h || 0)) : local([g.x, g.y], g.a, lb.along, -lb.side * spec.spine[lb.attach].r * .5);
 
-  // Coluna; nadadores ondulam numa onda viajante que cresce da cabeça para a cauda.
+  // Coluna; nadadores ondulam numa onda viajante que cresce da cabeça para a cauda. A onda é lateral: inteira na vista
+  // superior, quase nada na lateral (sw.side), onde quem bate é a nadadeira caudal.
   const n = spec.spine.length, sw = spec.swimmer;
   const segs = spec.spine.map((g, i) => {
     const q = place(g.offset, g.h || 0);
     if (sw) {
-      const u = n > 1 ? i / (n - 1) : 0, w = sw.amp * size * (.2 + .8 * u) * (.4 + .6 * moving) * ageK * life * Math.sin(TAU * (t * sw.freq - u * sw.wave));
+      const u = n > 1 ? i / (n - 1) : 0, w = sw.amp * (sv ? sw.side : 1) * size * (.2 + .8 * u) * (.4 + .6 * moving) * ageK * life * Math.sin(TAU * (t * sw.freq - u * sw.wave));
       q.x -= Math.sin(q.a) * w; q.y += Math.cos(q.a) * w;
     }
     return q;

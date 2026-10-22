@@ -12,6 +12,12 @@ function antennaMotion(t, seed, o, k) {
   return [sweep * k, (tap ? 1.6 : 1.1) + .15 * k * noise1(seed + 5, t * 1.3), .12, .1];
 }
 
+// Nadadeira caudal: bate no ritmo da onda do corpo (na lateral é ela que mostra a natação); a ponta atrasa.
+function caudalMotion(t, seed, o, k) {
+  const sw = SPECS.fish.swimmer, ph = TAU * t * sw.freq, a = .45 * k * (.4 + .6 * (o.moving ?? 1));
+  return [a * Math.sin(ph - .6), .6 * a * Math.sin(ph - 1.4)];
+}
+
 var SPECS = {
   human: {
     id: 'human', gait: 'bipedWalk', views: ['side'], stride: .75, lift: .07,
@@ -86,13 +92,14 @@ var SPECS = {
     appendages: [{ name: 'tail', attach: 1, at: [-.1, -.02], angle: Math.PI + .3, lengths: [.16], motion: { amp: .12, freq: 1.5 } }],
   },
   fish: {
-    // Sem pernas: a coluna ondula numa onda viajante (amp em BL na cauda, freq em Hz, wave = comprimentos de onda no corpo).
-    id: 'fish', gait: null, swimmer: { amp: .07, freq: 2, wave: .6 }, views: ['side', 'top'], stride: 0, lift: 0,
+    // Sem pernas: a coluna ondula numa onda viajante (amp em BL na cauda, freq em Hz, wave = comprimentos de onda no corpo,
+    // side = fração da amplitude na vista lateral).
+    id: 'fish', gait: null, swimmer: { amp: .07, freq: 2, wave: .6, side: .3 }, views: ['side', 'top'], stride: 0, lift: 0,
     spine: [{ offset: 0, r: .12 }, { offset: .2, r: .15 }, { offset: .4, r: .13 }, { offset: .6, r: .09 }, { offset: .78, r: .05 }],
     head: { offset: -.12, r: .1 },
     limbs: [],
     appendages: [
-      { name: 'caudal', attach: 4, at: [-.03, 0], angle: Math.PI, lengths: [.1, .08], motion: { lag: .3, amp: .25, freq: 2 } },
+      { name: 'caudal', attach: 4, at: [-.03, 0], angle: Math.PI, lengths: [.1, .08], motion: caudalMotion },
       { name: 'pectoral', attach: 1, at: [0, .06], angle: 2.4, lengths: [.08], motion: { amp: .3, freq: 1.5 } },
     ],
   },

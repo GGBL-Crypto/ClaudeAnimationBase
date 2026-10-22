@@ -25,4 +25,11 @@ test('creatures keep their shape at both ends of a short path', () => {
     for (const l of Object.values(p.limbs)) if (l.foot) assert.ok(Math.abs(l.end[1] - 600) < .5, `${id} ${s} pé`);
   }
 });
-test('fish spine waves over time', () => { assert.notEqual(pose('fish', 2, { t: 0 }).spine.at(-1).y, pose('fish', 2, { t: .25 }).spine.at(-1).y); });
+test('fish waves laterally from above; from the side the body barely moves and the caudal fin beats', () => {
+  const ts = [0, .1, .2, .3, .4], range = a => Math.max(...a) - Math.min(...a);
+  const side = ts.map(t => pose('fish', 2, { t })), top = ts.map(t => pose('fish', 2, { t, view: 'top' }));
+  const sideTail = range(side.map(p => p.spine.at(-1).y)), topTail = range(top.map(p => p.spine.at(-1).y));
+  assert.ok(sideTail > 0 && sideTail <= .05 * 120, `lateral ${sideTail}`);
+  assert.ok(topTail > 2 * sideTail, `superior ${topTail}`);
+  assert.ok(range(side.map(p => p.appendages.caudal.at(-1)[1])) > .05 * 120, 'nadadeira caudal');
+});
