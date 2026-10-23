@@ -5,8 +5,8 @@
 //   len: bone length in units (the piece stretches along the bone to reach the next joint); layer: draw order;
 //   fill: key of the look (colors); spots: [{d, fill}] markings drawn flat inside the piece; lines: inner ink lines.
 //   Paths use only absolute M, L, C, Q and Z, wound clockwise.
-// Characters are recurring, with a name and a fixed palette (the look in nature.js): Lia (human, red scarf and
-// ponytail) and Bento (dog, red collar with a tag).
+// Characters are recurring, with a name and a fixed palette (the look in nature.js): Lia (human explorer: olive hat,
+// red scarf) and Bento (dog: brown patch on one eye, red collar with a gold tag). Red is their hero colour only.
 // Imported characters (assets/characters/<name>/, made by scripts/import-parts.py) replace these pieces by name:
 // load(name) fills rigs[name] = {spec, side, top} with pieces {art, u, origin, pivot, len, angle, layer, faces?}, art
 // being the part's SVG paths or its PNG bitmap (px; u px per unit; origin: the pivot in px) and faces its variants by
@@ -23,74 +23,88 @@ var CARTOON_PARTS = (() => {
 
   const parts = {
     human: {
+      // Lia: big round head (about 1/3 of her height with the hat), noodle limbs, glove hands, big boots.
       name: 'Lia',
       side: {
-        thigh: { d: 'M -5 0 C -5 -6.5 5 -6.5 5.2 0 C 5.4 9 4.6 18 3.9 25 C 3.6 29.4 -3.6 29.4 -3.9 25 C -4.4 17 -5.1 8 -5 0 Z', pivot: [0, 0], len: 25, angle: D, layer: 4, fill: 'pants' },
-        shin: { d: 'M -3.9 0 C -3.9 -4.2 3.9 -4.2 3.9 0 C 4 7 4.3 14 4.8 20.6 C 1.6 21.4 -1.6 21.4 -4.6 20.6 C -4.2 14 -3.9 7 -3.9 0 Z', pivot: [0, 0], len: 25, angle: D, layer: 4.1, fill: 'pants',
-          lines: ['M -4.1 11.5 C -2.6 12.6 -1.2 12.4 0 11.8'] },
-        shoe: { d: 'M -4.4 -0.4 C -4.8 -3.6 -3.8 -6.2 -1 -6.4 L 3.2 -6.2 C 4.8 -4.8 6.4 -4.6 8.4 -3.8 C 11 -2.8 11.2 0.8 9 0.8 L -3.6 0.8 C -4.2 0.8 -4.4 0.4 -4.4 -0.4 Z', pivot: [0, 0], len: 10, layer: 3.9, fill: 'shoe',
-          spots: [{ d: 'M -4.3 -1.2 L 10.6 -1.2 C 10.8 0 10.2 0.8 9 0.8 L -3.6 0.8 C -4.2 0.8 -4.4 0.4 -4.3 -1.2 Z', fill: 'sole' }] },
-        pelvis: { d: 'M -9.6 -3 C -9.6 -6.4 9.6 -6.4 9.6 -3 C 10 3 7 8.4 0 8.4 C -7 8.4 -10 3 -9.6 -3 Z', pivot: [0, 0], len: 20, angle: -D, layer: 5, fill: 'pants' },
-        torso: { d: 'M -8.8 3.6 C -9.4 -8 -9.6 -20 -9 -27 C -8.6 -32 -5 -34 0 -34 C 5 -34 8.8 -32 9.2 -27 C 9.8 -20 10.6 -8 10 3.6 C 6 5.4 -5 5.4 -8.8 3.6 Z', pivot: [0, 0], len: 20, angle: -D, layer: 5.1, fill: 'shirt',
-          lines: ['M -8.8 3.6 C -5 5.4 6 5.4 10 3.6', 'M 3.4 -4 C 5 -2.4 6.6 -2 8 -2.4', 'M -6 -10 C -5 -7 -5 -5 -6 -2'] },
-        neck: { d: 'M -3.2 3 L -3.2 -11 L 3.2 -11 L 3.2 3 Z', pivot: [0, 0], len: 11, angle: -D, layer: 6, fill: 'skin' },
-        head: { d: 'M 0 -12 C 7.4 -12 12 -7.6 12 -1.6 C 13.8 -1.4 14.4 1.8 12.4 2.6 C 11.6 8 7 11.6 1 11.6 C -6.6 11.6 -12 6.8 -12 0 C -12 -7 -6.8 -12 0 -12 Z', pivot: [0, 0], len: 12, layer: 6.05, fill: 'skin' },
-        ear: { d: 'M -1.6 -1.8 C 1.4 -1.8 1.4 4.8 -1.6 4.8 C -4.6 4.8 -4.6 -1.8 -1.6 -1.8 Z', pivot: [0, 0], len: 12, layer: 6.1, fill: 'skin', lines: ['M -0.6 0 C -2.8 0.3 -2.8 3 -0.8 3.2'] },
-        hair: { d: 'M -11.8 6 C -14 0 -13.6 -8 -8.6 -11.8 C -4 -15 4 -15 8.8 -11.2 C 11.8 -8.8 12.6 -7 12.4 -5.6 C 11 -6.8 9.8 -7.2 8.6 -6.6 C 7.6 -8.2 5.6 -8.6 4.4 -7.6 C 2.4 -7.2 0.4 -5.6 -0.8 -3.2 C -2.6 -1.6 -3.6 0.4 -4 3.6 C -5 5.6 -6.6 7.4 -8.6 8.4 C -10 8.6 -11.2 7.6 -11.8 6 Z',
-          pivot: [0, 0], len: 12, layer: 6.2, fill: 'hair', lines: ['M -3 -12.6 C -7 -10 -9.6 -6 -10.2 -1', 'M 3.6 -12.4 C 1 -10.6 -0.4 -8.6 -1.2 -6'] },
-        ponytail: { d: 'M -1 -2.6 C 4 -5.6 11 -4.2 14.2 -0.6 C 11 1.8 5 4.6 -1 2.6 C -2.2 1 -2.2 -1 -1 -2.6 Z', pivot: [0, 0], len: 12, layer: 1, fill: 'hair', lines: ['M 2 -1 C 5 -1.6 8 -1 11 -0.4'] },
-        tie: { d: 'M -1.4 -3 C 0.4 -3 0.4 3 -1.4 3 C -3.2 3 -3.2 -3 -1.4 -3 Z', pivot: [0, 0], len: 12, layer: 1.1, fill: 'scarf' },
-        scarf: { d: 'M -7.6 -29 C -8.4 -32 -7.4 -35.6 -4 -36.4 C 0 -37.2 5 -36.8 7.6 -35 C 9.6 -33.4 9.8 -30.6 8.8 -28.8 C 5 -27.4 -3 -27.2 -7.6 -29 Z', pivot: [0, 0], len: 20, angle: -D, layer: 5.5, fill: 'scarf',
-          lines: ['M 4.6 -36.6 C 4 -33.6 4.2 -30.4 5.2 -28'] },
+        thigh: { d: 'M -2.6 0 C -2.6 -3.5 2.6 -3.5 2.6 0 L 2.6 25 C 2.6 28.5 -2.6 28.5 -2.6 25 Z', pivot: [0, 0], len: 25, angle: D, layer: 4, fill: 'skin' },
+        shin: { d: 'M -2.6 0 C -2.6 -3.5 2.6 -3.5 2.6 0 L 2.6 24 C 2.6 27.5 -2.6 27.5 -2.6 24 Z', pivot: [0, 0], len: 25, angle: D, layer: 4.1, fill: 'skin' },
+        shoe: { d: 'M -4.6 -11 L 3.8 -11 C 4 -8 4 -6.4 5 -5.6 C 8 -5.2 11.6 -4.6 13.4 -2.4 C 14.6 -0.8 14.4 1.6 12.4 1.6 L -4.8 1.6 C -6 1.6 -6.2 0.4 -6 -1.2 C -5.6 -4.4 -4.8 -7.6 -4.6 -11 Z', pivot: [0, 0], len: 10, layer: 4.2, fill: 'shoe',
+          spots: [{ d: 'M -6 -0.4 L 14.2 -0.4 C 14.1 0.8 13.4 1.6 12.4 1.6 L -4.8 1.6 C -5.8 1.6 -6.1 0.8 -6 -0.4 Z', fill: 'sole' }], lines: ['M -4.9 -7.6 L 4.2 -7.6'] },
+        pelvis: { d: 'M -9.4 -7 C -4 -8.4 5 -8.4 10 -7 C 10.8 -1 11.6 5 12 10.6 C 7 11.8 4 11.8 1.2 11 C 0.8 9 0.6 8 0.4 7.4 C 0 8 -0.2 9 -0.6 11 C -4 11.8 -7.6 11.8 -10.8 10.6 C -10.6 4 -10 -1 -9.4 -7 Z',
+          pivot: [0, 0], len: 20, angle: -D, layer: 5, fill: 'pants', lines: ['M 5.4 2.4 C 7 3.4 8.6 3.6 10.4 3.2'] },
+        torso: { d: 'M -8.6 3 C -9.2 -8 -9.4 -20 -8.6 -27 C -8 -31.6 -4.6 -33.4 0 -33.4 C 4.6 -33.4 8.4 -31.6 8.8 -27 C 9.6 -20 10.6 -8 10.4 3 C 6 4.8 -4.6 4.8 -8.6 3 Z', pivot: [0, 0], len: 20, angle: -D, layer: 5.1, fill: 'shirt',
+          lines: ['M -8.6 3 C -4.6 4.8 6 4.8 10.4 3', 'M 2.6 -20.6 L 8.4 -20.6 L 8.4 -16 C 6.8 -15 4.2 -15 2.6 -16 Z'] },
+        neck: { d: 'M -3 3 L -3 -11 L 3 -11 L 3 3 Z', pivot: [0, 0], len: 11, angle: -D, layer: 6, fill: 'skin' },
+        head: { d: 'M 2 -23 C 11.9 -23 20 -14.9 20 -5 C 20 -3 20 -2 19.9 -1.4 C 22.2 -1.6 22.4 2.6 18.6 2.8 C 16.4 9.2 10 13 2 13 C -7.9 13 -16 4.9 -16 -5 C -16 -14.9 -7.9 -23 2 -23 Z', pivot: [0, 0], len: 12, layer: 6.05, fill: 'skin' },
+        ear: { d: 'M 0 -3.8 C 3.2 -3.8 3.2 3.8 0 3.8 C -3.2 3.8 -3.2 -3.8 0 -3.8 Z', pivot: [0, 0], len: 12, layer: 6.1, fill: 'skin', lines: ['M 1 -1.6 C -1.6 -1.4 -1.6 1.6 0.8 1.8'] },
+        // Short hair: a bob at the back and a fringe cut in teeth under the hat brim.
+        hair: { d: 'M -15.4 -12 C -12.6 -20 -5 -24.6 2 -24.4 C 9 -24.2 15.4 -21 17.8 -15.6 L 16 -13.8 L 14.6 -16 L 12.8 -13.4 L 11.2 -15.8 L 9.4 -13.4 L 7.8 -15.6 L 6 -13.6 L 4.6 -15.2 C 2 -14 -0.4 -12 -1.2 -8 L -2.6 -5.6 C -3.4 -8.2 -5.2 -9 -6.6 -8.4 C -6.2 -4 -6.6 2 -9.4 7.4 C -12.6 7.8 -16.4 5.8 -17.8 1.6 C -19 -3 -17.8 -8.4 -15.4 -12 Z',
+          pivot: [0, 0], len: 12, layer: 6.2, fill: 'hair', lines: ['M -9.6 -9 C -11.4 -6 -12.6 -2 -13 2'] },
+        // Explorer hat: dome crown and wide brim as one silhouette, with a darker band.
+        hat: { d: 'M -21.6 -19.4 C -20 -21.6 -14 -22.4 -11 -22.2 C -11.4 -30 -6 -36.6 2 -36.8 C 10 -37 15.2 -31 15 -22.2 C 19 -22.2 24.6 -21.4 26 -19.6 C 26.6 -18.4 25 -17.2 22 -17.2 L -19 -17.6 C -21.4 -17.6 -22.4 -18.4 -21.6 -19.4 Z',
+          pivot: [0, 0], len: 12, layer: 6.4, fill: 'hat', spots: [{ d: 'M -11 -22.2 C -11 -24 -10.8 -25.4 -10.4 -26.6 C -2 -27.4 7 -27.4 15.1 -26.4 C 15.1 -25 15 -23.6 15 -22.2 Z', fill: 'hatBand' }],
+          lines: ['M -11 -22.2 L 15 -22.2', 'M 2.4 -36.4 C 1.4 -33 1.4 -30 2 -27.4'] },
+        scarf: { d: 'M -8.8 -28.6 C -9.2 -31.4 -8 -34 -4 -34.4 C 0 -34.8 5.4 -34.4 8.4 -33 C 10.6 -31.8 11 -29.4 10.2 -27.6 C 11 -24.6 10.8 -20.6 9.8 -16.6 C 7.4 -19.8 4.8 -23.4 3.2 -26.4 C -1 -26.2 -5 -26.6 -8.8 -28.6 Z',
+          pivot: [0, 0], len: 20, angle: -D, layer: 5.5, fill: 'scarf', lines: ['M 3.2 -26.4 C 5.8 -27.6 8.6 -27.8 10.2 -27.6'] },
         scarfTail: { d: 'M 0 -2.6 C 4 -3.6 8 -1.4 14 -2.4 L 15.6 1.4 C 10 3.2 5 2 0 2.8 C -1.6 1.4 -1.6 -1.2 0 -2.6 Z', pivot: [0, 0], len: 14, layer: 2, fill: 'scarf', lines: ['M 2 0 C 6 0.6 10 -0.4 13.4 0'] },
-        upperArm: { d: 'M -3.5 0 C -3.5 -4.6 3.5 -4.6 3.5 0 C 3.3 6 3 12 2.8 17 C 2.7 20.1 -2.7 20.1 -2.8 17 C -3 12 -3.3 6 -3.5 0 Z', pivot: [0, 0], len: 17, angle: D, layer: 8, fill: 'shirt',
-          lines: ['M -2.8 17 C -2.7 20.1 2.7 20.1 2.8 17'] },
-        forearm: { d: 'M -2.4 0 C -2.4 -3.1 2.4 -3.1 2.4 0 L 2 16 C 2 18.1 -2 18.1 -2 16 Z', pivot: [0, 0], len: 16, angle: D, layer: 8.1, fill: 'skin' },
-        hand: { d: 'M -2.7 -0.6 C -1 -1.6 1.6 -1.6 2.7 -0.4 C 4.6 0.4 5.2 2.8 3.5 3.3 C 3.7 5.8 2.6 7.8 0 7.8 C -2.7 7.8 -3.5 5.1 -3.3 2.6 C -3.3 1 -3.3 0 -2.7 -0.6 Z', pivot: [0, 0], len: 6, angle: D, layer: 8.2, fill: 'skin' },
+        // Short puffed sleeve over a noodle arm.
+        upperArm: { d: 'M -4.4 0 C -4.4 -5.4 4.4 -5.4 4.4 0 C 4.4 3.4 4.6 6.4 4 8.2 C 3.4 9 2.6 9 2.2 8.8 L 2.2 17 C 2.2 20 -2.2 20 -2.2 17 L -2.2 8.8 C -2.6 9 -3.4 9 -4 8.2 C -4.6 6.4 -4.4 3.4 -4.4 0 Z', pivot: [0, 0], len: 17, angle: D, layer: 8, fill: 'skin',
+          spots: [{ d: 'M -4.4 0 C -4.4 -5.4 4.4 -5.4 4.4 0 C 4.4 3.4 4.6 6.4 4 8.2 C 1.4 9.4 -1.4 9.4 -4 8.2 C -4.6 6.4 -4.4 3.4 -4.4 0 Z', fill: 'shirt' }], lines: ['M -4 8.2 C -1.4 9.4 1.4 9.4 4 8.2'] },
+        forearm: { d: 'M -2.2 0 C -2.2 -3 2.2 -3 2.2 0 L 2 16 C 2 19 -2 19 -2 16 Z', pivot: [0, 0], len: 16, angle: D, layer: 8.1, fill: 'skin' },
+        // Glove hand: three fingers and a thumb (+x, the front).
+        hand: { d: 'M -3 -1.2 C -1 -2.4 1.6 -2.4 3.2 -1 C 4 0 4.4 0.8 5.4 1 C 7.4 1.4 7.6 4.2 5.6 4.6 C 4.8 4.8 4.2 4.6 3.8 4.4 C 4.2 6 4.2 7.4 3.8 8.4 C 3.6 10.6 1.4 10.6 1.4 8.8 C 1.2 10.8 -1.2 10.8 -1.2 8.8 C -1.4 10.6 -3.8 10.4 -3.8 8.2 C -4.4 5.6 -4.2 2 -3 -1.2 Z',
+          pivot: [0, 0], len: 6, angle: D, layer: 8.2, fill: 'skin', lines: ['M 1.4 8.8 L 1.3 7', 'M -1.2 8.8 L -1.2 7'] },
       },
-      // Profile face in head units: eye kinds, and per expression the eye, open fraction (lid), slant and the brow
-      // and mouth paths (mouth.fill: filled shape; otherwise a stroke).
+      // Face in head units: two big white eyes side by side (the far one smaller, toward the nose: far = [dx, dy,
+      // scale] from the near one), each with a small pupil and its brow; per expression the eye kind, open fraction
+      // (lid), slant, brow and mouth (mouth.fill: filled shape; otherwise a stroke). ry: eye half height by kind.
       face: {
-        eye: { at: [6.2, 0.4], dot: 'M 6.2 -2.9 C 9.5 -2.9 9.5 3.7 6.2 3.7 C 2.9 3.7 2.9 -2.9 6.2 -2.9 Z', wide: 'M 6.2 -3.5 C 10.1 -3.5 10.1 4.3 6.2 4.3 C 2.3 4.3 2.3 -3.5 6.2 -3.5 Z',
-          arc: 'M 4.2 1.4 C 5.2 -1.4 7.4 -1.4 8.4 1.4', x: 'M 5 -1.2 L 7.6 1.8 M 5 1.8 L 7.6 -1.2' },
-        blush: 'M 4.4 3.8 C 6.6 3.8 6.6 6.4 4.4 6.4 C 2.2 6.4 2.2 3.8 4.4 3.8 Z',
-        neutral: { eye: 'dot', lid: 1, brow: 'M 4.2 -4.8 C 5.6 -5.6 7 -5.6 8.4 -5', mouth: { d: 'M 7.4 6.6 C 8.4 7 9.4 6.9 10.2 6.4' } },
-        happy: { eye: 'arc', lid: 1, brow: 'M 4.2 -5.4 C 5.6 -6.4 7 -6.4 8.4 -5.6', mouth: { d: 'M 6.8 5.4 C 8.4 6.2 9.8 6 10.8 5 C 10.8 7.9 8.2 9.2 6.8 5.4 Z', fill: true } },
-        sad: { eye: 'dot', lid: .72, look: .5, brow: 'M 4.2 -4.4 C 5.6 -4.6 7 -5.2 8.4 -6.2', mouth: { d: 'M 7.4 7.6 C 8.4 6.4 9.4 6.4 10.2 7.4' } },
-        scared: { eye: 'wide', lid: 1, brow: 'M 4.2 -6 C 5.6 -6.8 7 -7.2 8.4 -7.6', mouth: { d: 'M 7 7 C 7.6 6.2 8.2 6.2 8.6 7 C 9 7.8 9.6 7.8 10.2 7' } },
-        angry: { eye: 'dot', lid: .68, slant: 1, brow: 'M 4.2 -6.2 C 5.6 -5.6 7 -4.6 8.4 -3.4', mouth: { d: 'M 7.4 7.2 C 8.4 6.6 9.4 6.6 10.2 7' } },
-        surprised: { eye: 'wide', lid: 1, brow: 'M 4 -7 C 5.4 -8.4 7.2 -8.4 8.6 -7.2', mouth: { d: 'M 8.8 5 C 10.1 5 10.3 8.6 8.8 8.6 C 7.5 8.6 7.5 5 8.8 5 Z', fill: true } },
-        tired: { eye: 'dot', lid: .42, brow: 'M 4.2 -4.2 C 5.6 -4.4 7 -4.4 8.4 -4.2', mouth: { d: 'M 7.6 6.9 C 8.6 7.1 9.4 7.1 10 6.8' } },
-        dead: { eye: 'x', lid: 1, brow: null, mouth: { d: 'M 7 7 C 7.6 6.2 8.2 6.2 8.6 7 C 9 7.8 9.6 7.8 10.2 7' } },
+        eye: { at: [9.5, -7], far: [5.6, -0.4, .88], ry: { dot: 5.2, wide: 6 },
+          dot: 'M 9.5 -12.2 C 11.7 -12.2 13.5 -9.9 13.5 -7 C 13.5 -4.1 11.7 -1.8 9.5 -1.8 C 7.3 -1.8 5.5 -4.1 5.5 -7 C 5.5 -9.9 7.3 -12.2 9.5 -12.2 Z',
+          wide: 'M 9.5 -13 C 12 -13 14.1 -10.3 14.1 -7 C 14.1 -3.7 12 -1 9.5 -1 C 7 -1 4.9 -3.7 4.9 -7 C 4.9 -10.3 7 -13 9.5 -13 Z',
+          arc: 'M 6.4 -5.6 C 7.6 -10 11.4 -10 12.6 -5.6', x: 'M 7.4 -9.6 L 11.6 -4.4 M 7.4 -4.4 L 11.6 -9.6' },
+        blush: 'M 7.6 0.4 C 10.2 0.4 10.2 3.4 7.6 3.4 C 5 3.4 5 0.4 7.6 0.4 Z',
+        neutral: { eye: 'dot', lid: 1, brow: 'M 6.6 -14.4 C 8.4 -15.4 10.6 -15.4 12.4 -14.6', mouth: { d: 'M 10.6 6.4 C 12.2 7.2 13.8 7 15.2 6' } },
+        happy: { eye: 'arc', lid: 1, brow: 'M 6.6 -15.2 C 8.4 -16.6 10.6 -16.6 12.4 -15.4', mouth: { d: 'M 9.4 4.6 C 11.8 5.8 14.4 5.6 16.4 4 C 16.4 8.6 11.2 10.4 9.4 4.6 Z', fill: true } },
+        sad: { eye: 'dot', lid: .72, look: .5, brow: 'M 6.6 -14 C 8.4 -14.4 10.6 -15.4 12.4 -16.6', mouth: { d: 'M 10.6 7.8 C 12.2 6.4 13.8 6.4 15.2 7.6' } },
+        scared: { eye: 'wide', lid: 1, brow: 'M 6.6 -16.2 C 8.4 -17.2 10.6 -17.6 12.4 -18', mouth: { d: 'M 10 7 C 11 6 12 6 12.8 7 C 13.6 8 14.6 8 15.4 7' } },
+        angry: { eye: 'dot', lid: .68, slant: 1, brow: 'M 6.6 -16.4 C 8.4 -15.6 10.6 -14.2 12.6 -12.6', mouth: { d: 'M 10.6 7.4 C 12.2 6.6 13.8 6.6 15.2 7.2' } },
+        surprised: { eye: 'wide', lid: 1, brow: 'M 6.4 -17 C 8.2 -18.8 10.8 -18.8 12.6 -17.2', mouth: { d: 'M 13 4.4 C 15 4.4 15.2 9.4 13 9.4 C 10.8 9.4 11 4.4 13 4.4 Z', fill: true } },
+        tired: { eye: 'dot', lid: .42, brow: 'M 6.6 -13.6 C 8.4 -13.8 10.6 -13.8 12.4 -13.6', mouth: { d: 'M 10.8 6.8 C 12.4 7.1 13.8 7.1 15 6.7' } },
+        dead: { eye: 'x', lid: 1, brow: null, mouth: { d: 'M 10 7 C 11 6 12 6 12.8 7 C 13.6 8 14.6 8 15.4 7' } },
       },
     },
 
     dog: {
+      // Bento: cream bean body, long snout with a big black nose, a brown patch on one eye, long droopy ears, thin
+      // legs with round paws, red collar with a gold tag.
       name: 'Bento',
       side: {
-        body: { d: 'M -14 -4 C -14 -11 -8 -14 0 -14 C 16 -14 34 -12.4 48 -14 C 58 -15 65 -8 64 2 C 63.4 10 58 15.4 50 15 C 40 14 30 9 20 10 C 10 11 2 13 -5 12 C -12 11 -14 4 -14 -4 Z', pivot: [0, 0], len: 50, layer: 5, fill: 'color',
-          spots: [{ d: 'M 8 -11.6 C 20 -12.2 32 -11 42 -11.8 C 40 -5 31 -2.4 22 -3.4 C 14 -4.2 8 -7 8 -11.6 Z', fill: 'dark' }, { d: 'M 56 4 C 60.6 6 62.4 10 58.4 13.4 C 54.4 14.8 50.4 14.4 48 12 C 50 9 52 5 56 4 Z', fill: 'cream' }] },
-        neck: { d: 'M -4 -11 C 8 -12 18 -9.4 27 -7.4 C 31 -6.6 31 6.6 27 7.4 C 18 9.4 8 12 -4 11 C -9 10 -9 -10 -4 -11 Z', pivot: [0, 0], len: 27, layer: 5.1, fill: 'color' },
-        head: { d: 'M -11 -1 C -11 -8 -5 -11 1 -11 C 6 -11 9 -8.6 10.6 -6 C 14 -5.6 18 -5.4 20.4 -4.4 C 22.8 -3.6 23 0.6 21 1.8 C 18 4.6 12 6 7 7.6 C 2 9.6 -4 9.6 -8 6.6 C -10.4 4.8 -11 2 -11 -1 Z', pivot: [0, 0], len: 12, layer: 5.2, fill: 'color',
-          spots: [{ d: 'M 12 -1.4 C 15 -2.4 19 -1.8 21.6 0.4 C 19 4 14 5.6 9 7 C 8.6 3.6 9.6 -0.2 12 -1.4 Z', fill: 'cream' }, { d: 'M 18.6 -5.2 C 21 -5.8 23.2 -4.4 23 -2.2 C 22.8 -0.6 20.6 -0.6 19.4 -1.6 C 18.2 -2.6 17.6 -4.8 18.6 -5.2 Z', fill: 'nose' }],
-          lines: ['M 21 1.8 C 18 3 15 3.4 12.4 3'] },
-        collar: { d: 'M 16.4 -10 C 18.4 -10.4 20.6 -9.8 21.8 -9.4 L 22.4 8.8 C 20.8 9.4 18.8 9.8 17 10.2 Z', pivot: [0, 0], len: 27, layer: 6, fill: 'collar' },
-        tag: { d: 'M 0 -0.6 C 2.6 -0.6 3.2 1.2 3.2 2.6 C 3.2 4.4 1.8 5.6 0 5.6 C -1.8 5.6 -3.2 4.4 -3.2 2.6 C -3.2 1.2 -2.6 -0.6 0 -0.6 Z', pivot: [0, 0], len: 6, angle: D, layer: 6.1, fill: 'tag' },
-        ear: { d: 'M -1.2 -3.6 C 4 -5.2 10 -4.8 13.2 -1 C 14.8 1.8 12 4.6 8 4.4 C 4 4.2 0 3.6 -1.4 2.2 C -2.8 0.6 -2.6 -2.4 -1.2 -3.6 Z', pivot: [0, 0], len: 11, layer: 8, fill: 'dark' },
-        tailSeg: { d: 'M 0 -3 C 3.4 -3 6.6 -2.6 10 -2.4 C 12.8 -2.2 12.8 2.2 10 2.4 C 6.6 2.6 3.4 3 0 3 C -3.8 3 -3.8 -3 0 -3 Z', pivot: [0, 0], len: 10, layer: 1, fill: 'color' },
-        tailTip: { d: 'M 0 -2.4 C 3 -2.6 6 -1.6 9.6 0 C 6 1.6 3 2.6 0 2.4 C -3 2.4 -3 -2.4 0 -2.4 Z', pivot: [0, 0], len: 8, layer: 1.1, fill: 'color',
-          spots: [{ d: 'M 4.4 -1.9 C 6 -1.4 7.8 -0.8 9.6 0 C 7.8 0.8 6 1.4 4.4 1.9 C 3.8 0.8 3.8 -0.8 4.4 -1.9 Z', fill: 'cream' }] },
-        armUpper: { d: 'M -7 -4 C -7 -9.6 7 -9.6 7 -4 C 6.4 6 5 16 3.8 25 C 3.6 28.4 -3.6 28.4 -3.8 25 C -4.6 16 -6.4 6 -7 -4 Z', pivot: [0, 0], len: 25, angle: D, layer: 7, fill: 'color' },
-        hipUpper: { d: 'M -9.4 -3 C -9.4 -11 9.4 -11 9.4 -3 C 8.6 8 5.4 17 3.6 26 C 3.4 29.4 -3.4 29.4 -3.6 26 C -6 18 -9.8 8 -9.4 -3 Z', pivot: [0, 0], len: 26, angle: D, layer: 7, fill: 'color' },
-        legLower: { d: 'M -3.4 0 C -3.4 -3.8 3.4 -3.8 3.4 0 L 2.8 27 C 2.8 29.6 -2.8 29.6 -2.8 27 Z', pivot: [0, 0], len: 27, angle: D, layer: 7.1, fill: 'color' },
-        paw: { d: 'M -3.6 0.4 C -3.8 -3.8 -1 -5.6 2 -5.6 C 5.6 -5.6 7.6 -3.2 7.4 0.4 Z', pivot: [0, 0], len: 6, layer: 7.2, fill: 'color', lines: ['M 3.2 -2.4 L 3.4 0.2', 'M 5.4 -2.2 L 5.6 0.2'] },
+        body: { d: 'M -17 0 C -17 -13 -7 -18.4 4 -18 C 14 -17.6 20 -14.6 28 -14.8 C 38 -15 46 -19.6 54 -18.6 C 64 -17.4 69 -8 68 3 C 67 15 59 23 48 23 C 40 23 34 19 26 19.2 C 16 19.4 8 23 -1 22 C -11 21 -17 13 -17 0 Z', pivot: [0, 0], len: 50, layer: 5, fill: 'color' },
+        neck: { d: 'M -6 -10 C 6 -11 18 -8.6 27 -7 C 31.4 -6.2 31.4 6.2 27 7 C 18 8.6 6 11 -6 10 C -10.6 9 -10.6 -9 -6 -10 Z', pivot: [0, 0], len: 27, layer: 5.1, fill: 'color' },
+        head: { d: 'M -17.5 -3.75 C -17.5 -14.25 -10 -20 -1.25 -20 C 7.5 -20 13.25 -15 14.25 -8.25 C 21.25 -8 30 -8.25 36.75 -7 C 41.75 -5.75 42.5 3.75 38 6.25 C 31.25 9.5 21.25 10.75 12.5 11.25 C 5 13 -2.5 13 -8.25 10.5 C -14.25 8 -17.5 2.5 -17.5 -3.75 Z', pivot: [0, 0], len: 12, layer: 5.2, fill: 'color',
+          spots: [{ d: 'M 4.5 -16.75 C 11.25 -16.75 13 -11.25 12.5 -7 C 12 -2 8 0.5 4.25 0.25 C -0.75 0 -3.75 -3.5 -3.5 -8.25 C -3.25 -13.25 -0.75 -16.75 4.5 -16.75 Z', fill: 'dark' },
+            { d: 'M 34.5 -10.5 C 39.5 -11.5 43.75 -9.25 43.5 -5.25 C 43.25 -1.75 39.25 -0.75 36 -1.5 C 32.75 -2.25 31.25 -4.25 31.5 -6.75 C 31.75 -9 32.75 -10 34.5 -10.5 Z', fill: 'nose' }],
+          lines: ['M 37.5 5.25 C 30 6 23 5.75 17 4.25 C 15.75 4 15 4.5 14.75 5.75'] },
+        collar: { d: 'M 6.4 -10.8 C 9.4 -11.2 12.6 -10.8 15 -10.2 L 15.8 9.8 C 13.2 10.8 10 11.2 7.2 11.6 Z', pivot: [0, 0], len: 27, layer: 6, fill: 'collar' },
+        tag: { d: 'M 0 -0.4 C 2.8 -0.4 3.8 1.6 3.8 3.2 C 3.8 5.2 2.2 6.6 0 6.6 C -2.2 6.6 -3.8 5.2 -3.8 3.2 C -3.8 1.6 -2.8 -0.4 0 -0.4 Z', pivot: [0, 0], len: 6, angle: D, layer: 6.1, fill: 'tag' },
+        // Long droopy ear: drawn twice its bone, so it hangs below the jaw while the chain swings it.
+        ear: { d: 'M -1.6 -4 C 4 -5.6 12 -5 18 -3.4 C 23 -2 24.4 3.6 20.4 5.6 C 15 7.8 6 6.4 0 4 C -3 2.8 -3.6 -2.6 -1.6 -4 Z', pivot: [0, 0], len: 11, layer: 8, fill: 'dark' },
+        tailSeg: { d: 'M 0 -2.2 C 3.4 -2.2 6.6 -2 10 -1.8 C 12.4 -1.6 12.4 1.6 10 1.8 C 6.6 2 3.4 2.2 0 2.2 C -3 2.2 -3 -2.2 0 -2.2 Z', pivot: [0, 0], len: 10, layer: 1, fill: 'color' },
+        tailTip: { d: 'M 0 -2 C 3 -2.2 6 -1.6 9.6 0 C 6 1.6 3 2.2 0 2 C -2.6 2 -2.6 -2 0 -2 Z', pivot: [0, 0], len: 8, layer: 1.1, fill: 'color',
+          spots: [{ d: 'M 4.4 -1.7 C 6 -1.3 7.8 -0.7 9.6 0 C 7.8 0.7 6 1.3 4.4 1.7 C 3.8 0.8 3.8 -0.8 4.4 -1.7 Z', fill: 'dark' }] },
+        // Thin noodle legs ending in round paws, coming out from under the body.
+        armUpper: { d: 'M -3.4 -2 C -3.4 -6.6 3.4 -6.6 3.4 -2 L 2.8 25 C 2.8 28.4 -2.8 28.4 -2.8 25 Z', pivot: [0, 0], len: 25, angle: D, layer: 4, fill: 'color' },
+        hipUpper: { d: 'M -5 -3 C -5 -9 5 -9 5 -3 C 4.4 8 3.6 17 2.8 26 C 2.8 29.4 -2.8 29.4 -2.8 26 C -3.6 17 -4.4 8 -5 -3 Z', pivot: [0, 0], len: 26, angle: D, layer: 4, fill: 'color' },
+        legLower: { d: 'M -2.8 0 C -2.8 -3.4 2.8 -3.4 2.8 0 L 2.6 27 C 2.6 29.8 -2.6 29.8 -2.6 27 Z', pivot: [0, 0], len: 27, angle: D, layer: 4.1, fill: 'color' },
+        paw: { d: 'M -4.6 0.8 C -5.4 -3.4 -2.6 -6.6 1.4 -6.6 C 5.8 -6.6 8.4 -3.6 7.8 0.8 Z', pivot: [0, 0], len: 6, layer: 4.2, fill: 'color', lines: ['M 2.6 -2.4 L 2.8 0.4', 'M 5.2 -2.2 L 5.4 0.4'] },
       },
       top: {
-        body: { d: 'M -12 0 C -12 -9 -4 -12 4 -12.4 C 18 -13 30 -11 44 -13.6 C 56 -15.6 64 -9 64 0 C 64 9 56 15.6 44 13.6 C 30 11 18 13 4 12.4 C -4 12 -12 9 -12 0 Z', pivot: [0, 0], len: 50, layer: 5, fill: 'color',
-          spots: [{ d: 'M 8 -8.4 C 20 -9.4 32 -8 42 -9 C 44.4 -3 44.4 3 42 9 C 32 8 20 9.4 8 8.4 C 6 3 6 -3 8 -8.4 Z', fill: 'dark' }] },
-        head: { d: 'M -10 0 C -10 -8 -4 -10 2 -10 C 8 -10 10 -7 12 -5 C 16 -4.4 20 -3.6 21.6 -2 C 22.8 -0.6 22.8 0.6 21.6 2 C 20 3.6 16 4.4 12 5 C 10 7 8 10 2 10 C -4 10 -10 8 -10 0 Z', pivot: [0, 0], len: 12, layer: 5.2, fill: 'color',
-          spots: [{ d: 'M 19.4 -2.4 C 21.4 -2.4 22.8 -1.2 22.8 0 C 22.8 1.2 21.4 2.4 19.4 2.4 C 18.4 1.2 18.4 -1.2 19.4 -2.4 Z', fill: 'nose' }] },
-        collar: { d: 'M 16.4 -9.2 L 21.8 -8.6 L 21.8 8.6 L 16.4 9.2 Z', pivot: [0, 0], len: 27, layer: 6, fill: 'collar' },
+        body: { d: 'M -12 0 C -12 -9 -4 -12 4 -12.4 C 18 -13 30 -11 44 -13.6 C 56 -15.6 64 -9 64 0 C 64 9 56 15.6 44 13.6 C 30 11 18 13 4 12.4 C -4 12 -12 9 -12 0 Z', pivot: [0, 0], len: 50, layer: 5, fill: 'color' },
+        head: { d: 'M -15 0 C -15 -11.25 -7.5 -15 1.25 -15 C 8.75 -15 12.5 -11.25 14.25 -6.75 C 22.5 -6.25 32.5 -5.5 37.5 -3.25 C 40.5 -1.75 40.5 1.75 37.5 3.25 C 32.5 5.5 22.5 6.25 14.25 6.75 C 12.5 11.25 8.75 15 1.25 15 C -7.5 15 -15 11.25 -15 0 Z', pivot: [0, 0], len: 12, layer: 5.2, fill: 'color',
+          spots: [{ d: 'M 6.25 -13.25 C 11.75 -13.25 13.25 -9.25 13 -5.5 C 12.75 -1.5 9.5 0.5 6 0.25 C 1.75 0 -0.5 -3 -0.25 -6.5 C 0 -10.5 2 -13.25 6.25 -13.25 Z', fill: 'dark' },
+            { d: 'M 34.25 -4.25 C 38.75 -4.5 42 -2.5 42 0 C 42 2.5 38.75 4.5 34.25 4.25 C 32.5 2.5 32.5 -2.5 34.25 -4.25 Z', fill: 'nose' }] },
+        collar: { d: 'M 9 -10 L 14.4 -9.4 L 14.4 9.4 L 9 10 Z', pivot: [0, 0], len: 27, layer: 6, fill: 'collar' },
       },
     },
 

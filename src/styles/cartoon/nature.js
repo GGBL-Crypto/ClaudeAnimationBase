@@ -93,39 +93,40 @@
   const grp = (list, back = false) => ({ z: list[0].q.layer - (back ? 10 : 0), list });
   // Outline: STYLE.outline.weight px on a main character (BL ≥ 200 px), thinner on small ones; inner lines half of it.
   const lw = p => clamp(p.size * .03, 1.5, STYLE.outline.weight), fwOf = p => p.size < 60 ? 0 : .5 * lw(p);
-  const headR = p => SPECS[p.spec].head.r * p.size;
+  const headR = p => SPECS[p.spec].head.r * p.size * (decor[p.spec].headScale || 1);  // drawn head radius (Lia's is big)
   // Appendage points are far (behind the body) when their side faces away from the camera in side view.
   const far = (p, name) => { const ap = SPECS[p.spec].appendages.find(a => a.name === name); return p.view === 'side' && (ap.side || 0) * p.facing < 0; };
   const pt = g => [g.x, g.y];
   // Foot rocking with the shin (heel strike lifts the toe, push-off the heel), as a screen angle.
   const rock = (p, l, k = .25) => turn(p, k * (turn(p, ang(l.mid, l.end)) - PI2));
 
-  // Lia's profile face in head units: a big white eye (EYE × the authored one) with a small pupil, lid (expression ×
-  // blink), brow, mouth and blush, all in black ink.
-  const EYE = 1.25;
+  // Lia's face in head units: two big white eyes (the far one smaller, toward the nose) with small pupils, lids
+  // (expression × blink) and brows, then mouth and blush, all in black ink.
   function humanFace(p, L, hs) {
-    const F = PARTS.human.face, E = F[p.face.expression] || F.neutral, lid = E.lid * (1 - (p.face.blink || 0)), [ex, ey] = F.eye.at;
+    const F = PARTS.human.face, E = F[p.face.expression] || F.neutral, lid = E.lid * (1 - (p.face.blink || 0)), [ex, ey] = F.eye.at, [fx, fy, fk] = F.eye.far;
     inside(hs, u => {
-      const w = Math.max(1.5, .009 * p.size) * u;
+      const w = Math.max(1.5, .012 * p.size) * u;
       c.save(); c.globalAlpha = .35; c.fillStyle = P.blush; c.fill(path(F.blush)); c.restore();
       c.lineCap = c.lineJoin = 'round'; c.strokeStyle = P.line;
-      c.save(); c.translate(ex, ey); c.scale(EYE, EYE); c.translate(-ex, -ey);
-      if (E.eye === 'x' || E.eye === 'arc') { c.lineWidth = w * 1.2 / EYE; c.stroke(path(F.eye[E.eye])); }
-      else {
-        const wide = E.eye === 'wide', eye = path(F.eye[E.eye]), top = wide ? -3.5 : -2.9, h = wide ? 7.8 : 6.6;
-        c.fillStyle = P.eye; c.fill(eye);
-        const px = ex + .8, py = ey + .3 + (E.look || 0), r = wide ? .8 : 1.05;
-        c.beginPath(); c.ellipse(px, py, r, r * 1.2, 0, 0, TAU); c.fillStyle = P.line; c.fill();
-        if (lid < 1) {  // upper lid in skin, slanting down toward the nose when angry
-          const y = top + (1 - lid) * h, s = E.slant ? .9 : 0, a = [ex + 3.6, y + s], b = [ex - 3.6, y - s];
-          c.save(); c.clip(eye); c.beginPath(); c.moveTo(ex + 4, top - 1); c.lineTo(ex - 4, top - 1); c.lineTo(...b); c.lineTo(...a); c.closePath(); c.fillStyle = L.skin; c.fill(); c.restore();
-          c.beginPath(); c.moveTo(...b); c.lineTo(...a); c.lineWidth = w / EYE; c.stroke();
+      for (const [dx, dy, k] of [[fx, fy, fk], [0, 0, 1]]) {
+        c.save(); c.translate(ex + dx, ey + dy); c.scale(k, k); c.translate(-ex, -ey);
+        if (E.eye === 'x' || E.eye === 'arc') { c.lineWidth = w * 1.2 / k; c.stroke(path(F.eye[E.eye])); }
+        else {
+          const wide = E.eye === 'wide', eye = path(F.eye[E.eye]), ry = F.eye.ry[E.eye], top = ey - ry;
+          c.fillStyle = P.eye; c.fill(eye);
+          const r = wide ? .95 : 1.25;
+          c.beginPath(); c.ellipse(ex + 1.6, ey + .8 + 1.5 * (E.look || 0), r, r * 1.2, 0, 0, TAU); c.fillStyle = P.line; c.fill();
+          if (lid < 1) {  // upper lid in skin, slanting down toward the nose when angry
+            const y = top + (1 - lid) * 2 * ry, s = E.slant ? 1.2 : 0, a = [ex + 4.8, y + s], b = [ex - 4.8, y - s];
+            c.save(); c.clip(eye); c.beginPath(); c.moveTo(ex + 5, top - 1); c.lineTo(ex - 5, top - 1); c.lineTo(...b); c.lineTo(...a); c.closePath(); c.fillStyle = L.skin; c.fill(); c.restore();
+            c.beginPath(); c.moveTo(...b); c.lineTo(...a); c.lineWidth = w / k; c.stroke();
+          }
+          c.lineWidth = w / k; c.stroke(eye);
         }
-        c.lineWidth = w / EYE; c.stroke(eye);
+        if (E.brow) { c.lineWidth = w * 1.3 / k; c.stroke(path(E.brow)); }
+        c.restore();
       }
-      c.restore();
-      if (E.brow) { c.lineWidth = w * 1.4; c.stroke(path(E.brow)); }
-      if (E.mouth.fill) { c.fillStyle = mixCol(P.line, P.blush, .3); c.fill(path(E.mouth.d)); c.lineWidth = w * .7; c.stroke(path(E.mouth.d)); } else { c.lineWidth = w; c.stroke(path(E.mouth.d)); }
+      if (E.mouth.fill) { c.fillStyle = mixCol(P.line, P.blush, .3); c.fill(path(E.mouth.d)); c.lineWidth = w * .8; c.stroke(path(E.mouth.d)); } else { c.lineWidth = w; c.stroke(path(E.mouth.d)); }
     });
   }
   // Round white eye with a small pupil looking forward at local (x, y) of a frame (units), inked w px; blink closes it
@@ -135,7 +136,7 @@
       c.lineWidth = Math.max(1.5, w) * u; c.strokeStyle = P.line; c.lineCap = 'round';
       if (blink > .5) { c.beginPath(); c.moveTo(x - r, y); c.lineTo(x + r, y); c.stroke(); return; }
       c.beginPath(); c.ellipse(x, y, r, r * 1.15, 0, 0, TAU); c.fillStyle = P.eye; c.fill(); c.stroke();
-      c.beginPath(); c.ellipse(x + .35 * r, y + .1 * r, .36 * r, .42 * r, 0, 0, TAU); c.fillStyle = P.line; c.fill();
+      c.beginPath(); c.ellipse(x + .38 * r, y + .1 * r, .3 * r, .36 * r, 0, 0, TAU); c.fillStyle = P.line; c.fill();
     });
   }
 
@@ -145,8 +146,8 @@
   // eyes and mouth are skipped.
   const decor = {
     human: {
-      look: { color: P.wing, skin: P.skin, hair: P.hair, shirt: P.wing, pants: P.clothDk, shoe: mixCol(P.wood, P.ink, .45), sole: P.cloud, scarf: P.wingAccent },
-      headScale: 1.4,
+      look: { color: P.mustard, skin: P.skin, hair: P.hair, shirt: P.mustard, pants: P.shorts, shoe: P.boot, sole: P.bootDk, scarf: P.hero, hat: P.olive, hatBand: P.oliveDk },
+      headScale: 2.4, emoteUp: 3,  // the emote clears the hat
       build(p, L) {
         const Q = pieces(p, L), G = [], [ch, pe] = p.spine, o = { L }, h = p.appendages.hair;
         for (const [name, l] of Object.entries(p.limbs)) {
@@ -157,22 +158,19 @@
         const torso = pin(p, Q.torso, pt(pe), pt(ch), o), neckAt = at(torso, 0, -29), hd = [p.head.x, p.head.y];
         const head = pin(p, Q.head, hd, p.head.angle, o), hair = pin(p, Q.hair, hd, p.head.angle, o);
         G.push(grp([pin(p, Q.pelvis, pt(pe), pt(ch), o), torso]), grp([pin(p, Q.scarf, pt(pe), pt(ch), o)]), grp([pin(p, Q.neck, neckAt, hd, o), head]));
-        // Scarf tail: from the back of the neck, trailing like the ponytail but hanging lower.
-        if (h) {
-          G.push(grp([pin(p, Q.ponytail, h[0], h[3], o), pin(p, Q.tie, h[0], h[3], o)]));
-          G.push(grp([pin(p, Q.scarfTail, at(torso, -6.5, -31), turn(p, turn(p, ang(h[0], h[3])) - .35), o)]));
-        }
-        G.push(grp([pin(p, Q.ear, at(head, -1.5, 1.4), p.head.angle, o)]), grp([hair]));
+        // Scarf tail: from the back of the neck, trailing with the hair chain but hanging lower.
+        if (h) G.push(grp([pin(p, Q.scarfTail, at(torso, -7, -30), turn(p, turn(p, ang(h[0], h[3])) - .35), o)]));
+        G.push(grp([pin(p, Q.ear, at(head, -1, -1), p.head.angle, o)]), grp([hair]), grp([pin(p, Q.hat, hd, p.head.angle, o)]));
         if (!head.q.art) G.push({ z: 6.3, draw: () => humanFace(p, L, head) });
         return G;
       },
     },
     dog: {
-      look: { color: P.fur, dark: P.furDk, cream: mixCol(P.fur, P.cloud, .7), nose: mixCol(P.ink, P.furDk, .2), collar: P.wingAccent, tag: P.wing },
+      look: { color: P.cream, dark: P.patch, nose: P.line, collar: P.hero, tag: P.gold },
       build(p, L) {
         const top = p.view !== 'side', Q = pieces(p, L), G = [], o = { L }, A = p.appendages, hd = [p.head.x, p.head.y];
         for (const [name, l] of Object.entries(p.limbs)) {
-          const k = { L, dk: l.far ? .3 : 0 }, front = name.endsWith('F');
+          const k = { L, dk: l.far ? .2 : 0 }, front = name.endsWith('F');
           G.push(grp([pin(p, front ? Q.armUpper : Q.hipUpper, l.root, l.mid, k), pin(p, Q.legLower, l.mid, l.end, k), pin(p, Q.paw, l.end, top ? ang(l.mid, l.end) : rock(p, l, .2), k)], l.far || top));
         }
         const t = A.tail;
@@ -181,10 +179,16 @@
         const neck = [pt(p.spine[0]), hd], head = pin(p, Q.head, hd, p.head.angle, o);
         G.push(grp([pin(p, Q.body, pt(p.spine.at(-1)), pt(p.spine[0]), o), pin(p, Q.neck, ...neck, o), head]));
         const collar = pin(p, Q.collar, ...neck, o);
-        G.push(grp([collar, ...(top ? [] : [pin(p, Q.tag, at(collar, 19.6, 9.6), PI2, o)])]));
+        G.push(grp([collar, ...(top ? [] : [pin(p, Q.tag, at(collar, 11.4, 11.2), PI2, o)])]));
+        // Eyes: from above both, the patched one on the left; in profile the far eye peeks over the snout, then the
+        // near one inside the patch, with its brow.
         if (!head.q.art) G.push({ z: 6.2, draw: () => {
-          for (const s of top ? [-1, 1] : [1]) eyeAt(head, top ? 5 : 4.4, top ? 4.6 * s : -4.2, 2.9, p.face.blink, fwOf(p));
-          if (!top) inside(head, u => { c.beginPath(); c.moveTo(1.8, -8.6); c.quadraticCurveTo(4.4, -10.2, 7.2, -8.8); c.lineWidth = Math.max(1.5, fwOf(p)) * u; c.strokeStyle = P.line; c.stroke(); });
+          const w = Math.max(1.5, 1.4 * fwOf(p));
+          if (top) for (const s of [-1, 1]) eyeAt(head, 6.2, 5.8 * s, 4, p.face.blink, w);
+          else {
+            eyeAt(head, 13.5, -10.5, 4.5, p.face.blink, w); eyeAt(head, 4.8, -8, 5.2, p.face.blink, w);
+            inside(head, u => { c.beginPath(); c.moveTo(-0.2, -17.8); c.quadraticCurveTo(4.5, -20.8, 9.5, -18.2); c.lineWidth = w * u; c.strokeStyle = P.line; c.stroke(); });
+          }
         } });
         return G;
       },
@@ -263,7 +267,7 @@
 
   // Flat crowd form: no outline or face; limbs as thin lines.
   function simple(p, D, L) {
-    const S = p.size, col = L.shirt || L.color, w = Math.max(1, .06 * S), r = headR(p) * (D.headScale || 1);
+    const S = p.size, col = L.shirt || L.color, w = Math.max(1, .06 * S), r = headR(p);
     for (const l of Object.values(p.limbs)) stroke([l.root, l.mid, l.end], w, l.far ? dark(L.pants || L.dark || col) : L.pants || L.dark || col, false);
     if (p.spec === 'human') stroke([[p.spine[0].x, p.spine[0].y - .06 * S], [p.spine[1].x, p.spine[1].y]], .17 * S, col);
     else for (const g of p.spine) { c.beginPath(); c.ellipse(g.x, g.y, g.r * 1.3, g.r, g.angle, 0, TAU); c.fillStyle = col; c.fill(); }
@@ -292,7 +296,7 @@
     if (e.sym === 'sweat') {
       const s = backOut(k) * r * .3, x = p.head.x - f * r * .2, y = p.head.y - r * .5 + r * .5 * (1 - e.a);
       Kit.poly([[x - s * .7, y - s * .2], [x, y - s * 1.9], [x + s * .7, y - s * .2]], P.water, { stroke: false }); Kit.ellipse(x, y, s * .72, s * .8, P.water);
-    } else Kit.text({ note: '♪', zzz: 'z z z' }[e.sym] || e.sym, p.head.x + f * r * 1.2, p.head.y - r * 1.9, Math.max(14, r * 1.6), P.ink, { k });
+    } else Kit.text({ note: '♪', zzz: 'z z z' }[e.sym] || e.sym, p.head.x + f * r * 1.2, p.head.y - r * (decor[p.spec].emoteUp || 1.9), Math.max(14, r * 1.6), P.ink, { k });
   }
 
   function creature(p, look = {}) {

@@ -27,7 +27,13 @@ Validação: ausência de bibliotecas p5 na página, curvas sem serrilhado indev
 
 ## Peças recortadas (`parts.js`)
 
-Os seres são bonecos de recorte: cada peça de `CARTOON_PARTS` é um caminho SVG (`Path2D`, criado uma vez) preso a um osso da pose por `NatureArt.decor[spec].build`, desenhada chapada com contorno preto. Apelo antes de realismo: livro ilustrado, formas grandes, poucas peças, cabeça humana com cerca de 1/4 da altura, olhos grandes e um detalhe marcante por personagem. Personagens recorrentes têm nome e paleta fixa (`look`): Lia (humana, lenço vermelho e rabo de cavalo) e Bento (cão, coleira vermelha com medalha).
+Os seres são bonecos de recorte: cada peça de `CARTOON_PARTS` é um caminho SVG (`Path2D`, criado uma vez) preso a um osso da pose por `NatureArt.decor[spec].build`, desenhada chapada com contorno preto. Linguagem de forma, não anatomia: 2 ou 3 formas geométricas grandes por ser, cabeça humana de 1/3 a 1/2 da altura (Lia: 0,39 até o queixo, com o chapéu), membros em macarrão (tubo de largura quase constante), mãos-luva de 4 dedos, pés grandes, olhos grandes brancos com pupila pequena e um detalhe marcante por personagem. Personagens recorrentes têm nome e paleta fixa (`look`, cores em `config.js`):
+
+- Lia, exploradora: cabeça redonda, cabelo castanho curto com franja recortada, chapéu de explorador verde-oliva (`olive`), camisa mostarda (`mustard`), lenço vermelho, short verde (`shorts`), botas marrons grandes (`boot`).
+- Bento, vira-lata: corpo em feijão creme (`cream`), mancha marrom num olho e orelhas longas caídas (`patch`), focinho comprido com nariz preto grande, pernas finas saindo de baixo do corpo com patas redondas, coleira vermelha com plaquinha dourada (`gold`).
+- O vermelho `hero` é a cor-herói: só no lenço da Lia e na coleira do Bento, nunca decorativo.
+
+Na vista lateral os dois mostram os dois olhos: o de longe menor, junto ao nariz (Lia) ou espiando por cima do focinho (Bento).
 
 Para criar ou alterar uma peça:
 
@@ -35,7 +41,9 @@ Para criar ou alterar uma peça:
 2. `pivot` é a junta de onde a peça pende; `angle` é a direção do osso em repouso (0 à frente, π/2 para baixo); `len` é o comprimento do osso. A peça estica ao longo do osso até a junta seguinte, então desenhe as pontas arredondadas passando do pivô e da junta: as peças vizinhas se sobrepõem e a costura some.
 3. `layer` fixa a ordem; na vista lateral os membros do lado de longe descem 10 camadas. Peças do mesmo grupo (mesma chamada de `cut`) formam uma silhueta só: contornos primeiro, depois os tons. Peças que precisam de contorno próprio por cima de outras (orelha, cabelo, lenço, coleira) ficam em grupo separado.
 4. `fill` é a chave da cor no `look`; `spots` são manchas planas dentro da peça (sela do cão, barriga, faixas); `lines` são traços internos pretos.
-5. Rosto humano: `face` tem os olhos (`dot`, `wide`, `arc`, `x`) e, por expressão, olho, pálpebra (`lid`), inclinação, sobrancelha e boca, em unidades da cabeça. O olho é desenhado 1,25× maior (`EYE` em `nature.js`).
+5. Rosto humano: `face` tem os olhos (`dot`, `wide`, `arc`, `x`) e, por expressão, olho, pálpebra (`lid`), inclinação, sobrancelha e boca, em unidades da cabeça. `eye.far` = [dx, dy, escala] do olho de longe em relação ao de perto; cada olho leva a sua sobrancelha. `decor.human.emoteUp` põe o emote acima do chapéu.
+
+Compare com a referência de estilo em números (proporção da cabeça, espessura do contorno, saturação) com `scripts/compare-ref.mjs` (uso no cabeçalho do script); a folha `modelos` tem Lia e Bento em pé num fundo liso para isso.
 
 Evite `clip` no desenho por quadro: custa ~6× um preenchimento nesta GPU. Fundos usam o mesmo mecanismo: copas (`round`, `tall`, `pine`), troncos, arbustos nas bordas dos morros e folhas dos tufos, escolhidos e espelhados por semente.
 

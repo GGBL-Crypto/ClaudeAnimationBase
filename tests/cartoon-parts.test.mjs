@@ -70,3 +70,22 @@ test('importado: rig.json em px vira peças em BL/100 com padrões da peça dese
   assert.throws(() => PARTS.rigPieces({ ...rig, spec: 'dragon' }, art), /Espécie desconhecida/);
   assert.throws(() => PARTS.rigPieces(rig, { head: 'A' }), /Arte ausente/);
 });
+
+test('compare-ref: proporção da cabeça, espessura do contorno e saturação de uma figura sintética', async () => {
+  const { measure } = await import('../scripts/compare-ref.mjs');
+  // White 120 × 200 board; a figure of three black boxes each filled red 4 px inside: head 80 wide (rows 0–59),
+  // neck 12 wide (60–71), body 50 wide (72–199).
+  const w = 120, h = 200, px = new Uint8ClampedArray(w * h * 4).fill(255);
+  const box = (x0, y0, x1, y1, r, g, b) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) px.set([r, g, b, 255], 4 * (y * w + x)); };
+  for (const [x0, y0, x1, y1] of [[20, 0, 99, 59], [54, 60, 65, 71], [35, 72, 84, 199]]) { box(x0, y0, x1, y1, 0, 0, 0); box(x0 + 4, y0 + 4, x1 - 4, y1 - 4, 230, 30, 30); }
+  const m = measure(px, w, h);
+  assert.deepEqual(m.box, [20, 0, 99, 199]);
+  assert.ok(m.head > .28 && m.head < .37, `cabeça ${m.head}`);
+  assert.equal(m.outline, 4);
+  assert.ok(m.saturation > 85, `saturação ${m.saturation}`);
+  // The same figure lying down, head to the right, measured along x.
+  const t = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) t.set(px.subarray(4 * (y * w + x), 4 * (y * w + x) + 4), 4 * (x * h + (h - 1 - y)));
+  assert.ok(Math.abs(measure(t, h, w, 'x').head - m.head) < .02);
+  assert.throws(() => measure(new Uint8ClampedArray(16).fill(255), 2, 2), /Nenhuma figura/);
+});

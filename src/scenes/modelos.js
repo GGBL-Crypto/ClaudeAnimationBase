@@ -53,10 +53,13 @@
     sideCell('fish', 'fish', 1210, 580, 220, .8, t, 0, 0, 470);
     topCell('fish', 'fish · top', 1660, 580, 200, .8, t, false);
 
+    // Model band on a plain ground: Lia and Bento standing in profile, then Lia's eight expressions as busts.
     const c = animationEngine.context; c.fillStyle = P.skyLow; c.fillRect(0, 730, W, H - 730); Kit.line([[0, 730], [W, 730]], P.ink, 6);
+    A().creature(walker('human', 120, 1060, 240, 0, { t, moving: 0, seed: 3 }).pose); Kit.text('Lia', 30, 1050, 24, P.ink);
+    A().creature(walker('dog', 560, 1060, 330, 0, { t, moving: 0, seed: 3 }).pose); Kit.text('Bento', 560, 752, 24, P.ink);
     EXPRESSIONS.forEach((e, i) => {
-      const X = 120 + i * 240, w = walker('human', X, 1347, 560, 0, { t, moving: 0, expression: e, seed: 3 });
-      A().creature(w.pose); Kit.text(e, X, 760, 24, P.ink);
+      const X = 868 + i * 140, w = walker('human', X, 1150, 290, 0, { t, moving: 0, expression: e, seed: 3 });
+      A().creature(w.pose); Kit.text(e, X + 10, 752, 22, P.ink);
     });
   }
   shots([[0, sheet]]);
