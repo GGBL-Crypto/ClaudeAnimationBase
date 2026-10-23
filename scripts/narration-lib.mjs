@@ -64,3 +64,6 @@ export function composeNarration(timing, clips, sampleRate) {
 }
 
 export const ttsCacheKey = (voice, lengthScale, text) => createHash('sha1').update(`${voice}|${lengthScale}|${text}`).digest('hex');
+
+// Texto enviado ao TTS: troca cada termo de `pronunciations` pela grafia falada; legendas mantêm o original.
+export const speakText = (text, pron = {}) => Object.entries(pron).reduce((t, [k, v]) => t.split(k).join(v), text);

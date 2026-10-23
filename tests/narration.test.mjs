@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { splitSentences, layoutTimeline, readWav, writeWav, composeNarration, ttsCacheKey } from '../scripts/narration-lib.mjs';
+import { splitSentences, layoutTimeline, readWav, writeWav, composeNarration, ttsCacheKey, speakText } from '../scripts/narration-lib.mjs';
 
 test('splitSentences handles ellipsis, questions and accents', () => {
   assert.deepEqual(splitSentences('Ela nasceu. Será que sobrevive? Talvez… Não sabemos!'), ['Ela nasceu.', 'Será que sobrevive?', 'Talvez…', 'Não sabemos!']);
@@ -28,4 +28,8 @@ test('tts cache key separates voices, speed and text', () => {
   assert.notEqual(k, ttsCacheKey('kokoro:pf_dora', 1, 'Olá.'));
   assert.notEqual(k, ttsCacheKey('kokoro:pm_alex', 1.1, 'Olá.'));
   assert.equal(k, ttsCacheKey('kokoro:pm_alex', 1, 'Olá.'));
+});
+test('speakText replaces pronunciation keys and leaves other text alone', () => {
+  assert.equal(speakText('A Atta sexdens e o Escovopsis.', { 'Atta sexdens': 'Ata séquisdens', Escovopsis: 'Escovópsis' }), 'A Ata séquisdens e o Escovópsis.');
+  assert.equal(speakText('Olá.', undefined), 'Olá.');
 });

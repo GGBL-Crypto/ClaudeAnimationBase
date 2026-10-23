@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { splitSentences, layoutTimeline, readWav, writeWav, composeNarration, ttsCacheKey } from './narration-lib.mjs';
+import { splitSentences, layoutTimeline, readWav, writeWav, composeNarration, ttsCacheKey, speakText } from './narration-lib.mjs';
 
 // Piper roda como subprocesso (GPL): `python -m piper`; sem pip, troque pelo binário de release.
 const PIPER = ['python', '-X', 'utf8', '-m', 'piper'], VOICES = 'tools/piper-voices';
@@ -16,9 +16,10 @@ try {
   const outDir = resolve('out/episodes', ep.id), ttsDir = join(outDir, 'tts'); mkdirSync(ttsDir, { recursive: true });
   const durations = new Map(), clips = new Map(); let sampleRate = 0;
   const jobs = [], shots = ep.chapters.flatMap(c => c.shots).filter(sh => sh.narration);
+  const say = text => speakText(text, ep.pronunciations);
   for (const sh of shots) splitSentences(sh.narration).forEach((text, j) => {
-    const file = join(ttsDir, ttsCacheKey(voice, ls, text) + '.wav');
-    if (!existsSync(file)) jobs.push({ text, out: file });
+    const file = join(ttsDir, ttsCacheKey(voice, ls, say(text)) + '.wav');
+    if (!existsSync(file)) jobs.push({ text: say(text), out: file });
   });
   if (kokoro && jobs.length) {
     const r = spawnSync(KOKORO_PY, ['-X', 'utf8', KOKORO_SAY, voice.slice(7), String(1 / ls)], { input: JSON.stringify(jobs), encoding: 'utf8' });
@@ -30,7 +31,7 @@ try {
   for (const sh of shots) {
     const ds = [];
     splitSentences(sh.narration).forEach((text, j) => {
-      const file = join(ttsDir, ttsCacheKey(voice, ls, text) + '.wav');
+      const file = join(ttsDir, ttsCacheKey(voice, ls, say(text)) + '.wav');
       if (!existsSync(file)) throw new Error(`Sem áudio para "${text}"`);
       const wav = readWav(readFileSync(file));
       if (wav.channels !== 1 || (sampleRate && wav.sampleRate !== sampleRate)) throw new Error('Os clipes precisam ser mono e ter a mesma taxa');
