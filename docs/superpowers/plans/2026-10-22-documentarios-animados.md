@@ -36,6 +36,7 @@ Sessão coordenadora: **Opus 5.5, effort medium**. Ela não escreve código de t
 | 11 Mixagem | Sonnet 5.5 · low | coordenador |
 | 12 Tema, pesquisa e roteiro | Opus 5.5 · high | usuário |
 | 13 Narração do piloto | Sonnet 5.5 · low | coordenador ouve trechos |
+| 13b Elementos novos do episódio | Opus 5.5 · high | coordenador abre a folha |
 | 14 Guia do episódio | Opus 5.5 · medium | coordenador |
 | 15 Capítulos (paralelo, no máximo 3 ao mesmo tempo) | Opus 5.5 · medium cada | coordenador abre as folhas |
 | 16 Montagem e entrega | Sonnet 5.5 · medium | coordenador + usuário |
@@ -621,6 +622,29 @@ Se o roteiro pedir um ser que ainda não existe, criar uma especificação nova 
 ---
 
 ## Fase E — Cenas do piloto
+
+### Task 13b: Elementos novos do episódio
+
+Adicionado em 23/10/2026. O roteiro do piloto pede elementos que o motor não tem. Regra: reaproveitar antes de criar. Uma variante é só uma entrada de dados.
+
+**Files:** `src/nature/specs.js`, `src/styles/cartoon/parts.js`, `assets/characters/*`, `src/styles/cartoon/nature.js`, `src/scenes/modelos.js`. Test: os testes existentes de `nature-*`.
+
+- **Variantes da spec `ant`:**
+  - `queen`: gáster grande, `wings` opcional que pode cair;
+  - `alate`: voo com `flutter`, ou com a marcha de voo da ave;
+  - `soldier`: cabeça grande, mandíbulas visíveis;
+  - `minima`: pequena, cavalgando a folha.
+- **Spec nova `fly`:** a mosca forídea. Usa o voo da ave, com voo pairado e mergulho.
+- **Crias, sem marcha:** `egg`, `larva` e `pupa` como formas simples que respiram e se mexem.
+- **Ambiente:**
+  - jardim de fungo, como esponja clara, com mancha de parasita opcional;
+  - câmara do ninho e câmara de lixo, sobre o `soil`/`tunnel` que já existem;
+  - raízes.
+- **Folha `modelos`:** recebe todos esses elementos. Uma rodada de ajuste, sem iteração extra.
+
+- [ ] **Step 1:** Implementar e testar. A rainha sem asas anda com a marcha trípode. A `fly` paira sem marcha.
+- [ ] **Step 2:** Abrir a folha `modelos` em 1280. `npm test`, `npm run test:visual`.
+- [ ] **Step 3: Commit** `feat: episode elements for leafcutter ant pilot`.
 
 ### Task 14: Guia do episódio
 
