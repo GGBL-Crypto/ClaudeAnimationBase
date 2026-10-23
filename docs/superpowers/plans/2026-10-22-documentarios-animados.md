@@ -27,6 +27,7 @@ Sessão coordenadora: **Opus 5.5, effort medium**. Ela não escreve código de t
 | 8b Direção de arte do cartoon | Opus 5.5 · high | coordenador abre as folhas + usuário |
 | 8c Movimento orgânico | Opus 5.5 · high | coordenador abre as tiras |
 | 8d Arte recortada | Opus 5.5 · high | coordenador abre as folhas + usuário |
+| 8e Estilo TV chapado + peças importadas | Opus 5.5 · high | coordenador abre as folhas + usuário |
 | 9 Narração | Sonnet 5.5 · medium | coordenador |
 | 10 Gerador de episódios | Sonnet 5.5 · medium | coordenador |
 | 11 Mixagem | Sonnet 5.5 · low | coordenador |
@@ -396,6 +397,33 @@ Regras:
 - [ ] **Step 2:** Formiga, aranha, ave e peixe. Fundos.
 - [ ] **Step 3:** `npm test`, `npm run test:visual`. Renderizar `modelos.jpg`, `teste-movimento.jpg` e o MP4 do teste; conferir com `ffprobe`.
 - [ ] **Step 4: Commit** `feat: cut-out Path2D parts for cartoon creatures and backgrounds`. **Ponto de aprovação do usuário.**
+
+### Task 8e: Estilo TV chapado e peças importadas de imagem
+
+Adicionado após o 8d (23/10/2026). O usuário achou o visual "horrível" e indicou como referência desenhos de TV dos anos 2000 (`refs/estilo/`, imagens de terceiros, só referência, fora do git). Personagens de terceiros são proibidos: criamos personagens originais nesse idioma visual. As peças passam a vir de folhas geradas pelo usuário numa IA de imagem (Gemini, cota grátis), em `refs/personagens/<nome>/{model,parts,expressions}.png`. A interface `NatureArt.creature(pose, look)` não muda.
+
+**Files:** Modify `src/styles/cartoon/nature.js`, `src/styles/cartoon/parts.js`, `src/styles/cartoon/config.js`, `src/styles/cartoon/GUIDE.md`. Create `scripts/import-parts.py` (ferramenta, roda fora do render) e `assets/characters/<nome>/` (peças prontas: SVG ou PNG recortado, mais `rig.json` com pivô, comprimento e camada de cada peça). Test `tests/cartoon-parts.test.mjs`.
+
+Regras de estilo:
+- Cor chapada, sem gradiente, sem textura de papel nos personagens; contorno preto uniforme (cerca de 6 px em 1080p, escalado pelo tamanho); no máximo uma sombra dura opcional.
+- Fundos em cores planas, poucas camadas, contorno igual.
+- Movimento: o rig do 8c continua, com poses mais fortes e exageradas (antecipação, overshoot, `sq`); pés sem deslizar.
+
+Passo A (sem as imagens do usuário):
+- Render chapado com contorno grosso, aplicado às peças atuais do 8d.
+- Importador `scripts/import-parts.py`: lê uma folha PNG de fundo branco, separa as peças por componentes conexos, salva cada peça recortada e, se `vtracer` (MIT) estiver instalado, também o SVG vetorizado; escreve `rig.json` com pivôs a ajustar. Ferramenta Python fora do npm; dependências em venv dentro de `out/tmp/`.
+- `parts.js` aceita peças de `assets/characters/<nome>/` (Path2D do SVG, ou `drawImage` do PNG) presas aos ossos, com variantes de rosto por `expression`.
+
+Passo B (com as imagens):
+- Importar Lia e Bento, ajustar pivôs, folha `modelos` em `--w=320` e 1280, iterar até ler bem.
+- Depois formiga, aranha, ave e peixe, e os fundos.
+
+Licença: imagens geradas pelo usuário no Gemini; registrar origem e data em `docs/CREDITS.md`. Sem marca d'água visível.
+
+- [ ] **Step 1:** Passo A. `npm test` e `npm run test:visual`. Folha `modelos` aberta.
+- [ ] **Step 2:** Passo B, quando as folhas existirem.
+- [ ] **Step 3:** ≤ 80 ms/quadro (render + JPEG); MP4 do teste com `ffprobe`.
+- [ ] **Step 4: Commit** `feat: flat TV cartoon style with imported character parts`. **Ponto de aprovação do usuário.**
 
 ---
 
