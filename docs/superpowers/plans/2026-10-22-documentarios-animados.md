@@ -29,6 +29,7 @@ Sessão coordenadora: **Opus 5.5, effort medium**. Ela não escreve código de t
 | 8d Arte recortada | Opus 5.5 · high | coordenador abre as folhas + usuário |
 | 8e Estilo TV chapado + elenco original | Opus 5.5 · high | coordenador abre as folhas + usuário |
 | 8f Movimento dinâmico, fps, polimento | Opus 5.5 · high | coordenador abre tiras e folhas + usuário |
+| 8g Proporção final (1 rodada) | Opus 5.5 · medium | coordenador |
 | 9 Narração | Sonnet 5.5 · medium | coordenador |
 | 9b Voz Kokoro | Sonnet 5.5 · medium | coordenador ouve um trecho |
 | 10 Gerador de episódios | Sonnet 5.5 · medium | coordenador |
@@ -51,7 +52,7 @@ Regras de economia: o subagente recebe só o texto da sua tarefa, as Global Cons
 - `src/nature/*.js` são scripts clássicos (funções globais, como `src/motion.js`), carregáveis no navegador e em `vm`. Nada de desenho neles.
 - Coordenadas 2D: 1920×1080, origem no canto superior esquerdo, Y para baixo. Ângulos em radianos.
 - Unidade de ser: BL (comprimento de referência da especificação: corpo para animais, altura para humanos). `creaturePose` recebe `size` = BL em pixels.
-- Saída: 1920×1080, 24 fps, H.264, áudio AAC; −14 LUFS integrados, pico −1,5 dBTP.
+- Saída: 1920×1080, 30 fps (cartoon em 1s, decisão de 23/10/2026), H.264, áudio AAC; −14 LUFS integrados, pico −1,5 dBTP.
 - Voz Kokoro `pm_alex` (Task 9b; faber não serve para uso comercial). Pausas: 0,25 s antes da primeira frase do plano, 0,35 s entre frases, 0,8 s depois do plano, 1,6 s entre capítulos. Plano sem narração: `hold` (padrão 3 s).
 - Limites de plano na grade de quadros: `Math.round(t * fps) / fps`.
 - Legenda: no máximo 42 caracteres por linha e 2 linhas por cue; UTF-8.
@@ -462,6 +463,22 @@ Gerar também um MP4 de comparação em grade 2×2, rotulado e sincronizado (`ff
 - [ ] **Step 3:** Parte C. Folha `modelos` em 320 e 1280 aberta e comparada com `refs/estilo/` e `out/check/8e-b/`.
 - [ ] **Step 4:** Rerenderizar as 4 variantes e a grade com B e C aplicados. `npm test`, `npm run test:visual`, no máximo 80 ms/quadro.
 - [ ] **Step 5: Commit** `feat: dynamic cartoon motion, fps test and visual polish`. **Ponto de aprovação do usuário:** escolher a variante de fps e aprovar movimento e visual.
+
+Decisão de 23/10/2026: o usuário escolheu a variante C (30 fps em 1s). Ela vale para o plano inteiro.
+
+### Task 8g: Ajuste final de proporção (uma rodada, roda em paralelo com o Task 12)
+
+O usuário achou que a cabeça está enorme, que falta pescoço e que há peças sobrepondo outras. A prioridade agora é produzir: esta tarefa tem **uma única rodada**. O que não ficar bom nela vai para o ledger, sem nova iteração.
+
+**Files:** `assets/characters/*`, `src/styles/cartoon/parts.js`, `src/styles/cartoon/nature.js`.
+
+1. **Cabeça da Lia:** de cerca de 0,47 para cerca de 0,33 da altura total, com o chapéu incluído.
+2. **Pescoço visível** na Lia, curto, na cor da pele. No Bento, a ligação entre cabeça e corpo também precisa ficar legível.
+3. **Sobreposições:** ordem de camadas fixa e documentada (membros do lado de lá, corpo, cabeça, membros do lado de cá, acessórios). Nenhuma peça pode atravessar o rosto ou os olhos. As peças não podem se sobrepor de forma errada em nenhum quadro das tiras de caminhada, parada e susto.
+
+- [ ] **Step 1:** Implementar. Abrir a folha `modelos` em 1280 e as 3 tiras.
+- [ ] **Step 2:** `npm test`, `npm run test:visual`. Rerenderizar `teste-movimento` em 30 fps e conferir com `ffprobe`.
+- [ ] **Step 3: Commit** `fix: cartoon head proportion, neck and layer order`. Sem ponto de aprovação: o usuário vê o resultado junto com o roteiro.
 
 ---
 

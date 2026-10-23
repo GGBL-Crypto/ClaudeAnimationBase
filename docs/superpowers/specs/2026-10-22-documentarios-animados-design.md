@@ -12,7 +12,7 @@ Diferencial: **movimento crível de qualquer ser vivo**, a partir de um único s
 
 1. Pipeline repetível: tema → roteiro com fontes → narração → timeline → cenas → render → mixagem → MP4 + SRT + texto de publicação + miniatura.
 2. Biblioteca de seres configuráveis (rigs) e de ambiente, reutilizada entre episódios. Um ser novo é uma especificação de dados, não um motor novo.
-3. Episódio piloto de 8–10 min, 1920×1080, 24 fps, sobre um tema escolhido pelo usuário.
+3. Episódio piloto de 8–10 min, 1920×1080, 30 fps, sobre um tema escolhido pelo usuário.
 4. Mesmo episódio renderizável em cartoon e em aquarela, sem reescrever cenas.
 
 ## Não objetivos
