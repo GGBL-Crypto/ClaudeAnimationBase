@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { catalog } from '../scripts/render-lib.mjs';
 import { episodeProject, toSrt, youtubeText } from '../scripts/build-episodes.mjs';
+import { mixArgs } from '../scripts/mix-audio.mjs';
 
 test('both 2D styles expose the shared palette keys', () => {
   const p = catalog();
@@ -35,3 +36,9 @@ test('srt keeps accents and wraps lines', () => {
   for (const line of srt.split('\n')) assert.ok(line.length <= 42 || /-->/.test(line));
 });
 test('youtube chapters start at 00:00', () => { assert.match(youtubeText(sampleEpisode, sampleTiming), /\n00:00 /); });
+test('mixArgs: bed always, sidechain and loop only with music, loudnorm and -t always', () => {
+  const base = { narration: 'n.wav', duration: 14.375, out: 'm.m4a' }, a = mixArgs(base).join(' '), b = mixArgs({ ...base, music: 'x.mp3' }).join(' ');
+  assert.ok(!/sidechaincompress|stream_loop/.test(a)); assert.match(a, /anoisesrc=color=brown:amplitude=0\.04/);
+  assert.match(b, /sidechaincompress/); assert.match(b, /-stream_loop -1 -i x\.mp3/);
+  for (const s of [a, b]) { assert.match(s, /loudnorm=I=-14:TP=-1\.5:LRA=11/); assert.match(s, /-t 14\.375/); }
+});
