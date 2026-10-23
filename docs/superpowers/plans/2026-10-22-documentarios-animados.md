@@ -24,6 +24,7 @@ Sessão coordenadora: **Opus 5.5, effort medium**. Ela não escreve código de t
 | 6 Kit cartoon | Sonnet 5.5 · medium | coordenador |
 | 7 NatureArt cartoon | Opus 5.5 · high | coordenador abre as folhas |
 | 8 Filme de teste | Opus 5.5 · high | coordenador abre as tiras + usuário |
+| 8b Direção de arte do cartoon | Opus 5.5 · high | coordenador abre as folhas + usuário |
 | 9 Narração | Sonnet 5.5 · medium | coordenador |
 | 10 Gerador de episódios | Sonnet 5.5 · medium | coordenador |
 | 11 Mixagem | Sonnet 5.5 · low | coordenador |
@@ -318,6 +319,32 @@ Storyboard (6 planos de 5 s):
 - [ ] **Step 3:** Corrigir e repetir.
 - [ ] **Step 4:** `node render.mjs --project=teste-movimento --clip --out=out/teste-movimento/cartoon/video.mp4`; abrir `video.mp4.review/decoded-sheet.png`. **Ponto de aprovação do usuário** antes da Fase D.
 - [ ] **Step 5: Commit** `feat: 30 s multi-creature motion test film`.
+
+### Task 8b: Direção de arte do cartoon
+
+Adicionado após a aprovação do Task 8 (22/10/2026): o usuário aprovou o movimento, mas achou o visual feio. O movimento não muda; muda só o desenho.
+
+**Files:** Modify `src/styles/cartoon/nature.js`, `src/styles/cartoon/kit.js` (pode ganhar funções novas; os 11 nomes do Task 6 continuam iguais), paleta do cartoon em `src/config.js`, `src/scenes/teste-movimento.js` (só enquadramento e camadas de fundo), `src/styles/cartoon/GUIDE.md` (seção curta "Direção de arte"). Pode corrigir `src/nature/` só para a pose parada do cão.
+
+Referências: se `refs/estilo/` tiver imagens do usuário, use-as para paleta, formas e traço, sem copiar nada. `refs/` vai para o `.gitignore`. Sem referências, use a direção padrão: vetor plano com sombreamento em dois tons, luz lateral quente e silhuetas fortes.
+
+Critérios:
+1. **Volume:** cada forma tem cor base, lado de sombra e um brilho pequeno. Cada ser projeta uma sombra de contato no chão.
+2. **Traço:** contorno externo mais grosso que as linhas internas. Cor do traço é o tom escuro do preenchimento, não preto.
+3. **Profundidade:** fundo em 3–4 camadas com perspectiva atmosférica (o distante mais claro e menos saturado), paralaxe com `cam` e plantas escuras em primeiro plano emoldurando.
+4. **Luz e clima:** céu com brilho do sol e nuvens sombreadas. Correção de cor por clima (a chuva fica mais fria e escura). Grão de papel sutil e determinístico, com o padrão gerado uma vez e reutilizado.
+5. **Seres:**
+   - Humano: proporções e rosto de perfil corretos (hoje os dois olhos aparecem na lateral da cabeça), cabelo com volume, dobras de roupa.
+   - Formiga e aranha: cabeça, tórax e abdômen bem definidos, com brilho de quitina. As pernas `far` ficam mais finas e claras, para a vista lateral não embolar.
+   - Árvores variadas por semente, com galhos e copa sombreada.
+6. **Enquadramento:** em planos principais, o protagonista ocupa ao menos 1/3 da altura do quadro. A ave do plano `ave` fica maior. No plano `macro`, a perna humana gigante ganha forma (sapato, barra da calça).
+7. **Pendência do Task 8:** o cão parado apoia as quatro patas no chão.
+8. **Desempenho:** no máximo 80 ms por quadro.
+
+- [ ] **Step 1:** Implementar os critérios 1–7.
+- [ ] **Step 2:** Renderizar `modelos.jpg` e `teste-movimento.jpg` (os mesmos comandos dos Tasks 7 e 8). Abrir as duas folhas e comparar com as versões anteriores. Corrigir e repetir.
+- [ ] **Step 3:** `npm test` e `npm run test:visual` → PASS. Renderizar o MP4 do teste de novo e conferir com `ffprobe`. Anotar ms por quadro.
+- [ ] **Step 4: Commit** `feat: cartoon art direction with shading, depth and lighting`. **Ponto de aprovação do usuário.**
 
 ---
 
