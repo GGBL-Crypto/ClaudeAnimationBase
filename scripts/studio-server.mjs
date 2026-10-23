@@ -27,15 +27,17 @@ export async function startStudioServer({ port = 0, root = ROOT } = {}) {
       routes.set(route,resolve(asset.packRoot,file.path));assetRoutes.set(route,{...file,root:asset.packRoot});
     }
   }
-  async function walk(dir) {
+  async function walk(dir, ext = /\.js$/) {
     for (const entry of await readdir(resolve(root, dir), { withFileTypes: true })) {
       const name = dir + '/' + entry.name;
       // Do not follow directory junctions/symlinks while building the public inventory.
-      if (entry.isDirectory()) await walk(name);
-      else if (/\.js$/.test(name)) routes.set('/' + name, resolve(root, name));
+      if (entry.isDirectory()) await walk(name, ext);
+      else if (ext.test(name)) routes.set('/' + name, resolve(root, name));
     }
   }
   await walk('src');
+  // Cartoon characters imported by scripts/import-parts.py (rig.json and part images).
+  await walk('assets/characters', /\.(json|png|svg)$/).catch(error => { if (error.code !== 'ENOENT') throw error; });
   for (const file of DEPENDENCY_ROUTES) routes.set('/' + file, resolve(root, file));
   let authority;
   const server = createServer(async (req, res) => {
@@ -58,7 +60,7 @@ export async function startStudioServer({ port = 0, root = ROOT } = {}) {
       // Open the verified target itself, so a swapped source symlink is not followed again.
       const bytes = await readFile(actual);
       if(asset&&(bytes.length!==asset.bytes||sha256(bytes)!==asset.sha256))return reject(409);
-      const mime={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',glb:'model/gltf-binary',gltf:'model/gltf+json',bin:'application/octet-stream',html:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8'};
+      const mime={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',glb:'model/gltf-binary',gltf:'model/gltf+json',bin:'application/octet-stream',html:'text/html; charset=utf-8',json:'application/json',svg:'image/svg+xml',js:'text/javascript; charset=utf-8'};
       res.writeHead(200, { 'Content-Type': mime[raw.split('.').pop()]||'application/octet-stream', 'Content-Length': bytes.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Cross-Origin-Resource-Policy': 'same-origin' });
       res.end(req.method === 'HEAD' ? undefined : bytes);
     } catch { reject(404); }

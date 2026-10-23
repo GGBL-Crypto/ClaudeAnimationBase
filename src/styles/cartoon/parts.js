@@ -1,13 +1,16 @@
 // Cut-out parts for the cartoon NatureArt: each piece is an SVG path drawn once (Path2D, built on first use and reused)
 // and pinned to a bone of the pose. Units: BL / 100 (human: height / 100), y down, the creature facing right (+x front).
-// Piece = {d, pivot: [x, y], len, angle, layer, fill, clip?, band?, spots?, lines?}:
+// Piece = {d, pivot: [x, y], len, angle, layer, fill, spots?, lines?}:
 //   pivot: the joint the piece hangs from; angle: rest direction of its bone (rad, 0 = forward, PI / 2 = down);
 //   len: bone length in units (the piece stretches along the bone to reach the next joint); layer: draw order;
-//   fill: key of the look (colors); clip: concave piece (shading clipped to it); band: shadow band scale;
-//   spots: [{d, fill}] markings drawn flat inside the piece; lines: inner ink lines.
+//   fill: key of the look (colors); spots: [{d, fill}] markings drawn flat inside the piece; lines: inner ink lines.
 //   Paths use only absolute M, L, C, Q and Z, wound clockwise.
 // Characters are recurring, with a name and a fixed palette (the look in nature.js): Lia (human, red scarf and
 // ponytail) and Bento (dog, red collar with a tag).
+// Imported characters (assets/characters/<name>/, made by scripts/import-parts.py) replace these pieces by name:
+// load(name) fills rigs[name] = {spec, side, top} with pieces {art, u, origin, pivot, len, angle, layer, faces?}, art
+// being the part's SVG paths or its PNG bitmap (px; u px per unit; origin: the pivot in px) and faces its variants by
+// expression (head@happy).
 var CARTOON_PARTS = (() => {
   const D = Math.PI / 2;
   // Smooth closed outline through the midpoints of a control polygon (organic silhouettes: crowns, bushes).
@@ -18,7 +21,7 @@ var CARTOON_PARTS = (() => {
   // Scalloped crown around (cx, cy): radii k[i] alternate peaks and valleys, clockwise from the right.
   const scallop = (cx, cy, rx, ry, k) => blob(k.map((v, i) => { const a = i * 2 * Math.PI / k.length; return [+(cx + Math.cos(a) * rx * v).toFixed(1), +(cy + Math.sin(a) * ry * v).toFixed(1)]; }));
 
-  return {
+  const parts = {
     human: {
       name: 'Lia',
       side: {
@@ -31,10 +34,10 @@ var CARTOON_PARTS = (() => {
         torso: { d: 'M -8.8 3.6 C -9.4 -8 -9.6 -20 -9 -27 C -8.6 -32 -5 -34 0 -34 C 5 -34 8.8 -32 9.2 -27 C 9.8 -20 10.6 -8 10 3.6 C 6 5.4 -5 5.4 -8.8 3.6 Z', pivot: [0, 0], len: 20, angle: -D, layer: 5.1, fill: 'shirt',
           lines: ['M -8.8 3.6 C -5 5.4 6 5.4 10 3.6', 'M 3.4 -4 C 5 -2.4 6.6 -2 8 -2.4', 'M -6 -10 C -5 -7 -5 -5 -6 -2'] },
         neck: { d: 'M -3.2 3 L -3.2 -11 L 3.2 -11 L 3.2 3 Z', pivot: [0, 0], len: 11, angle: -D, layer: 6, fill: 'skin' },
-        head: { d: 'M 0 -12 C 7.4 -12 12 -7.6 12 -1.6 C 13.8 -1.4 14.4 1.8 12.4 2.6 C 11.6 8 7 11.6 1 11.6 C -6.6 11.6 -12 6.8 -12 0 C -12 -7 -6.8 -12 0 -12 Z', pivot: [0, 0], len: 12, layer: 6.05, fill: 'skin', band: .45 },
+        head: { d: 'M 0 -12 C 7.4 -12 12 -7.6 12 -1.6 C 13.8 -1.4 14.4 1.8 12.4 2.6 C 11.6 8 7 11.6 1 11.6 C -6.6 11.6 -12 6.8 -12 0 C -12 -7 -6.8 -12 0 -12 Z', pivot: [0, 0], len: 12, layer: 6.05, fill: 'skin' },
         ear: { d: 'M -1.6 -1.8 C 1.4 -1.8 1.4 4.8 -1.6 4.8 C -4.6 4.8 -4.6 -1.8 -1.6 -1.8 Z', pivot: [0, 0], len: 12, layer: 6.1, fill: 'skin', lines: ['M -0.6 0 C -2.8 0.3 -2.8 3 -0.8 3.2'] },
         hair: { d: 'M -11.8 6 C -14 0 -13.6 -8 -8.6 -11.8 C -4 -15 4 -15 8.8 -11.2 C 11.8 -8.8 12.6 -7 12.4 -5.6 C 11 -6.8 9.8 -7.2 8.6 -6.6 C 7.6 -8.2 5.6 -8.6 4.4 -7.6 C 2.4 -7.2 0.4 -5.6 -0.8 -3.2 C -2.6 -1.6 -3.6 0.4 -4 3.6 C -5 5.6 -6.6 7.4 -8.6 8.4 C -10 8.6 -11.2 7.6 -11.8 6 Z',
-          pivot: [0, 0], len: 12, layer: 6.2, fill: 'hair', clip: true, band: .6, lines: ['M -3 -12.6 C -7 -10 -9.6 -6 -10.2 -1', 'M 3.6 -12.4 C 1 -10.6 -0.4 -8.6 -1.2 -6'] },
+          pivot: [0, 0], len: 12, layer: 6.2, fill: 'hair', lines: ['M -3 -12.6 C -7 -10 -9.6 -6 -10.2 -1', 'M 3.6 -12.4 C 1 -10.6 -0.4 -8.6 -1.2 -6'] },
         ponytail: { d: 'M -1 -2.6 C 4 -5.6 11 -4.2 14.2 -0.6 C 11 1.8 5 4.6 -1 2.6 C -2.2 1 -2.2 -1 -1 -2.6 Z', pivot: [0, 0], len: 12, layer: 1, fill: 'hair', lines: ['M 2 -1 C 5 -1.6 8 -1 11 -0.4'] },
         tie: { d: 'M -1.4 -3 C 0.4 -3 0.4 3 -1.4 3 C -3.2 3 -3.2 -3 -1.4 -3 Z', pivot: [0, 0], len: 12, layer: 1.1, fill: 'scarf' },
         scarf: { d: 'M -7.6 -29 C -8.4 -32 -7.4 -35.6 -4 -36.4 C 0 -37.2 5 -36.8 7.6 -35 C 9.6 -33.4 9.8 -30.6 8.8 -28.8 C 5 -27.4 -3 -27.2 -7.6 -29 Z', pivot: [0, 0], len: 20, angle: -D, layer: 5.5, fill: 'scarf',
@@ -188,4 +191,52 @@ var CARTOON_PARTS = (() => {
       ],
     },
   };
+
+  // ---------- imported characters ----------
+  // SVG text (vtracer) → {w, h, paths: [{d, fill, x, y}]}: each path with its colour and translate, in px.
+  function parseSvg(text) {
+    const svg = text.match(/<svg\s[^>]*>/)?.[0] || '', num = k => Number(svg.match(new RegExp(`\\s${k}="([\\d.]+)`))?.[1]);
+    const paths = [...text.matchAll(/<path\s[^>]*>/g)].map(([p]) => {
+      const t = p.match(/translate\(\s*(-?[\d.]+)[\s,]+(-?[\d.]+)\s*\)/);
+      return { d: p.match(/\sd="([^"]+)"/)[1].trim(), fill: p.match(/\sfill="([^"]+)"/)?.[1] || '#000000', x: t ? +t[1] : 0, y: t ? +t[2] : 0 };
+    });
+    return { w: num('width'), h: num('height'), paths };
+  }
+  // rig.json (px of each part image; unit = px per BL / 100) and its art (key → parsed SVG or bitmap) → pieces by name,
+  // with the pivot as the local origin like the authored pieces (origin: the pivot in px of the image),
+  // for the side and top views. angle and layer default to the authored piece of the same name; name@variant keys
+  // become faces[variant] of the piece name (an expression or 'blink').
+  function rigPieces(rig, art) {
+    const A = parts[rig.spec], u = rig.unit, out = { spec: rig.spec, side: {}, top: {} };
+    if (!A) throw new Error(`Espécie desconhecida no personagem ${rig.name}: ${rig.spec}`);
+    if (!(u > 0)) throw new Error(`Unidade inválida no personagem ${rig.name}`);
+    for (const key of Object.keys(rig.parts).sort((a, b) => a.includes('@') - b.includes('@'))) {
+      const r = rig.parts[key], [name, face] = key.split('@'), view = r.view || 'side', base = A[view]?.[name] || A.side[name] || {};
+      if (!art[key]) throw new Error(`Arte ausente da peça ${key} do personagem ${rig.name}`);
+      const q = { art: art[key], u, origin: r.pivot, pivot: [0, 0], len: r.len / u, angle: r.angle ?? base.angle ?? 0, layer: r.layer ?? base.layer ?? 0, fill: base.fill || 'color' };
+      if (!face) { out[view][name] = q; continue; }
+      const b = out[view][name]; if (!b) throw new Error(`Variante ${key} sem a peça ${name} no personagem ${rig.name}`);
+      (b.faces ||= {})[face] = q;
+    }
+    return out;
+  }
+  // Loads assets/characters/<name>/ (rig.json, then each part's SVG or, without one, its PNG as a bitmap) into
+  // rigs[name]. XHR, not fetch: the render opens the studio from file:// (Chrome with file access).
+  const rigs = {};
+  function get(url, type) {
+    return new Promise((ok, bad) => {
+      const x = new XMLHttpRequest(), fail = () => bad(new Error(`Não foi possível carregar ${url}`));
+      x.open('GET', url); x.responseType = type; x.onerror = fail;
+      x.onload = () => (x.status === 200 || x.status === 0) && x.response ? ok(x.response) : fail(); x.send();
+    });
+  }
+  async function load(name, root = 'assets/characters/') {
+    const dir = new URL(`${root}${name}/`, document.baseURI).href, rig = await get(dir + 'rig.json', 'json'), art = {};
+    await Promise.all(Object.entries(rig.parts).map(async ([key, r]) => {
+      art[key] = r.svg ? parseSvg(await get(dir + r.svg, 'text')) : await createImageBitmap(await get(dir + r.file, 'blob'));
+    }));
+    return rigs[name] = rigPieces(rig, art);
+  }
+
+  return Object.assign(parts, { rigs, parseSvg, rigPieces, load });
 })();

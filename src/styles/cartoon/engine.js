@@ -10,7 +10,7 @@
   const ellipse = (x,y,rx,ry,fill,stroke = false) => shape(fill, () => c.ellipse(x,y,rx,ry,0,0,TAU), stroke);
   const line = (points, color = P.ink, width = STYLE.outline.weight) => { c.beginPath(); points.forEach(([x,y],i) => i ? c.lineTo(x,y) : c.moveTo(x,y)); c.strokeStyle = color; c.lineWidth = width; c.lineJoin = c.lineCap = 'round'; c.stroke(); };
   window.animationEngine = {
-    canvas, context: c, async init() {}, worldToScreen: (x,y) => [x,y], info: () => 'Canvas2D · vector paths',
+    canvas, context: c, async init() { await Promise.all(window.NatureArt?.loading || []); }, worldToScreen: (x,y) => [x,y], info: () => 'Canvas2D · vector paths',
     render(t) { c.resetTransform(); c.clearRect(0,0,W,H); c.save(); try { drawWorld(t); } finally { c.restore(); } }
   };
   window.VisitArt = {
