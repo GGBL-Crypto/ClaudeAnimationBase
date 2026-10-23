@@ -25,6 +25,8 @@ Sessão coordenadora: **Opus 5.5, effort medium**. Ela não escreve código de t
 | 7 NatureArt cartoon | Opus 5.5 · high | coordenador abre as folhas |
 | 8 Filme de teste | Opus 5.5 · high | coordenador abre as tiras + usuário |
 | 8b Direção de arte do cartoon | Opus 5.5 · high | coordenador abre as folhas + usuário |
+| 8c Movimento orgânico | Opus 5.5 · high | coordenador abre as tiras |
+| 8d Arte recortada | Opus 5.5 · high | coordenador abre as folhas + usuário |
 | 9 Narração | Sonnet 5.5 · medium | coordenador |
 | 10 Gerador de episódios | Sonnet 5.5 · medium | coordenador |
 | 11 Mixagem | Sonnet 5.5 · low | coordenador |
@@ -345,6 +347,55 @@ Critérios:
 - [ ] **Step 2:** Renderizar `modelos.jpg` e `teste-movimento.jpg` (os mesmos comandos dos Tasks 7 e 8). Abrir as duas folhas e comparar com as versões anteriores. Corrigir e repetir.
 - [ ] **Step 3:** `npm test` e `npm run test:visual` → PASS. Renderizar o MP4 do teste de novo e conferir com `ffprobe`. Anotar ms por quadro.
 - [ ] **Step 4: Commit** `feat: cartoon art direction with shading, depth and lighting`. **Ponto de aprovação do usuário.**
+
+### Task 8c: Movimento orgânico
+
+Adicionado após o 8b (22/10/2026). Segundo o usuário, o visual melhorou, mas o movimento parece "robótico". A causa provável é o movimento procedural perfeito demais: velocidade constante, ciclo idêntico a cada passo, corpo rígido sobre as pernas e ações simultâneas. O trabalho fica em `src/nature/`, sem desenho e com funções puras de `t`. Mudanças aditivas: os testes existentes continuam passando.
+
+**Files:** Modify `src/nature/creature.js`, `src/nature/gait.js`, `src/nature/path.js` (ou `travel`), `src/nature/specs.js`; `src/scenes/teste-movimento.js` só para usar as opções novas. Test `tests/nature-creature.test.mjs`, `tests/nature-gait.test.mjs`.
+
+Critérios, com valores padrão ajustáveis por spec:
+1. **Peso:** a pelve desce e sobe duas vezes por ciclo bípede, com o ponto mais baixo no contato. O torso inclina para a frente proporcionalmente à velocidade. Ombros contra-rotacionam em relação aos quadris. No quadrúpede, a coluna flexiona e a cabeça acena no ritmo das patas dianteiras.
+2. **Cabeça estabilizada:** a cabeça compensa parte do balanço do corpo, então o olhar fica mais estável que o tronco.
+3. **Aceleração:** `travel` aceita trechos de partida e de parada com easing. Na partida, há antecipação: o corpo inclina antes do primeiro passo. Na parada, há assentamento: um pequeno overshoot do tronco que volta. A velocidade varia suavemente com `noise1`, ±8%.
+4. **Variação por passo:** passada e duração de cada passo variam ±5% por semente estável. O pé continua sem deslizar.
+5. **Respiração e idle:** sempre ativos, inclusive parado (`moving = 0`). O peito e os ombros sobem e descem num período de 3–4 s. A cabeça faz micro-ajustes.
+6. **Arcos e follow-through:** cabelo, cauda, orelhas e antenas seguem com atraso e amortecimento, com overshoot quando o corpo para ou vira.
+7. **Câmera:** `Kit.cam` ganha um tremor de mão opcional por `noise1`, com amplitude de até 0,3% do quadro. Os movimentos de câmera usam easing, nunca são lineares. Em todo plano a câmera deriva ou avança devagar; nunca fica totalmente parada.
+8. **Atuação cartoon:** este é o método do PDoomVideo; use a ideia, sem copiar código.
+   - **Squash e stretch:** opção `sq` na pose, com amortecimento ao pousar de um salto, num susto e ao parar.
+   - **Troca de expressão:** `mood(t, [[t0, 'neutral'], [t1, 'scared', '!']])` devolve a expressão e um `take`. O `take` faz piscar, achata o corpo e o solta com `backOut`, em vez de trocar de uma vez.
+   - **Piscar:** periódico, por semente.
+   - **Emotes:** `!`, `?`, gota de suor, notas e `zzz` surgem perto da cabeça com `backOut`.
+   - O realismo da marcha continua; a vida vem da atuação por cima dela.
+
+- [ ] **Step 1:** Testes:
+  - a pelve oscila 2× por ciclo bípede;
+  - com `moving = 0`, o peito ainda se move ao longo de 4 s;
+  - dois passos seguidos têm durações diferentes, e o pé de apoio continua parado (limite atual);
+  - a velocidade cresce de 0 no início de um `travel` com partida.
+- [ ] **Step 2:** Rodar → FAIL. Implementar. `npm test` → PASS.
+- [ ] **Step 3:** Tiras de 2 s (`--strip=<a>:<a+2> --cols=12 --w=480`) da caminhada, da parada (pausa) e da partida do cão. Abrir e comparar com as tiras antigas. O corpo precisa mostrar peso, e nenhum ciclo pode ser idêntico ao anterior.
+- [ ] **Step 4: Commit** `feat: organic motion with weight, easing, variation and idle`.
+
+### Task 8d: Arte recortada (cut-out) em Path2D
+
+Adicionado após o 8b (22/10/2026). As primitivas (elipses e traços) têm um teto de qualidade. A troca é por peças desenhadas presas aos ossos da pose, como na animação recortada: cada peça é um caminho SVG desenhado com cuidado, com pivô no osso. Canvas2D já aceita `new Path2D(svgPathString)`, sem dependência nova. A interface `NatureArt.creature(pose, look)` não muda: as cenas não são tocadas.
+
+**Files:** Create `src/styles/cartoon/parts.js` (dados: para cada spec e cada peça, `{ d: '<svg path>', pivot: [x, y], len, layer }`, com variantes de rosto por `expression`). Modify `src/styles/cartoon/nature.js` (desenha as peças com transform por osso, depois o sombreamento do 8b com clip pela própria peça e o contorno), `src/styles/cartoon/GUIDE.md` (como criar peças). Fundos: as camadas do 8b passam a usar silhuetas Path2D de árvores, morros e plantas, variadas por semente.
+
+Regras:
+- Peças autorais (escritas aqui) ou assets **CC0** (por exemplo, Kenney ou OpenGameArt filtrado por CC0), com a fonte registrada em `docs/CREDITS.md`. Nada com licença desconhecida.
+- Se `refs/estilo/` tiver imagens do usuário, elas guiam proporções, traço e paleta.
+- Cada spec ganha silhueta própria e reconhecível. Humano: cabeça, cabelo, tronco, quadril, braço, antebraço, mão, coxa, canela e pé. Cão: focinho, orelha, tronco, pescoço, patas em 3 segmentos e cauda. Formiga: cabeça, mesossoma, pecíolo e gáster. Para aranha, ave e peixe, o mesmo princípio.
+- As juntas não podem mostrar costura: as peças se sobrepõem no pivô, e a ordem das camadas fica fixa por lado.
+- **Apelo antes de realismo**, como no PDoomVideo. Formas simples e grandes, poucas peças, proporções estilizadas (cabeça humana com cerca de 1/4 da altura, olhos grandes e expressivos) e um detalhe marcante por personagem (óculos, lenço, coleira). Os personagens são recorrentes, com nome e paleta fixa. Sem referências do usuário, vale isto: desenho de livro ilustrado, não anatomia.
+- Desempenho: no máximo 80 ms por quadro. Os Path2D são criados uma vez e reutilizados.
+
+- [ ] **Step 1:** Fazer humano e cão primeiro. Renderizar a folha `modelos` e abrir. Iterar até as silhuetas lerem bem em miniatura (`--w=320`).
+- [ ] **Step 2:** Formiga, aranha, ave e peixe. Fundos.
+- [ ] **Step 3:** `npm test`, `npm run test:visual`. Renderizar `modelos.jpg`, `teste-movimento.jpg` e o MP4 do teste; conferir com `ffprobe`.
+- [ ] **Step 4: Commit** `feat: cut-out Path2D parts for cartoon creatures and backgrounds`. **Ponto de aprovação do usuário.**
 
 ---
 
