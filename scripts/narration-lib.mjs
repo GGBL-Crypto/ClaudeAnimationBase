@@ -56,6 +56,7 @@ export function composeNarration(timing, clips, sampleRate) {
   for (const sh of timing.shots) sh.speech.forEach((sp, j) => {
     const clip = clips.get(`${sh.id}#${j}`), at = Math.round(sp.start * sampleRate);
     if (!clip) throw new Error(`Falta o clipe ${sh.id}#${j}`);
+    if (at >= out.length) return;
     out.set(clip.subarray(0, Math.max(0, out.length - at)), at);
   });
   return out;
