@@ -7,7 +7,7 @@ import { dirname, resolve, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { startStudioServer } from './scripts/studio-server.mjs';
 import {assetSnapshot} from './scripts/asset-catalog.mjs';
-import { catalog, sourceSnapshot, assertSourceHash, parseArgs, number, interval, run, launchBrowser, closeBrowser, openPage, frameOf, verifyVideo } from './scripts/render-lib.mjs';
+import { catalog, sourceSnapshot, assertSourceHash, parseArgs, number, interval, run, launchBrowser, closeBrowser, openPage, frameOf, verifyVideo, frameTimes } from './scripts/render-lib.mjs';
 
 const HELP = `
 node render.mjs --project=<id> --style=watercolor|cartoon|pixel|lowpoly-3d <operação>
@@ -46,6 +46,8 @@ async function main() {
   const framesDir = args['frames-dir'] || (mode === 'png' && args.out ? args.out : join(base, 'frames'));
   const manifestPath = join(framesDir, 'manifest.json');
   let fps = number(args.fps ?? project.fps, 'fps', { min: 1, max: 120, integer: true });
+  // twosTime holds drawings on the project's frame grid; another --fps would hold them unevenly.
+  if (project.style === 'cartoon' && project.onTwos !== false && fps !== project.fps) throw new Error('Cartoon em 2s usa o fps do projeto; registre uma variante com outro fps em vez de --fps');
   let info = { ...project, width: 1920, height: 1080 };
   const source = sourceSnapshot(), stamp = source.hash;
   const assets=assetSnapshot(project.assetRefs),assetHash=assets.hash;
@@ -110,7 +112,7 @@ async function main() {
   const duration = info.duration;
   number(duration, 'duração retornada pelo motor', { min: .001 });
   const range = interval(args.range ?? (typeof args.clip === 'string' ? args.clip : undefined), duration);
-  const count = Math.round((range[1]-range[0])*fps);
+  const grid = frameTimes(range, fps), count = grid.length;
   if (['clip','frames','png'].includes(mode) && count < 1) throw new Error('Intervalo menor que um quadro');
   const parseTimes = value => {
     const values = String(value).split(',').map(v=>number(v,'tempo',{max:duration}));
@@ -156,7 +158,7 @@ async function main() {
     await Promise.all(Array.from({length:workers},async()=>{
       const worker=await openPage(browser,args);
       if((await worker.evaluate(()=>projectInfo().assets?.assetHash||null))!==assetHash)throw Error('Assets divergentes no worker');
-      try {while(next<todo.length){const i=todo[next++],file=join(framesDir,filename(i,extension));writeFileSync(file+'.tmp',await capture(worker,range[0]+i/fps,extension==='png'?'image/png':'image/jpeg'));renameSync(file+'.tmp',file);if(++done%24===0||done===todo.length)console.log('quadro '+done+'/'+todo.length);}}
+      try {while(next<todo.length){const i=todo[next++],file=join(framesDir,filename(i,extension));writeFileSync(file+'.tmp',await capture(worker,grid[i],extension==='png'?'image/png':'image/jpeg'));renameSync(file+'.tmp',file);if(++done%24===0||done===todo.length)console.log('quadro '+done+'/'+todo.length);}}
       finally {await worker.close();}
     }));
     assertSourceHash(stamp);
@@ -167,7 +169,7 @@ async function main() {
     await videoOutput(args.out||join(base,'video.mp4'),async pending=>{
       const ff=spawn('ffmpeg',['-y','-v','error','-f','image2pipe','-framerate',String(fps),'-c:v','png','-i','-',...audioArgs(audio,range[0],count/fps),...codec,'-frames:v',String(count),pending],{windowsHide:true,stdio:['pipe','inherit','inherit']});
       const exited=new Promise((ok,bad)=>{ff.on('error',bad);ff.on('close',code=>code===0?ok():bad(new Error('FFmpeg terminou com código '+code)));});
-      async function* frames(){for(let i=0;i<count;i++){yield await capture(page,range[0]+i/fps);if(i%24===0||i===count-1)console.log('quadro '+(i+1)+'/'+count);}}
+      async function* frames(){for(let i=0;i<count;i++){yield await capture(page,grid[i]);if(i%24===0||i===count-1)console.log('quadro '+(i+1)+'/'+count);}}
       try {await Promise.all([pipeline(Readable.from(frames()),ff.stdin),exited]);}
       catch(error){ff.kill();throw error;}
     },{width:info.width,height:info.height,fps,frames:count,duration:count/fps});

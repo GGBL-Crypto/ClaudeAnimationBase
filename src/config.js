@@ -96,7 +96,7 @@ AnimationPlatform.registerProject({
     ] }
   ]
 });
-AnimationPlatform.registerProject({
+const TESTE_MOVIMENTO = {
   id: 'teste-movimento', title: 'Teste de movimento', story: 'Pessoa e cão passeiam; ela para e aponta uma trilha de formigas; uma aranha cruza; um pássaro foge do cão; a chuva faz todos reagirem; um peixe nada sob a chuva.',
   duration: 30, fps: 24, bpm: 100, offset: 0, style: 'cartoon', compatibleStyles: ['cartoon'],
   scripts: ['src/nature/noise.js', 'src/nature/path.js', 'src/nature/gait.js', 'src/nature/creature.js', 'src/nature/specs.js', 'src/nature/env.js', 'src/scenes/teste-movimento.js'],
@@ -121,4 +121,10 @@ AnimationPlatform.registerProject({
       { start: 25, end: 29, text: 'Nado e ondas da chuva' }, { start: 29, end: 30, text: 'Íris de saída' }
     ] }
   ]
-});
+};
+AnimationPlatform.registerProject(TESTE_MOVIMENTO);
+// fps and cadence test (Task 8f): A 24 fps on twos (= teste-movimento), B 24 on ones, C 30 on ones,
+// D 30 on ones with the appendages (tail, ears, hair, scarf) lagging on springs (springAppendages, read by the scene).
+for (const [v, fps, onTwos, springAppendages] of [['a', 24, true], ['b', 24, false], ['c', 30, false], ['d', 30, false, true]])
+  AnimationPlatform.registerProject({ ...TESTE_MOVIMENTO, id: 'teste-movimento-' + v, title: `Teste de movimento · ${v.toUpperCase()} · ${fps} fps em ${onTwos ? '2s' : '1s'}${springAppendages ? ' e molas' : ''}`, fps, onTwos, ...(springAppendages && { springAppendages }) });
+

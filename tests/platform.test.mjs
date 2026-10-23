@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { catalog, ROOT, parseArgs, interval, number, run, sourceSnapshot, assertSourceHash } from '../scripts/render-lib.mjs';
+import { catalog, ROOT, parseArgs, interval, number, run, sourceSnapshot, assertSourceHash, frameTimes } from '../scripts/render-lib.mjs';
 
 test('project/style resolution is immutable and validates compatibility', () => {
   const p = catalog();
@@ -49,6 +49,16 @@ test('motion preserves anticipation, arc endpoints and order-independent choreog
   for(const t of [2.4,3.7])assert.ok(Math.abs(context.window.visitPose(t-1e-7).flap-context.window.visitPose(t+1e-7).flap)<1e-5,'Asas mudaram de fase');
   vm.runInContext('validateShots()',context);
   assert.throws(()=>vm.runInContext('shots([[3,()=>{}]])',context),/Dois planos/);
+});
+test('per-project fps: 30 fps variants get 900 frames on a 1/30 grid, 24 fps 720',()=>{
+  const p=catalog(),frames=id=>{const project=p.resolveProject(id);return frameTimes(interval(undefined,project.duration),project.fps);};
+  for(const id of ['teste-movimento-c','teste-movimento-d']){
+    const times=frames(id);assert.equal(p.resolveProject(id).fps,30);assert.equal(p.resolveProject(id).onTwos,false);
+    assert.equal(times.length,900);assert.equal(times[1],1/30);assert.equal(times[899],899/30);
+  }
+  assert.equal(frames('teste-movimento-a').length,720);assert.equal(frames('teste-movimento-b').length,720);
+  assert.equal(p.resolveProject('teste-movimento-b').onTwos,false);assert.notEqual(p.resolveProject('teste-movimento-a').onTwos,false);
+  assert.deepEqual(frameTimes([1,1.1],30),[1,1+1/30,1+2/30]);
 });
 test('CLI rejects invalid numeric ranges and keeps equals in paths',()=>{
   assert.equal(parseArgs(['--audio=C:/a=b/song.mp3']).audio,'C:/a=b/song.mp3');

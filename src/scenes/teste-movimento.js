@@ -78,10 +78,20 @@
   const DMOOD = [[0, 'neutral'], [6.3, 'neutral', '?'], [18.5, 'neutral', '!']];
   // Acting on top of the gait: mood (take, blink, emote); sq adds a damped squash (spring) where the body comes to rest.
   const act = (md, sq) => ({ expression: md.expression, blink: md.blink, emote: md.emote, sq: md.sq + sq });
+  // PROJECT.springAppendages (fps test D): the appendages follow the body speed through a loose spring (springTrack
+  // over the speed sampled every .1 s for the last 4 s, on an absolute grid so it is the same in any frame); drag =
+  // spring − speed lags behind a stop, then swings past it and rings for a few seconds, instead of travel's drag.
+  const LOOSE = { w: 5, z: .15 };
+  function dragOf(t, keys, o, m) {
+    if (!PROJECT.springAppendages) return m.drag;
+    const k = Math.floor(t * 10), track = [];
+    for (let j = k - 40; j <= k; j++) track.push([j / 10, travel(j / 10, keys, o).speed]);
+    return 2 * (springTrack(t, track, LOOSE) - m.speed);
+  }
 
   function human(t) {
     const m = travel(t, HK, HO);
-    const o = { path: LANE, s: m.s, size: HS, ground: gy, t, seed: 1, moving: m.moving, lean: m.lean, drag: m.drag, ...act(mood(t, HMOOD, 1), .05 * spring(t, 6.2, 6, 14)) };
+    const o = { path: LANE, s: m.s, size: HS, ground: gy, t, seed: 1, moving: m.moving, lean: m.lean, drag: dragOf(t, HK, HO, m), ...act(mood(t, HMOOD, 1), .05 * spring(t, 6.2, 6, 14)) };
     const point = ease(seg(t, 6.9, 7.3)) * (t < 10), cover = ease(seg(t, 20.95, 21.25)), look = ease(seg(t, 6.2, 6.5)) * (t < 10);
     let p = creaturePose(SPECS.human, o);
     if (point) p = creaturePose(SPECS.human, { ...o, gesture: { limb: 'armL', target: [ANTS_AT[0], ANTS_AT[1] + 8 * Math.sin(t * 5)], k: point } });
@@ -95,7 +105,7 @@
   }
   function dog(t) {
     const m = travel(t, DK, DO), sq = .08 * (spring(t, 6, 6, 14) + spring(t, 19, 6, 14));
-    const p = creaturePose(SPECS.dog, { path: LANE, s: m.s, size: DS, ground: gy, t, seed: 2, moving: m.moving, lean: m.lean, drag: m.drag, ...act(mood(t, DMOOD, 2), sq) });
+    const p = creaturePose(SPECS.dog, { path: LANE, s: m.s, size: DS, ground: gy, t, seed: 2, moving: m.moving, lean: m.lean, drag: dragOf(t, DK, DO, m), ...act(mood(t, DMOOD, 2), sq) });
     const sniff = ease(seg(t, 6, 6.4)) * (1 - ease(seg(t, 16.5, 16.8))), up = ease(seg(t, 18.55, 18.9)) * (1 - ease(seg(t, 20.6, 21)));
     return nod(p, .05 * sniff, (.24 + .015 * Math.sin(t * TAU * 3.5)) * sniff - .04 * up, .6 * sniff - .35 * up);
   }

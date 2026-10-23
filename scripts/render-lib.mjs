@@ -45,6 +45,8 @@ export function interval(value, duration) {
   if (range.length !== 2 || range[1] <= range[0] || range[1] > duration) throw new Error('Use --range=início:fim dentro da duração');
   return range;
 }
+// Frame grid of a render: frame i at range[0] + i / fps (the project's fps; nothing assumes 24).
+export const frameTimes = (range, fps) => Array.from({ length: Math.round((range[1] - range[0]) * fps) }, (_, i) => range[0] + i / fps);
 export function run(cmd, args, { capture = false } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { windowsHide: true, stdio: capture ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'inherit', 'inherit'] });
