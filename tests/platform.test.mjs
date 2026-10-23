@@ -50,14 +50,14 @@ test('motion preserves anticipation, arc endpoints and order-independent choreog
   vm.runInContext('validateShots()',context);
   assert.throws(()=>vm.runInContext('shots([[3,()=>{}]])',context),/Dois planos/);
 });
-test('per-project fps: 30 fps variants get 900 frames on a 1/30 grid, 24 fps 720',()=>{
+test('per-project fps: 30 fps variants get 900 frames on a 1/30 grid, 24 fps 720; four distinct cadences',()=>{
   const p=catalog(),frames=id=>{const project=p.resolveProject(id);return frameTimes(interval(undefined,project.duration),project.fps);};
   for(const id of ['teste-movimento-c','teste-movimento-d']){
-    const times=frames(id);assert.equal(p.resolveProject(id).fps,30);assert.equal(p.resolveProject(id).onTwos,false);
+    const times=frames(id);assert.equal(p.resolveProject(id).fps,30);
     assert.equal(times.length,900);assert.equal(times[1],1/30);assert.equal(times[899],899/30);
   }
   assert.equal(frames('teste-movimento-a').length,720);assert.equal(frames('teste-movimento-b').length,720);
-  assert.equal(p.resolveProject('teste-movimento-b').onTwos,false);assert.notEqual(p.resolveProject('teste-movimento-a').onTwos,false);
+  assert.deepEqual(['a','b','c','d'].map(v=>{const q=p.resolveProject('teste-movimento-'+v);return q.fps+(q.onTwos===false?' 1s':' 2s');}),['24 2s','24 1s','30 1s','30 2s']);
   assert.deepEqual(frameTimes([1,1.1],30),[1,1+1/30,1+2/30]);
 });
 test('CLI rejects invalid numeric ranges and keeps equals in paths',()=>{

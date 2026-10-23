@@ -123,8 +123,8 @@ const TESTE_MOVIMENTO = {
   ]
 };
 AnimationPlatform.registerProject(TESTE_MOVIMENTO);
-// fps and cadence test (Task 8f): A 24 fps on twos (= teste-movimento), B 24 on ones, C 30 on ones, D 30 on ones with
-// the appendages on springs. Since Part B every variant has spring appendages (travel's drag), so D renders as C.
-for (const [v, fps, onTwos] of [['a', 24, true], ['b', 24, false], ['c', 30, false], ['d', 30, false]])
+// fps and cadence test (Task 8f): A 24 fps on twos (= teste-movimento, 12 drawings/s), B 24 on ones, C 30 on ones,
+// D 30 on twos (15 drawings/s). All have the spring appendages of Part B.
+for (const [v, fps, onTwos] of [['a', 24, true], ['b', 24, false], ['c', 30, false], ['d', 30, true]])
   AnimationPlatform.registerProject({ ...TESTE_MOVIMENTO, id: 'teste-movimento-' + v, title: `Teste de movimento · ${v.toUpperCase()} · ${fps} fps em ${onTwos ? '2s' : '1s'}`, fps, onTwos });
 
