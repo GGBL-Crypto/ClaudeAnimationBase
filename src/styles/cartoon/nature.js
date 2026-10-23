@@ -1,8 +1,9 @@
 // Cartoon NatureArt: creatures drawn from creaturePose (src/nature/creature.js) and environment pieces. Pure functions of
-// their arguments; no state between calls. Creatures: far limbs, body (one inked silhouette), near limbs, then the
-// species decorator (NatureArt.decor[spec]) adds faces, fins, wings and markings. Below 28 px a flat simplified form.
+// their arguments; no state between calls. Creatures are cut-out puppets: each piece of parts.js is a Path2D pinned to a
+// bone of the pose (NatureArt.decor[spec].build lists them in groups by layer), shaded and inked as one silhouette per
+// group. Below 28 px a flat simplified form.
 (() => {
-  const c = window.animationEngine.context, P = STYLE.palette, PI2 = Math.PI / 2;
+  const c = window.animationEngine.context, P = STYLE.palette, PI2 = Math.PI / 2, PARTS = CARTOON_PARTS;
   const dark = (col, k = .3) => mixCol(col, P.ink, k);
   // Warm side light from the upper left (LX, LY points at it): every shape gets a lit rim there, its base colour and a
   // shadow band on the far side. Outlines are the dark tone of their own fill, never plain ink.
@@ -10,297 +11,257 @@
   const pale = col => mixCol(col, P.skyLow, .4);
   const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 
-  // Tapered bone: half circles around b (radius rb) and a (radius ra), joined by their tangents.
-  function bone(a, ra, b, rb) {
-    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
-    c.moveTo(b[0] + rb * Math.cos(ang - PI2), b[1] + rb * Math.sin(ang - PI2));
-    c.arc(b[0], b[1], rb, ang - PI2, ang + PI2); c.arc(a[0], a[1], ra, ang + PI2, ang + 3 * PI2); c.closePath();
-  }
-  // Adds one part to the current path: ellipse {e}, bone {b} or polygon {poly} (smooth: curves through midpoints).
+  // Adds one primitive to the current path: ellipse {e} or polygon {poly} (smooth: curves through midpoints).
   function shape(p, e) {
     if (p.e) { const [x, y, rx, ry, rot = 0] = p.e, a = Math.max(.1, rx + e), b = Math.max(.1, ry + e); c.moveTo(x + a * Math.cos(rot), y + a * Math.sin(rot)); c.ellipse(x, y, a, b, rot, 0, TAU); }
-    else if (p.b) bone(p.b[0], Math.max(.1, p.b[1] + e), p.b[2], Math.max(.1, p.b[3] + e));
-    else if (p.smooth) { const q = wound(shrunk(p, e)), n = q.length, m = i => [(q[i % n][0] + q[(i + 1) % n][0]) / 2, (q[i % n][1] + q[(i + 1) % n][1]) / 2]; c.moveTo(...m(n - 1)); for (let i = 0; i < n; i++) c.quadraticCurveTo(q[i][0], q[i][1], ...m(i)); c.closePath(); }
-    else { const q = wound(shrunk(p, e)); c.moveTo(q[0][0], q[0][1]); q.forEach(([x, y]) => c.lineTo(x, y)); c.closePath(); }
+    else if (p.smooth) { const q = shrunk(p, e), n = q.length, m = i => [(q[i % n][0] + q[(i + 1) % n][0]) / 2, (q[i % n][1] + q[(i + 1) % n][1]) / 2]; c.moveTo(...m(n - 1)); for (let i = 0; i < n; i++) c.quadraticCurveTo(q[i][0], q[i][1], ...m(i)); c.closePath(); }
+    else { const q = shrunk(p, e); c.moveTo(q[0][0], q[0][1]); q.forEach(([x, y]) => c.lineTo(x, y)); c.closePath(); }
   }
   // Polygon points pulled toward their centroid so the thinnest side moves in by about -e px (e < 0 only).
   const shrunk = (p, e) => { if (e >= 0) return p.poly; const q = p.poly, n = q.length, k = Math.max(0, 1 + e / thick(p)), x = q.reduce((s, v) => s + v[0], 0) / n, y = q.reduce((s, v) => s + v[1], 0) / n; return q.map(([u, v]) => [x + (u - x) * k, y + (v - y) * k]); };
-  // Polygons turn the same way as arcs (mirroring flips them), so overlapping parts never cancel in a nonzero union.
-  const wound = q => q.reduce((s, [x, y], i) => s + x * q[(i + 1) % q.length][1] - q[(i + 1) % q.length][0] * y, 0) < 0 ? [...q].reverse() : q;
   const trace = (p, e) => { c.beginPath(); shape(p, e); };
-  // Thickness of a part (px): sets how far its light and shadow bands reach.
-  const thick = p => { if (p.e) return Math.min(p.e[2], p.e[3]); if (p.b) return (p.b[1] + p.b[3]) / 2; const xs = p.poly.map(q => q[0]), ys = p.poly.map(q => q[1]); return Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / 2; };
-  // Each part moved by k times its thickness toward the light (k < 0: away from it).
-  const moved = (list, R, k, fn) => list.forEach((p, i) => { c.save(); c.translate(LX * k * R[i], LY * k * R[i]); fn(p, i); c.restore(); });
-  // Parts share one silhouette: every outline (inflated by lw, in the fill's dark tone) first, then the fills, pass by
-  // pass so seams inside the silhouette stay hidden: lit tone everywhere; shadow tone on each part moved away from the
-  // light (leaves the lit rim); base tone on each part moved toward the light (leaves the shadow band). Ellipses and
-  // bones (and convex polygons, pulled toward their centroid) shrink by more than they move, so every layer stays inside
-  // its part without clipping (clips are slow on the GPU canvas); concave parts clip to the silhouette instead. Thin forms stay flat.
+  // Thickness of a primitive (px): sets how far its light and shadow bands reach.
+  const thick = p => { if (p.e) return Math.min(p.e[2], p.e[3]); const xs = p.poly.map(q => q[0]), ys = p.poly.map(q => q[1]); return Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / 2; };
+  // Ellipses and convex polygons (rocks, clouds) as one inked silhouette: outlines first, then lit tone, shadow band and
+  // base, each primitive shrunk by more than it moves so every band stays inside without a clip.
   function parts(list, lw) {
     c.lineWidth = 2 * lw; c.lineJoin = 'round';
     if (lw > 0) for (const p of list) { c.fillStyle = c.strokeStyle = edge(p.fill); trace(p, p.poly ? 0 : lw); if (p.poly) c.stroke(); else c.fill(); }
-    const R = list.map(thick);
-    if (Math.max(...R) < 5) { for (const p of list) { trace(p, 0); c.fillStyle = p.fill; c.fill(); } return; }
-    if (!list.some(p => p.concave)) {
-      for (const p of list) { trace(p, 0); c.fillStyle = lit(p.fill); c.fill(); }
-      moved(list, R, -.07, (p, i) => { trace(p, (p.poly ? -.12 : -.08) * R[i]); c.fillStyle = shd(p.fill); c.fill(); });
-      moved(list, R, .18, (p, i) => { trace(p, (p.poly ? -.4 : -.32) * R[i]); c.fillStyle = p.fill; c.fill(); });
-      return;
-    }
-    c.save(); c.beginPath(); for (const p of list) shape(p, 0); c.clip();
+    const R = list.map(thick), moved = (k, fn) => list.forEach((p, i) => { c.save(); c.translate(LX * k * R[i], LY * k * R[i]); fn(p, i); c.restore(); });
     for (const p of list) { trace(p, 0); c.fillStyle = lit(p.fill); c.fill(); }
-    moved(list, R, -.16, p => { trace(p, 0); c.fillStyle = shd(p.fill); c.fill(); });
-    c.beginPath(); moved(list, R, -.16, p => shape(p, 0)); c.clip();
-    moved(list, R, .42, p => { trace(p, 0); c.fillStyle = p.fill; c.fill(); });
-    c.restore();
-  }
-  // Short crease across the a→b line at fraction k (clothing folds, cuffs): half length len px, slightly curved.
-  function crease(a, b, k, len, col, w, bow = .35) {
-    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), nx = -Math.sin(ang), ny = Math.cos(ang), x = lerp(a[0], b[0], k), y = lerp(a[1], b[1], k);
-    const dx = Math.cos(ang) * len * bow;
-    stroke([[x - nx * len, y - ny * len], [x + dx, y + Math.sin(ang) * len * bow], [x + nx * len, y + ny * len]], w, col);
+    moved(-.07, (p, i) => { trace(p, (p.poly ? -.12 : -.08) * R[i]); c.fillStyle = shd(p.fill); c.fill(); });
+    moved(.18, (p, i) => { trace(p, (p.poly ? -.4 : -.32) * R[i]); c.fillStyle = p.fill; c.fill(); });
   }
   // Small glossy highlight (chitin, eyes, wet noses) toward the light from (x, y).
   const gloss = (x, y, r, a = .75) => { c.save(); c.globalAlpha = a; c.beginPath(); c.ellipse(x + LX * r * .9, y + LY * r * .9, r * .5, r * .26, Math.atan2(LY, LX) + PI2, 0, TAU); c.fillStyle = P.eye; c.fill(); c.restore(); };
-  // Chain of points as tapered bones, radius r0 at the base down to r1 at the tip.
-  const chainParts = (pts, r0, r1, fill) => pts.slice(1).map((q, i) => ({ b: [pts[i], lerp(r0, r1, i / (pts.length - 1)), q, lerp(r0, r1, (i + 1) / (pts.length - 1))], fill }));
-  const limbParts = (l, w, fill) => [{ b: [l.root, w[0], l.mid, w[1]], fill }, { b: [l.mid, w[1], l.end, w[2]], fill }];
-  const clipTo = (list, fn) => { c.save(); c.beginPath(); for (const p of list) shape(p, 0); c.clip(); try { fn(); } finally { c.restore(); } };
   const stroke = (pts, w, col = P.ink, smooth = true) => Kit.line(pts, col, w, { smooth });
   const dot = (x, y, r, col) => { c.beginPath(); c.ellipse(x, y, r, r, 0, 0, TAU); c.fillStyle = col; c.fill(); };
 
-  // Local frame (units of BL, +x forward; +y down in side view, to the creature's right in top view) around (x, y).
-  function frame(p, x, y, a) {
-    const S = p.size, side = p.view === 'side', f = side ? p.facing : 1, r = side ? (f > 0 ? a : Math.PI - a) : a, co = Math.cos(r), si = Math.sin(r);
-    return (dx, dy) => [x + f * (dx * co - dy * si) * S, y + (dx * si + dy * co) * S];
+  // ---------- cut-out pieces ----------
+  // Path2D per path string and the box of each part (centre and half extents, in its units), both built once.
+  const PATHS = new Map(), BOXES = new Map();
+  const path = d => { let p = PATHS.get(d); if (!p) PATHS.set(d, p = new Path2D(d)); return p; };
+  function box(q) {
+    let b = BOXES.get(q.d); if (b) return b;
+    const n = q.d.match(/-?\d*\.?\d+/g).map(Number), xs = n.filter((_, i) => !(i & 1)), ys = n.filter((_, i) => i & 1), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    BOXES.set(q.d, b = { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, hw: (x1 - x0) / 2, hh: (y1 - y0) / 2 }); return b;
   }
-  const headFrame = p => frame(p, p.head.x, p.head.y, p.head.angle);
-  const segFrame = (p, i) => { const g = p.spine[i]; return frame(p, g.x, g.y, p.view === 'side' ? (p.facing > 0 ? g.angle : Math.PI - g.angle) : g.angle); };
-  const spineParts = (p, fill, stretch = 1.3) => p.spine.map((g, i) => ({ e: [g.x, g.y, g.r * (Array.isArray(stretch) ? stretch[i] : stretch), g.r, g.angle], fill }));
+  // Part q with its pivot on a and its bone (len units along q.angle) along a → b; b a number: at that angle, unstretched.
+  // u = px per unit, f = -1 mirrors (side view facing left; the angle is then measured in the mirrored, facing-right
+  // space), wy scales the thickness (< 0 flips the part across its bone). Returns the placed piece {q, m, k, fill}.
+  function place(q, a, b, u, f = 1, wy = 1, fill = P.ink) {
+    const al = q.angle || 0; let th, kx;
+    if (typeof b === 'number') { th = b; kx = u; } else { const dx = (b[0] - a[0]) * f, dy = b[1] - a[1]; th = Math.atan2(dy, dx); kx = Math.max(.2 * u, Math.hypot(dx, dy) / q.len); }
+    const ky = u * wy, ct = Math.cos(th), st = Math.sin(th), ca = Math.cos(al), sa = Math.sin(al);
+    const A = f * (kx * ct * ca + ky * st * sa), C = f * (kx * ct * sa - ky * st * ca), B = kx * st * ca - ky * ct * sa, E = kx * st * sa + ky * ct * ca, [px, py] = q.pivot;
+    return { q, fill, k: Math.sqrt(Math.abs(A * E - B * C)), m: [A, B, C, E, a[0] - A * px - C * py, a[1] - B * px - E * py] };
+  }
+  // Screen angle ↔ the creature's facing-right space (the same flip both ways).
+  const turn = (p, a) => p.view === 'side' && p.facing < 0 ? Math.PI - a : a;
+  const ang = (a, b) => Math.atan2(b[1] - a[1], b[0] - a[0]);
+  // Piece on a pose: b a point or a screen angle; o = {L (look), dk (darken), col (fill override), wy}.
+  function pin(p, q, a, b, o) {
+    const f = p.view === 'side' ? p.facing : 1, col = o.col || dark(o.L[q.fill], o.dk || 0), s = place(q, a, typeof b === 'number' ? turn(p, b) : b, p.size / 100, f, o.wy || 1, col);
+    if (q.spots) s.spots = q.spots.map(sp => [path(sp.d), o.col ? dark(col, .25) : dark(o.L[sp.fill], o.dk || 0)]);
+    return s;
+  }
+  const at = (s, x, y) => [s.m[0] * x + s.m[2] * y + s.m[4], s.m[1] * x + s.m[3] * y + s.m[5]];
+  const ORIGIN = { d: 'M 0 0 Z', pivot: [0, 0], len: 1 };
+  const frameAt = (p, x, y, a) => pin(p, ORIGIN, [x, y], a, { col: P.ink });  // local frame in BL / 100 (at(frame, dx, dy))
+  // Draws inside a placed piece's frame; fn gets px → units.
+  const inside = (s, fn) => { c.save(); c.transform(...s.m); try { fn(1 / s.k); } finally { c.restore(); } };
+
+  // Placed pieces as one inked silhouette, pass by pass (outlines, lit tone, shadow band, base, markings and inner lines)
+  // so overlapping joints show no seam. The bands are the piece inset and moved away from / toward the light, so they
+  // stay inside without a clip (clips cost ~6× a fill on this GPU); concave pieces (q.clip) clip to themselves; q.band
+  // narrows the shadow band (faces).
+  // fw: inner line width in px (0: none).
+  function cut(list, lw, fw = 0, flat = false) {
+    const T = c.getTransform(), R = list.map(s => { const b = box(s.q); return Math.min(b.hw, b.hh) * s.k; });
+    const fill = (s, col, k = 0, e = 0) => {
+      c.save();
+      if (s.q.clip && (k || e)) { c.transform(...s.m); c.clip(path(s.q.d)); c.setTransform(T); }
+      c.translate(LX * k, LY * k); c.transform(...s.m);
+      if (e) { const b = box(s.q), i = e / s.k; c.translate(b.cx, b.cy); c.scale(Math.max(.05, 1 - i / b.hw), Math.max(.05, 1 - i / b.hh)); c.translate(-b.cx, -b.cy); }
+      c.fillStyle = col; c.fill(path(s.q.d)); c.restore();
+    };
+    c.lineJoin = 'round'; c.lineCap = 'round';
+    if (lw > 0) for (const s of list) { const p = path(s.q.d); c.save(); c.transform(...s.m); c.lineWidth = 2 * lw / s.k; c.fillStyle = c.strokeStyle = edge(s.fill); c.stroke(p); c.fill(p); c.restore(); }
+    if (flat || Math.max(...R) < 5) list.forEach(s => fill(s, s.fill));
+    else {
+      list.forEach(s => fill(s, lit(s.fill)));
+      list.forEach((s, i) => fill(s, shd(s.fill), -.07 * R[i], .08 * R[i]));
+      list.forEach((s, i) => { const b = s.q.band ?? 1; fill(s, s.fill, .14 * b * R[i], .26 * b * R[i]); });
+    }
+    for (const s of list) if (s.spots || fw && s.q.lines) inside(s, u => {
+      for (const [p, col] of s.spots || []) { c.fillStyle = col; c.fill(p); }
+      if (fw && s.q.lines) { c.strokeStyle = edge(s.fill); c.lineWidth = fw * u; for (const d of s.q.lines) c.stroke(path(d)); }
+    });
+  }
+  // Group of pieces at the layer of its first piece (far side of a side view: 10 layers back).
+  const grp = (list, back = false) => ({ z: list[0].q.layer - (back ? 10 : 0), list });
+  const lw = p => clamp(p.size * .022, 1.5, STYLE.outline.weight), fwOf = p => p.size < 60 ? 0 : clamp(.006 * p.size, 1, 3.5);
   const headR = p => SPECS[p.spec].head.r * p.size;
   // Appendage points are far (behind the body) when their side faces away from the camera in side view.
   const far = (p, name) => { const ap = SPECS[p.spec].appendages.find(a => a.name === name); return p.view === 'side' && (ap.side || 0) * p.facing < 0; };
+  const pt = g => [g.x, g.y];
+  // Foot rocking with the shin (heel strike lifts the toe, push-off the heel), as a screen angle.
+  const rock = (p, l, k = .25) => turn(p, k * (turn(p, ang(l.mid, l.end)) - PI2));
 
-  // Human eyes, brows and mouth per expression. lid: open fraction; brow [inner, outer] dy; mouth [kind, curve].
-  const FACES = {
-    neutral: { eye: 'dot', lid: 1, brow: [0, 0], mouth: ['line', 0] },
-    happy: { eye: 'arc', lid: 1, brow: [-.012, -.008], mouth: ['smile', .022] },
-    sad: { eye: 'dot', lid: .7, look: .006, brow: [-.016, .006], mouth: ['line', -.014] },
-    scared: { eye: 'wide', lid: 1, brow: [-.026, -.006], mouth: ['wavy', 0] },
-    angry: { eye: 'dot', lid: .65, slant: 1, brow: [.014, -.012], mouth: ['line', -.01] },
-    surprised: { eye: 'wide', lid: 1, brow: [-.032, -.03], mouth: ['o', 0] },
-    tired: { eye: 'dot', lid: .4, brow: [.002, .01], mouth: ['line', -.004] },
-    dead: { eye: 'x', lid: 1, brow: null, mouth: ['wavy', 0] },
-  };
-  // Profile face: one eye, brow, mouth and blush toward the front of the head (R = head radius in BL).
-  function humanFace(p, L, hf, R) {
-    const F = FACES[p.face.expression] || FACES.neutral, S = p.size, w = Math.max(1.5, .007 * S), ink = edge(L.skin), wide = F.eye === 'wide', lid = F.lid * (1 - (p.face.blink || 0));
-    const pt = (dx, dy) => hf(.52 * R + dx, -.1 * R + dy), rx = .13 * R * S, ry = (wide ? .27 : .22) * R * S, top = -(wide ? .27 : .22) * R;
-    const [bx, by] = hf(.42 * R, .3 * R); c.save(); c.globalAlpha = .35; c.beginPath(); c.ellipse(bx, by, .17 * R * S, .1 * R * S, 0, 0, TAU); c.fillStyle = P.blush; c.fill(); c.restore();
-    if (F.eye === 'x') { stroke([pt(-.12 * R, -.12 * R), pt(.12 * R, .12 * R)], w, P.ink, false); stroke([pt(-.12 * R, .12 * R), pt(.12 * R, -.12 * R)], w, P.ink, false); }
-    else if (F.eye === 'arc') stroke([pt(-.15 * R, .06 * R), pt(0, -.12 * R), pt(.15 * R, .06 * R)], w * 1.2, P.ink);
-    else {
-      const [x, y] = pt(0, 0); c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TAU); c.fillStyle = P.eye; c.fill(); c.strokeStyle = ink; c.lineWidth = w * .6; c.stroke();
-      const [px, py] = pt(.05 * R, .03 * R + (F.look || 0)); dot(px, py, (wide ? .075 : .1) * R * S, P.ink); dot(px - .03 * R * S, py - .04 * R * S, .03 * R * S, P.eye);
-      if (lid < 1) {  // upper lid in skin, slanting down toward the nose when angry
-        const yIn = top + (1 - lid) * -2 * top + (F.slant ? .08 * R : 0), yOut = top + (1 - lid) * -2 * top - (F.slant ? .08 * R : 0), a = pt(.2 * R, yIn), b = pt(-.2 * R, yOut);
-        c.save(); c.beginPath(); c.ellipse(x, y, rx + w * .3, ry + w * .3, 0, 0, TAU); c.clip();
-        c.beginPath(); c.moveTo(...pt(.3 * R, top - .1 * R)); c.lineTo(...pt(-.3 * R, top - .1 * R)); c.lineTo(...b); c.lineTo(...a); c.closePath(); c.fillStyle = L.skin; c.fill(); c.restore();
-        stroke([a, b], w, ink, false);
+  // Lia's profile face in head units: eye, lid (expression × blink), brow, mouth and blush.
+  function humanFace(p, L, hs) {
+    const F = PARTS.human.face, E = F[p.face.expression] || F.neutral, lid = E.lid * (1 - (p.face.blink || 0)), ink = edge(L.skin);
+    inside(hs, u => {
+      const w = Math.max(1.5, .007 * p.size) * u;
+      c.save(); c.globalAlpha = .35; c.fillStyle = P.blush; c.fill(path(F.blush)); c.restore();
+      c.lineCap = c.lineJoin = 'round'; c.strokeStyle = P.ink;
+      if (E.eye === 'x' || E.eye === 'arc') { c.lineWidth = w * 1.3; c.stroke(path(F.eye[E.eye])); }
+      else {
+        const wide = E.eye === 'wide', eye = path(F.eye[E.eye]), [ex, ey] = F.eye.at, top = wide ? -3.5 : -2.9, h = wide ? 7.8 : 6.6;
+        c.fillStyle = P.eye; c.fill(eye); c.lineWidth = w * .7; c.strokeStyle = ink; c.stroke(eye);
+        const px = ex + .7, py = ey + .4 + (E.look || 0), r = wide ? 1.4 : 1.85;
+        c.beginPath(); c.ellipse(px, py, r, r * 1.1, 0, 0, TAU); c.fillStyle = P.ink; c.fill();
+        c.beginPath(); c.ellipse(px - .5 * r, py - .55 * r, .38 * r, .38 * r, 0, 0, TAU); c.fillStyle = P.eye; c.fill();
+        if (lid < 1) {  // upper lid in skin, slanting down toward the nose when angry
+          const y = top + (1 - lid) * h, s = E.slant ? .9 : 0, a = [ex + 3.6, y + s], b = [ex - 3.6, y - s];
+          c.save(); c.clip(eye); c.beginPath(); c.moveTo(ex + 4, top - 1); c.lineTo(ex - 4, top - 1); c.lineTo(...b); c.lineTo(...a); c.closePath(); c.fillStyle = L.skin; c.fill(); c.restore();
+          c.beginPath(); c.moveTo(...b); c.lineTo(...a); c.lineWidth = w; c.strokeStyle = ink; c.stroke();
+        }
       }
-    }
-    if (F.brow) stroke([pt(-.2 * R, top - .12 * R + F.brow[1]), pt(.2 * R, top - .12 * R + F.brow[0])], w * 1.3, edge(L.hair), false);
-    const [kind, k] = F.mouth, m = (dx, dy) => hf(.6 * R + dx, .5 * R + dy);
-    if (kind === 'o') { const [x, y] = m(0, .004); c.beginPath(); c.ellipse(x, y, .09 * R * S, .14 * R * S, 0, 0, TAU); c.fillStyle = ink; c.fill(); }
-    else if (kind === 'wavy') stroke([m(-.14 * R, 0), m(-.07 * R, -.05 * R), m(0, 0), m(.07 * R, -.05 * R), m(.14 * R, 0)], w, ink, false);
-    else if (kind === 'smile') { c.beginPath(); c.moveTo(...m(-.15 * R, -.004)); c.quadraticCurveTo(...m(0, 2 * k), ...m(.17 * R, -.004)); c.closePath(); c.fillStyle = ink; c.fill(); }
-    else stroke([m(-.13 * R, -k), m(0, k), m(.13 * R, -k)], w, ink);
+      if (E.brow) { c.lineWidth = w * 1.5; c.strokeStyle = edge(L.hair); c.stroke(path(E.brow)); }
+      if (E.mouth.fill) { c.fillStyle = mixCol(P.ink, P.blush, .25); c.fill(path(E.mouth.d)); } else { c.lineWidth = w; c.strokeStyle = ink; c.stroke(path(E.mouth.d)); }
+    });
+  }
+  // Round eye with a highlight at local (x, y) of a frame (units); blink closes it to a line.
+  function eyeAt(s, x, y, r, blink = 0) {
+    inside(s, u => {
+      if (blink > .5) { c.beginPath(); c.moveTo(x - r, y); c.lineTo(x + r, y); c.lineWidth = 1.5 * u; c.strokeStyle = P.ink; c.lineCap = 'round'; c.stroke(); return; }
+      c.beginPath(); c.ellipse(x, y, r, r * 1.1, 0, 0, TAU); c.fillStyle = P.ink; c.fill();
+      c.beginPath(); c.ellipse(x - .35 * r, y - .4 * r, .36 * r, .36 * r, 0, 0, TAU); c.fillStyle = P.eye; c.fill();
+    });
   }
 
-  // Species decorators. look: default colors and limb widths (BL). legsBehind: near feet go behind the body (human hem;
-  // ant and spider, so head, thorax and abdomen read clearly).
-  // body(p, L) returns the silhouette parts; back/front draw behind the body and over everything.
+  // Species decorators: look (default colours; fill keys of parts.js) and build(p, L) → [{z, list} | {z, draw}], drawn in z
+  // order. The side view draws the far limbs 10 layers back, so each side keeps a fixed layer order.
   const decor = {
     human: {
-      look: { color: P.cloth, skin: P.skin, hair: P.hair, shirt: P.cloth, pants: P.clothDk, legs: [.052, .04, .032], arms: [.032, .027, .023] },
-      legsBehind: true, headScale: 1.4,
-      limb(p, L, l, name, isFar) {
-        const k = isFar ? .28 : 0, S = p.size, f = p.facing;
-        if (name.startsWith('leg')) {
-          const w = L.legs.map(v => v * S), q = (dx, dy) => [l.end[0] + f * dx * S, l.end[1] + dy * S], shoe = mixCol(P.wood, P.ink, .45 + k), a = q(0, -.05);
-          const d = Math.atan2(a[1] - l.mid[1], a[0] - l.mid[0]), hem = (along, side) => [a[0] + Math.cos(d) * along * S - Math.sin(d) * side * w[2], a[1] + Math.sin(d) * along * S + Math.cos(d) * side * w[2]];
-          return [[{ smooth: true, poly: [q(-.034, .002), q(.072, .002), q(.08, -.014), q(.05, -.034), q(.008, -.046), q(-.036, -.036)], fill: shoe },  // shoe, then the trouser with its hem over it
-            { poly: [q(-.03, .002), q(.074, .002), q(.074, -.008), q(-.03, -.008)], fill: dark(shoe, .45) }],
-            [{ b: [l.root, w[0], l.mid, w[1]], fill: dark(L.pants, k) }, { b: [l.mid, w[1], hem(-.04, 0), w[2] * 1.05], fill: dark(L.pants, k) },
-              { poly: [hem(.015, 1.3), hem(.015, -1.3), hem(-.06, -1.08), hem(-.06, 1.08)], fill: dark(L.pants, k) }]];  // flat, flared hem
+      look: { color: P.wing, skin: P.skin, hair: P.hair, shirt: P.wing, pants: P.clothDk, shoe: mixCol(P.wood, P.ink, .45), sole: P.cloud, scarf: P.wingAccent },
+      headScale: 1.4,
+      build(p, L) {
+        const Q = PARTS.human.side, G = [], [ch, pe] = p.spine, o = { L }, h = p.appendages.hair;
+        for (const [name, l] of Object.entries(p.limbs)) {
+          const k = { L, dk: l.far ? .28 : 0 };
+          if (name.startsWith('leg')) { G.push(grp([pin(p, Q.shoe, l.end, rock(p, l), k)], l.far), grp([pin(p, Q.thigh, l.root, l.mid, k), pin(p, Q.shin, l.mid, l.end, k)], l.far)); }
+          else G.push(grp([pin(p, Q.upperArm, l.root, l.mid, k), pin(p, Q.forearm, l.mid, l.end, k), pin(p, Q.hand, l.end, ang(l.mid, l.end), k)], l.far));
         }
-        const w = L.arms.map(v => v * S);
-        return [{ b: [l.root, w[0], l.mid, w[1]], fill: dark(L.shirt, k) }, { b: [l.mid, w[1], l.end, w[2]], fill: dark(L.skin, k) }, { e: [l.end[0], l.end[1], .028 * S, .028 * S], fill: dark(L.skin, k) }];
-      },
-      // Folds: knee creases and the trouser hem; the sleeve cuff above the elbow.
-      detail(p, L, l, name, isFar) {
-        const S = p.size, w = clamp(.006 * S, 1, 3.5), k = isFar ? .28 : 0;
-        if (S < 60) return;
-        if (name.startsWith('leg')) { const col = edge(dark(L.pants, k)), hem = [l.end[0], l.end[1] - .05 * S]; crease(l.mid, l.root, .12, .02 * S, col, w); crease(l.mid, hem, .2, .018 * S, col, w); crease(l.mid, hem, .88, .036 * S, col, w, .1); }
-        else crease(l.root, l.mid, .85, .028 * S, edge(dark(L.shirt, k)), w, .15);
-      },
-      body(p, L) {
-        const S = p.size, [ch, pe] = p.spine, hf = headFrame(p), r = headR(p) * this.headScale, R = r / S;
-        return [
-          { e: [pe.x, pe.y, .072 * S, .072 * S], fill: L.pants },
-          { b: [[ch.x, ch.y - .1 * S], .032 * S, [p.head.x, p.head.y], .032 * S], fill: L.skin },
-          { b: [[ch.x, ch.y - .06 * S], .09 * S, [pe.x, pe.y - .03 * S], .076 * S], fill: L.shirt },
-          { e: [...hf(.98 * R, .05 * R), .17 * R * S, .14 * R * S], fill: L.skin },
-          { e: [...hf(.4 * R, .45 * R), .48 * R * S, .42 * R * S], fill: L.skin },
-          { e: [p.head.x, p.head.y, r * .94, r, 0], fill: L.skin },
-        ];
-      },
-      back(p, L) { const h = p.appendages.hair; if (h) parts(chainParts(h, .036 * p.size, .018 * p.size, L.hair), lw(p)); },
-      // Shirt folds and hem, over the body and under the near arm.
-      over(p, L) {
-        const S = p.size, [ch, pe] = p.spine, fw = clamp(.006 * S, 1, 3.5);
-        if (S >= 60) clipTo([{ b: [[ch.x, ch.y - .06 * S], .09 * S, [pe.x, pe.y - .03 * S], .076 * S] }], () => {
-          const col = edge(L.shirt), q = (dx, dy) => [pe.x + p.facing * dx * S, pe.y + dy * S];
-          stroke([q(-.08, .035), q(0, .05), q(.08, .035)], fw * 1.2, col); stroke([q(.02, -.02), q(.045, .01)], fw, col); stroke([q(-.03, -.05), q(-.01, -.015)], fw, col);
-        });
-      },
-      front(p, L) {
-        const S = p.size, hf = headFrame(p), r = headR(p) * this.headScale, R = r / S, w = lw(p), fw = clamp(.006 * S, 1, 3.5);
-        // Hair cap: volume over the crown and the back of the head, hairline with two bangs over the forehead.
-        const cap = [[-1.1, .4], [-1.2, -.3], [-.85, -.98], [-.1, -1.2], [.66, -1.02], [1.04, -.46], [.86, -.3], [.6, -.52], [.36, -.36], [.1, -.56], [-.22, -.34], [-.42, .1], [-.66, .62], [-1, .66]];
-        parts([{ smooth: true, concave: true, poly: cap.map(([x, y]) => hf(x * R, y * R)), fill: L.hair }], w);
-        if (S >= 60) for (const [a, b] of [[[-.7, -.7], [-.95, .1]], [[-.2, -.95], [-.55, -.45]]]) stroke([hf(a[0] * R, a[1] * R), hf(lerp(a[0], b[0], .5) * R - .05 * R, lerp(a[1], b[1], .5) * R), hf(b[0] * R, b[1] * R)], fw, edge(L.hair));
-        parts([{ e: [...hf(-.3 * R, .14 * R), .17 * R * S, .24 * R * S], fill: L.skin }], w * .6);  // ear
-        if (S >= 60) stroke([hf(-.26 * R, .06 * R), hf(-.36 * R, .14 * R), hf(-.28 * R, .24 * R)], fw, edge(L.skin));
-        humanFace(p, L, hf, R);
+        const torso = pin(p, Q.torso, pt(pe), pt(ch), o), neckAt = at(torso, 0, -29), hd = [p.head.x, p.head.y];
+        const head = pin(p, Q.head, hd, p.head.angle, o), hair = pin(p, Q.hair, hd, p.head.angle, o);
+        G.push(grp([pin(p, Q.pelvis, pt(pe), pt(ch), o), torso]), grp([pin(p, Q.scarf, pt(pe), pt(ch), o)]), grp([pin(p, Q.neck, neckAt, hd, o), head]));
+        // Scarf tail: from the back of the neck, trailing like the ponytail but hanging lower.
+        if (h) {
+          G.push(grp([pin(p, Q.ponytail, h[0], h[3], o), pin(p, Q.tie, h[0], h[3], o)]));
+          G.push(grp([pin(p, Q.scarfTail, at(torso, -6.5, -31), turn(p, turn(p, ang(h[0], h[3])) - .35), o)]));
+        }
+        G.push(grp([pin(p, Q.ear, at(head, -1.5, 1.4), p.head.angle, o)]), grp([hair]), { z: 6.3, draw: () => humanFace(p, L, head) });
+        return G;
       },
     },
     dog: {
-      look: { color: P.fur, dark: P.furDk, limb: [.048, .034, .03] },
-      limb(p, L, l, name, isFar) {
-        const col = isFar ? L.dark : L.color, w = L.limb.map(v => v * p.size), f = p.view === 'side' ? p.facing : 0;
-        return [...(f ? limbParts(l, w, col) : [{ b: [l.root, w[0], l.end, w[2]], fill: col }]), { e: [l.end[0] + f * .02 * p.size, l.end[1] - .012 * p.size, .045 * p.size, .028 * p.size], fill: col }]; },
-      body(p, L) {
-        const hf = headFrame(p), S = p.size, top = p.view !== 'side';
-        return [
-          { b: [[p.spine.at(-1).x, p.spine.at(-1).y], .13 * S, [p.spine[0].x, p.spine[0].y], .14 * S], fill: L.color },
-          ...spineParts(p, L.color, 1.25),
-          { b: [[p.spine[0].x, p.spine[0].y], .1 * S, [p.head.x, p.head.y], .075 * S], fill: L.color },
-          { e: [p.head.x, p.head.y, .12 * S, (top ? .09 : .105) * S, p.head.angle], fill: L.color },
-          { b: [hf(.05, top ? 0 : .025), .07 * S, hf(.2, top ? 0 : .045), .052 * S], fill: L.color },
-        ];
-      },
-      back(p, L) {
-        const S = p.size, w = lw(p), A = p.appendages;
-        parts(chainParts(A.tail, .035 * S, .014 * S, L.color), w);
-        for (const e of ['earL', 'earR']) if (p.view === 'top' || far(p, e)) parts(chainParts(A[e], .04 * S, .028 * S, L.dark), w);
-      },
-      front(p, L) {
-        const S = p.size, hf = headFrame(p), top = p.view !== 'side', body = this.body(p, L).slice(0, 4);
-        clipTo(body, () => { const g = p.spine[1], f = segFrame(p, 1); c.globalAlpha = .65; c.beginPath(); c.ellipse(...f(-.05, top ? 0 : -.13), .24 * S, .12 * S, g.angle, 0, TAU); c.fillStyle = L.dark; c.fill(); });  // saddle
-        const nose = hf(.205, top ? 0 : .02); dot(nose[0], nose[1], .03 * S, edge(L.dark)); gloss(nose[0], nose[1], .02 * S, .6);
-        for (const side of top ? [-1, 1] : [1]) { const [x, y] = hf(.05, top ? .055 * side : -.035); if (p.face.blink > .5) stroke([[x - .022 * S, y], [x + .022 * S, y]], Math.max(1.5, .008 * S)); else { dot(x, y, .02 * S, P.ink); dot(x + .006 * S, y - .007 * S, .007 * S, P.eye); } }
-        if (!top) { stroke([hf(.2, .07), hf(.13, .075)], Math.max(1.5, .008 * S), edge(L.color)); for (const e of ['earL', 'earR']) if (!far(p, e)) parts(chainParts(p.appendages[e], .04 * S, .028 * S, L.dark), lw(p)); }
+      look: { color: P.fur, dark: P.furDk, cream: mixCol(P.fur, P.cloud, .7), nose: mixCol(P.ink, P.furDk, .2), collar: P.wingAccent, tag: P.wing },
+      build(p, L) {
+        const top = p.view !== 'side', Q = top ? { ...PARTS.dog.side, ...PARTS.dog.top } : PARTS.dog.side, G = [], o = { L }, A = p.appendages, hd = [p.head.x, p.head.y];
+        for (const [name, l] of Object.entries(p.limbs)) {
+          const k = { L, dk: l.far ? .3 : 0 }, front = name.endsWith('F');
+          G.push(grp([pin(p, front ? Q.armUpper : Q.hipUpper, l.root, l.mid, k), pin(p, Q.legLower, l.mid, l.end, k), pin(p, Q.paw, l.end, top ? ang(l.mid, l.end) : rock(p, l, .2), k)], l.far || top));
+        }
+        const t = A.tail;
+        G.push(grp([pin(p, Q.tailSeg, t[0], t[1], o), pin(p, Q.tailSeg, t[1], t[2], { L, wy: .85 }), pin(p, Q.tailTip, t[2], t[3], o)]));
+        for (const e of ['earL', 'earR']) { const back = !top && far(p, e); G.push({ ...grp([pin(p, Q.ear, A[e][0], A[e].at(-1), { L, dk: back ? .2 : 0, wy: top && e === 'earR' ? -1 : 1 })]), z: back ? 2 : 8 }); }
+        const neck = [pt(p.spine[0]), hd], head = pin(p, Q.head, hd, p.head.angle, o);
+        G.push(grp([pin(p, Q.body, pt(p.spine.at(-1)), pt(p.spine[0]), o), pin(p, Q.neck, ...neck, o), head]));
+        const collar = pin(p, Q.collar, ...neck, o);
+        G.push(grp([collar, ...(top ? [] : [pin(p, Q.tag, at(collar, 19.6, 9.6), PI2, o)])]));
+        G.push({ z: 6.2, draw: () => {
+          for (const s of top ? [-1, 1] : [1]) eyeAt(head, top ? 5 : 4.6, top ? 4.6 * s : -4.4, 2.3, p.face.blink);
+          if (!top) inside(head, u => { c.beginPath(); c.moveTo(2.4, -7.8); c.quadraticCurveTo(4.6, -9.2, 7.2, -7.8); c.lineWidth = Math.max(1.5, .008 * p.size) * u; c.strokeStyle = edge(L.color); c.stroke(); });
+          const [nx, ny] = at(head, top ? 21 : 21, top ? 0 : -3.4); gloss(nx, ny, .018 * p.size, .6);
+        } });
+        return G;
       },
     },
     ant: {
-      // Head, thorax and gaster are separate inked forms joined by a thin neck and the petiole node, with chitin gloss.
-      // Far legs and antennae are thinner and paler so the side view does not tangle.
-      look: { color: P.chitin, dark: P.chitinDk, limb: [.022, .016, .012] }, legsBehind: true,
-      limb(p, L, l, name, isFar) { return limbParts(l, L.limb.map(v => v * p.size * (isFar ? .7 : 1)), isFar ? pale(L.color) : L.color); },
-      body(p, L) {
-        const S = p.size, hf = headFrame(p), f = segFrame(p, 0), top = p.view !== 'side', [th, pe] = p.spine, sp = spineParts(p, L.color, [1.45, 1.2, 1.25]);
-        const spines = top ? [-1, 1].map(s => ({ b: [f(-.05, .03 * s), .014 * S, f(-.11, .06 * s), .003 * S], fill: L.color })) : [{ b: [f(-.05, -.04), .016 * S, f(-.1, -.1), .003 * S], fill: L.color }];
-        return [[sp[2]], [{ b: [[pe.x, pe.y], .014 * S, [th.x, th.y], .014 * S], fill: L.dark }, { e: [pe.x, pe.y - (top ? 0 : .025 * S), .03 * S, .04 * S, pe.angle], fill: L.color }],
-          [...spines, sp[0]], [{ b: [[th.x, th.y], .016 * S, [p.head.x, p.head.y], .016 * S], fill: L.dark }],
-          [{ e: [p.head.x, p.head.y, .095 * S, (top ? .085 : .078) * S, p.head.angle], fill: L.color },
-            ...(top ? [-1, 1].map(s => ({ b: [hf(.07, .035 * s), .02 * S, hf(.14, .012 * s), .007 * S], fill: L.dark })) : [{ b: [hf(.07, .035), .02 * S, hf(.145, .055), .007 * S], fill: L.dark }])]];
-      },
-      back(p, L) { for (const a of ['antennaL', 'antennaR']) if (far(p, a)) stroke(p.appendages[a], Math.max(1, .011 * p.size), pale(L.color), false); },
-      front(p, L) {
-        const S = p.size, hf = headFrame(p), top = p.view !== 'side';
-        for (const a of ['antennaL', 'antennaR']) if (!far(p, a)) stroke(p.appendages[a], Math.max(1.5, .016 * p.size), edge(L.color), false);
-        for (const s of top ? [-1, 1] : [0]) { const [x, y] = hf(top ? .01 : .025, top ? .07 * s : -.02); c.beginPath(); c.ellipse(x, y, .026 * S, .02 * S, p.head.angle, 0, TAU); c.fillStyle = P.ink; c.fill(); dot(x + .006 * S, y - .006 * S, .006 * S, P.eye); }
-        clipTo(spineParts(p, 0, [1.45, 1.2, 1.25]).slice(2), () => { const f = segFrame(p, 2); for (const k of [-.05, .04]) stroke([f(k, -.2), f(k - .03, .2)], Math.max(1.5, .012 * S), edge(L.color), false); });  // gaster bands
-        if (S >= 40) { const [th, , ga] = p.spine; gloss(p.head.x, p.head.y, .06 * S); gloss(th.x, th.y, .06 * S); gloss(ga.x, ga.y, .1 * S); }
+      // Head, mesosoma, petiole and gaster are separate inked forms on a thin dark waist; far legs and antennae are
+      // thinner and paler so the side view does not tangle. All legs go behind the body.
+      look: { color: P.chitin, dark: P.chitinDk },
+      build(p, L) {
+        const top = p.view !== 'side', Q = top ? { ...PARTS.ant.side, ...PARTS.ant.top } : PARTS.ant.side, G = [], o = { L }, [th, pe, ga] = p.spine, hd = [p.head.x, p.head.y], S = p.size;
+        for (const l of Object.values(p.limbs)) { const k = l.far ? { L, col: pale(L.color), wy: .7 } : o; G.push({ ...grp([pin(p, Q.femur, l.root, l.mid, k), pin(p, Q.tibia, l.mid, l.end, k)], l.far), z: l.far ? -8 : 2 }); }
+        const antenna = (a, back) => () => { const pts = p.appendages[a], w = Math.max(1.2, (back ? .011 : .016) * S), col = back ? pale(L.color) : edge(L.color); stroke(pts, w, col, false); dot(...pts.at(-1), w * 1.1, col); };
+        for (const a of ['antennaL', 'antennaR']) G.push({ z: far(p, a) ? 1 : 7, draw: antenna(a, far(p, a)) });
+        G.push(grp([pin(p, Q.stalk, pt(th), pt(ga), o), pin(p, Q.stalk, pt(th), hd, { L, wy: .9 })]));
+        const gaster = pin(p, Q.gaster, pt(ga), ga.angle, o), meso = pin(p, Q.mesosoma, pt(th), th.angle, o), head = pin(p, Q.head, hd, p.head.angle, o);
+        G.push(grp([gaster]), grp([pin(p, Q.petiole, pt(pe), pe.angle, o)]), grp([meso]), grp([head]));
+        const ha = turn(p, p.head.angle);
+        G.push(grp(top ? [-1, 1].map(s => pin(p, Q.mandible, at(head, 7.4, 3 * s), turn(p, ha + .35 * s), { L, wy: s })) : [pin(p, Q.mandible, at(head, 7.4, 4.6), turn(p, ha + .6), { L, wy: .8 })]));
+        G.push({ z: 6.5, draw: () => {
+          for (const s of top ? [-1, 1] : [0]) inside(head, () => { const x = top ? 2.4 : 2.6, y = top ? 6 * s : -2.2; c.beginPath(); c.ellipse(x, y, 2.7, 2.1, 0, 0, TAU); c.fillStyle = P.ink; c.fill(); c.beginPath(); c.ellipse(x - .7, y - .7, .7, .7, 0, 0, TAU); c.fillStyle = P.eye; c.fill(); });
+          if (S >= 40) { gloss(...at(head, 1, -4), .05 * S); gloss(...at(meso, 1, -4), .05 * S); gloss(...at(gaster, -2, -6), .08 * S); }
+        } });
+        return G;
       },
     },
     spider: {
-      look: { color: P.wood, dark: mixCol(P.wood, P.ink, .4), limb: [.034, .026, .016] }, legsBehind: true,
-      limb(p, L, l, name, isFar) { return limbParts(l, L.limb.map(v => v * p.size * (isFar ? .7 : 1)), isFar ? pale(L.color) : L.color); },
-      // Abdomen, cephalothorax and the head bump with its fangs are three inked forms.
-      body(p, L) {
-        const S = p.size, hf = headFrame(p), top = p.view !== 'side', sp = spineParts(p, L.color, [1.15, 1.2]);
-        return [[sp[1]], [sp[0]], [{ e: [p.head.x, p.head.y, .09 * S, .08 * S, p.head.angle], fill: L.color },
-          ...(top ? [-1, 1].map(s => ({ b: [hf(.06, .03 * s), .025 * S, hf(.11, .03 * s), .012 * S], fill: L.dark })) : [{ b: [hf(.05, .03), .028 * S, hf(.09, .09), .012 * S], fill: L.dark }])]];
-      },
-      back(p, L) { for (const a of ['palpL', 'palpR']) if (far(p, a)) parts(chainParts(p.appendages[a], .016 * p.size, .011 * p.size, pale(L.color)), lw(p) * .7); },
-      front(p, L) {
-        const S = p.size, hf = headFrame(p), top = p.view !== 'side', ab = spineParts(p, 0, [1.15, 1.2])[1];
-        clipTo([ab], () => { const f = segFrame(p, 1); c.beginPath(); for (const k of [0, .09, .18]) { c.moveTo(...f(.05 - k, top ? -.09 : -.24)); c.lineTo(...f(-.03 - k, top ? 0 : -.15)); c.lineTo(...f(.05 - k, top ? .09 : -.24 + .18)); } c.strokeStyle = L.dark; c.lineWidth = .025 * S; c.lineCap = 'round'; c.stroke(); });
-        for (const a of ['palpL', 'palpR']) if (!far(p, a)) parts(chainParts(p.appendages[a], .022 * S, .016 * S, L.color), lw(p));
-        const eyes = top ? [[.07, -.03, .022], [.07, .03, .022], [.045, -.06, .013], [.045, .06, .013], [.025, -.035, .012], [.025, .035, .012]] : [[.06, -.035, .024], [.02, -.06, .015], [.045, -.065, .013]];
-        for (const [dx, dy, r] of eyes) { const [x, y] = hf(dx, dy); dot(x, y, r * S, P.ink); dot(x + .3 * r * S, y - .3 * r * S, .35 * r * S, P.eye); }
-        if (S >= 40) { const [ce, abd] = p.spine; gloss(ce.x, ce.y, .1 * S); gloss(abd.x, abd.y, .16 * S); }
+      look: { color: P.wood, dark: mixCol(P.wood, P.ink, .4), mark: mixCol(P.wood, P.cloud, .55) },
+      build(p, L) {
+        const Q = PARTS.spider.side, top = p.view !== 'side', G = [], o = { L }, [ce, ab] = p.spine, hd = [p.head.x, p.head.y], S = p.size;
+        for (const l of Object.values(p.limbs)) { const k = l.far ? { L, col: pale(L.color), wy: .7 } : o; G.push({ ...grp([pin(p, Q.femur, l.root, l.mid, k), pin(p, Q.tibia, l.mid, l.end, k)], l.far), z: l.far ? -8 : 2 }); }
+        for (const a of ['palpL', 'palpR']) { const pp = p.appendages[a], back = far(p, a); G.push({ ...grp([pin(p, Q.palp, pp[0], pp.at(-1), back ? { L, col: pale(L.color), wy: .8 } : o)]), z: back ? 1 : 7 }); }
+        const abd = pin(p, Q.abdomen, pt(ab), ab.angle, o), head = pin(p, Q.head, hd, p.head.angle, o), ha = turn(p, p.head.angle);
+        G.push(grp([abd]), grp([pin(p, Q.cephalo, pt(ce), ce.angle, o)]), grp([head]));
+        G.push(grp((top ? [-1, 1] : [1]).map(s => pin(p, Q.fang, at(head, 6, top ? 3 * s : 4), turn(p, ha + PI2 - .4 - (top ? 1.1 : 0)), { L, wy: top ? s : 1 }))));
+        G.push({ z: 6.5, draw: () => {
+          const eyes = top ? [[7, -3, 2.2], [7, 3, 2.2], [4.5, -6, 1.3], [4.5, 6, 1.3], [2.5, -3.5, 1.2], [2.5, 3.5, 1.2]] : [[6, -3.5, 2.4], [2, -6, 1.5], [4.5, -6.5, 1.3]];
+          inside(head, () => { for (const [x, y, r] of eyes) { c.beginPath(); c.ellipse(x, y, r, r, 0, 0, TAU); c.fillStyle = P.ink; c.fill(); c.beginPath(); c.ellipse(x - .3 * r, y - .3 * r, .35 * r, .35 * r, 0, 0, TAU); c.fillStyle = P.eye; c.fill(); } });
+          if (S >= 40) { gloss(...at(abd, -2, -12), .12 * S); gloss(ce.x, ce.y - .05 * S, .08 * S); }
+        } });
+        return G;
       },
     },
     bird: {
-      look: { color: P.cloth, dark: P.clothDk, belly: P.cloud, beak: P.wing, limb: [.018, .014, .012] },
-      limb(p, L, l, name, isFar) {
-        const w = L.limb.map(v => v * p.size), col = isFar ? dark(L.beak) : L.beak, f = p.view === 'side' ? p.facing : 1, S = p.size;
-        return [...limbParts(l, w, col), { b: [l.end, w[2], [l.end[0] + f * .07 * S, l.end[1]], w[2] * .8], fill: col }, { b: [l.end, w[2], [l.end[0] - f * .04 * S, l.end[1]], w[2] * .8], fill: col }];
-      },
-      body(p, L) {
-        const S = p.size, hf = headFrame(p);
-        return [{ b: [[p.spine[0].x, p.spine[0].y], .12 * S, [p.head.x, p.head.y], .08 * S], fill: L.color }, ...spineParts(p, L.color, [1.2, 1.3]),
-          { e: [p.head.x, p.head.y, .1 * S, .1 * S], fill: L.color }, { poly: [hf(.07, -.035), hf(.2, .005), hf(.07, .035)], fill: L.beak }];
-      },
-      // Wing as a tapered bone from the shoulder: folded along the back, or flapping by wings.phase.
-      wing(p, L, s, fill) {
-        const S = p.size, f = segFrame(p, 0), w = p.wings, top = p.view !== 'side', fl = Math.sin(TAU * (w ? w.phase : 0));
-        const tip = w && w.open ? (top ? f(-.12, s * .5 * (.35 + .65 * Math.abs(Math.cos(TAU * w.phase)))) : f(-.15, -.45 * fl + .05)) : top ? f(-.3, s * .1) : f(-.32, -.02);
-        parts([{ b: [top ? f(.02, s * .1) : f(.05, -.04), .09 * S, tip, .035 * S], fill }], lw(p));
-      },
-      back(p, L) {
-        const S = p.size, t = p.appendages.tail, [a, b] = t, ang = Math.atan2(b[1] - a[1], b[0] - a[0]), n = [-Math.sin(ang), Math.cos(ang)];
-        parts([{ poly: [[a[0] + n[0] * .03 * S, a[1] + n[1] * .03 * S], [b[0] + n[0] * .06 * S, b[1] + n[1] * .06 * S], [b[0] - n[0] * .06 * S, b[1] - n[1] * .06 * S], [a[0] - n[0] * .03 * S, a[1] - n[1] * .03 * S]], fill: L.dark }], lw(p));
-        if (p.view === 'side' && p.wings && p.wings.open) this.wing(p, L, -1, dark(L.dark));
-      },
-      front(p, L) {
-        const S = p.size, hf = headFrame(p), top = p.view !== 'side';
-        if (!top) clipTo([spineParts(p, 0, [1.2, 1.3])[0]], () => { c.beginPath(); c.ellipse(...segFrame(p, 0)(.06, .1), .14 * S, .1 * S, 0, 0, TAU); c.fillStyle = L.belly; c.fill(); });
-        for (const s of top ? [-1, 1] : [1]) this.wing(p, L, s, L.dark);
-        for (const s of top ? [-1, 1] : [0]) { const [x, y] = hf(.04, top ? .06 * s : -.025); dot(x, y, .022 * S, P.ink); dot(x + .007 * S, y - .007 * S, .007 * S, P.eye); }
+      look: { color: P.cloth, dark: P.clothDk, belly: P.cloud, beak: P.wing },
+      build(p, L) {
+        const top = p.view !== 'side', Q = top ? { ...PARTS.bird.side, ...PARTS.bird.top } : PARTS.bird.side, G = [], o = { L }, [fr, re] = p.spine, hd = [p.head.x, p.head.y];
+        for (const l of Object.values(p.limbs)) { const k = { L, dk: l.far ? .3 : 0 }; G.push({ ...grp([pin(p, Q.shank, l.root, l.mid, k), pin(p, Q.shank, l.mid, l.end, k), pin(p, Q.toes, l.end, top ? ang(l.mid, l.end) : turn(p, 0), k)]), z: l.far ? 1.5 : 2 }); }
+        G.push(grp([pin(p, Q.tail, ...p.appendages.tail, o)]));
+        // Wing from the shoulder: folded along the back, or flapping by wings.phase (the far one behind the body).
+        const w = p.wings, F = frameAt(p, fr.x, fr.y, fr.angle), fl = Math.sin(TAU * (w ? w.phase : 0));
+        const wing = (s, k) => {
+          const tip = w && w.open ? (top ? at(F, -12, s * 50 * (.35 + .65 * Math.abs(Math.cos(TAU * w.phase)))) : at(F, -15, -45 * fl + 5)) : top ? at(F, -30, s * 10) : at(F, -32, -2);
+          return pin(p, Q.wing, top ? at(F, 2, s * 10) : at(F, 5, -4), tip, { L, dk: k, wy: top ? -s : 1 });
+        };
+        if (!top && w && w.open) G.push({ z: 2.5, list: [wing(-1, .3)] });
+        const head = pin(p, Q.head, hd, p.head.angle, o);
+        G.push(grp([pin(p, Q.body, pt(re), pt(fr), o), pin(p, Q.neck, pt(fr), hd, o), head]), grp([pin(p, Q.beak, hd, p.head.angle, o)]));
+        for (const s of top ? [-1, 1] : [1]) G.push({ z: 7, list: [wing(s, 0)] });
+        G.push({ z: 6.5, draw: () => { for (const s of top ? [-1, 1] : [0]) eyeAt(head, top ? 4 : 3.8, top ? 6 * s : -2.6, 2.3, p.face.blink); } });
+        return G;
       },
     },
     fish: {
-      look: { color: P.wing, dark: mixCol(P.wing, P.wingAccent, .45), fin: P.wingAccent },
-      // One smooth outline from the snout around the spine radii to the tail; narrower from above.
-      body(p, L) {
-        const hf = headFrame(p), k = p.view === 'side' ? 1 : .6, S = p.size, n = p.spine.length;
-        const edge = s => p.spine.map((g, i) => segFrame(p, i)(0, s * k * g.r / S));
-        return [{ smooth: true, poly: [hf(.14, 0), hf(.06, -.09 * k), ...edge(-1), segFrame(p, n - 1)(-.05, 0), ...edge(1).reverse(), hf(.06, .09 * k)], fill: L.color }];
-      },
-      back(p, L) {
-        const S = p.size, w = lw(p), [a, m, b] = p.appendages.caudal, ang = Math.atan2(b[1] - m[1], b[0] - m[0]), n = [-Math.sin(ang), Math.cos(ang)];
-        const spread = p.view === 'side' ? .13 : .05, q = k => [b[0] + n[0] * k * S, b[1] + n[1] * k * S];
-        parts([{ poly: [a, q(spread), [lerp(m[0], b[0], .55), lerp(m[1], b[1], .55)], q(-spread)], fill: L.fin }], w);
-        if (p.view === 'side') { const f1 = segFrame(p, 1), f3 = segFrame(p, 3); parts([{ poly: [f1(.08, -.1), f1(-.16, -.29), f3(.04, -.05)], fill: L.fin }, { poly: [f3(.06, .06), f3(-.05, .16), f3(-.09, .04)], fill: L.fin }], w); }
-      },
-      front(p, L) {
-        const S = p.size, hf = headFrame(p), top = p.view !== 'side', pc = p.appendages.pectoral, w = lw(p);
-        clipTo(this.body(p, L), () => { const f = segFrame(p, 1); c.beginPath(); c.ellipse(...f(0, top ? 0 : -.08), .2 * S, .06 * S, p.spine[1].angle, 0, TAU); c.fillStyle = L.dark; c.fill(); });
-        stroke([hf(-.04, -.07), hf(-.065, 0), hf(-.04, .07)], Math.max(1.5, .012 * S), edge(L.color));  // gill
-        const fin = (base, tip) => { const ang = Math.atan2(tip[1] - base[1], tip[0] - base[0]), mid = [(base[0] + tip[0]) / 2, (base[1] + tip[1]) / 2]; parts([{ e: [mid[0], mid[1], Math.hypot(tip[0] - base[0], tip[1] - base[1]) / 2 + .01 * S, .03 * S, ang], fill: L.fin }], w); };
-        if (top) { const f = segFrame(p, 1), da = Math.atan2(pc[1][1] - pc[0][1], pc[1][0] - pc[0][0]) - p.spine[1].angle; for (const s of [-1, 1]) fin(f(.03, s * .1), f(-.06, s * (.17 + .05 * Math.sin(da)))); }
-        else fin(pc[0], pc[1]);
-        for (const s of top ? [-1, 1] : [0]) { const [x, y] = hf(.05, top ? .07 * s : -.02); dot(x, y, .032 * S, P.eye); dot(x + .008 * S, y, .018 * S, P.ink); }
-        if (!top) stroke([hf(.115, .035), hf(.09, .04)], Math.max(1.5, .008 * S), edge(L.color));
+      // Cut-out body in three pieces along the waving spine (peduncle, mid, fore); narrower from above.
+      look: { color: P.wing, dark: mixCol(P.wing, P.wingAccent, .45), fin: P.wingAccent, belly: mixCol(P.wing, P.cloud, .55) },
+      build(p, L) {
+        const Q = PARTS.fish.side, top = p.view !== 'side', G = [], o = { L, wy: top ? .6 : 1 }, sp = p.spine, hd = [p.head.x, p.head.y], A = p.appendages;
+        G.push(grp([pin(p, Q.caudal, A.caudal[0], A.caudal[2], { L, wy: top ? .35 : 1 })]));
+        if (!top) G.push(grp([pin(p, Q.dorsal, pt(sp[3]), pt(sp[1]), o)]), grp([pin(p, Q.anal, pt(sp[3]), pt(sp[1]), o)]));
+        const fore = pin(p, Q.fore, pt(sp[1]), hd, o);
+        G.push(grp([pin(p, Q.peduncle, pt(sp[4]), pt(sp[3]), o), pin(p, Q.mid, pt(sp[3]), pt(sp[1]), o), fore]));
+        G.push(grp(top ? [-1, 1].map(s => pin(p, Q.pectoral, at(fore, 16, 14 * s), turn(p, sp[1].angle + s * (2.3 + .25 * Math.sin(ang(...A.pectoral) - sp[1].angle))), { L, wy: -s })) : [pin(p, Q.pectoral, ...A.pectoral, o)]));
+        G.push({ z: 6.5, draw: () => { for (const s of top ? [-1, 1] : [0]) inside(fore, () => { const x = 37, y = top ? 11 * s : -2.4; c.beginPath(); c.ellipse(x, y, 3.3, 3.3 / o.wy, 0, 0, TAU); c.fillStyle = P.eye; c.fill(); c.beginPath(); c.ellipse(x + .8, y, 1.9, 1.9 / o.wy, 0, 0, TAU); c.fillStyle = P.ink; c.fill(); }); } });
+        return G;
       },
     },
   };
-  const lw = p => clamp(p.size * .022, 1.5, STYLE.outline.weight);
 
   // Flat crowd form: no outline or face; limbs as thin lines.
   function simple(p, D, L) {
@@ -338,7 +299,7 @@
 
   function creature(p, look = {}) {
     const D = decor[p.spec]; if (!D) throw new Error(`Sem desenho para o ser ${p.spec}`);
-    const L = { ...D.look, ...look }, side = p.view === 'side', w = lw(p), limbs = Object.entries(p.limbs), sq = p.sq || 0;
+    const L = { ...D.look, ...look }, sq = p.sq || 0;
     if (sq) {  // squash (sq > 0) e stretch (sq < 0) a partir do chão sob o corpo, preservando o volume
       const fs = Object.values(p.limbs).filter(l => l.foot), x = (p.spine[0].x + p.spine.at(-1).x) / 2, y = fs.length ? Math.max(...fs.map(l => l.end[1])) : p.spine[0].y;
       c.save(); c.translate(x, y); c.scale(1 + .5 * sq, 1 - sq); c.translate(-x, -y);
@@ -346,16 +307,7 @@
     try {
       contact(p);
       if (p.size < 28) simple(p, D, L);
-      else {
-        const draw = ([name, l]) => { const g = D.limb(p, L, l, name, l.far); for (const q of Array.isArray(g[0]) ? g : [g]) parts(q, w); D.detail?.(p, L, l, name, l.far); };
-        const behind = ([, l]) => l.far || !side || (D.legsBehind && l.foot);
-        limbs.filter(behind).sort(([, a], [, b]) => b.far - a.far).forEach(draw);
-        D.back?.(p, L);
-        const B = D.body(p, L); for (const g of Array.isArray(B[0]) ? B : [B]) parts(g, w);
-        D.over?.(p, L);
-        limbs.filter(e => !behind(e)).forEach(draw);
-        D.front?.(p, L);
-      }
+      else { const w = lw(p), fw = fwOf(p); for (const g of D.build(p, L).sort((a, b) => a.z - b.z)) if (g.draw) g.draw(); else cut(g.list, w, fw); }
       if (p.carry) NatureArt.leafPiece(p.carry.x, p.carry.y, p.carry.w, p.carry.h, p.carry.angle, P.leaf);
     } finally { if (sq) c.restore(); }
     if (p.emote) emote(p);
@@ -377,6 +329,8 @@
   const canvas = (w, h) => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; return cv; };
   // Dry and wet skies per sun position, built once (the radial glow costs a lot to fill); rain crossfades them.
   const SKY = {};
+  // Scenery silhouettes from parts.js as pieces (pivot at the root, 100 units = full size), built once per path.
+  const SCENE = new Map(), scene = (d, clip = false) => { let q = SCENE.get(d); if (!q) SCENE.set(d, q = { d, pivot: [0, 0], len: 100, clip }); return q; };
 
   window.NatureArt = {
     creature, decor,
@@ -387,7 +341,21 @@
       let top = Infinity; c.beginPath(); c.moveTo(x0, H * 4);
       for (let x = x0; x <= x1 + 15; x += 16) { const y = profile(Math.min(x, x1)); top = Math.min(top, y); c.lineTo(Math.min(x, x1), y); }
       c.lineTo(x1, H * 4); c.closePath();
-      if (color) { c.fillStyle = color; c.fill(); edgeLine(1.5, mixCol(color, P.ink, .12), 3); return; }
+      if (color) {
+        // Clumps of bushes along the rim (authored silhouettes), seeded by the layer's own profile so they stay put as
+        // the camera moves; drawn first, so the hill hides their lower half.
+        const B = PARTS.scenery.bush, sd = Math.round(profile(0)), rim = mixCol(color, P.ink, .12);
+        c.save();
+        for (let k = Math.floor(x0 / 150) - 1; k * 150 < x1 + 150; k++) {
+          if (hash(k * 1.3 + sd) > .6) continue;
+          const s = .5 + .6 * hash(k * 2.1 + sd), bx = k * 150 + 70 * hash(k + sd * .7), q = scene(B[Math.floor(hash(k * 3.7 + sd) * B.length)]);
+          inside(place(q, [bx, profile(bx) + 5 * s], 0, s, hash(k + sd + .5) < .5 ? -1 : 1, 1, color), u => { const p = path(q.d); c.fillStyle = color; c.fill(p); c.lineWidth = 3 * u; c.strokeStyle = rim; c.stroke(p); });
+        }
+        c.restore();
+        c.beginPath(); c.moveTo(x0, H * 4);
+        for (let x = x0; x <= x1 + 15; x += 16) c.lineTo(Math.min(x, x1), profile(Math.min(x, x1)));
+        c.lineTo(x1, H * 4); c.closePath(); c.fillStyle = color; c.fill(); edgeLine(1.5, rim, 3); return;
+      }
       const g = c.createLinearGradient(0, top, 0, top + 700); g.addColorStop(0, P.ground); g.addColorStop(1, mixCol(P.ground, P.shade, .28));
       c.fillStyle = g; c.fill(); edgeLine(14, lit(P.ground), 12); edgeLine(3, P.groundDk, 6);
     },
@@ -405,9 +373,13 @@
       if (rain > 0) { c.globalAlpha = rain; c.drawImage(sky(1), 0, 0); }
       c.restore();
     },
-    // Tuft of big dark blades for the foreground frame; sways gently with t.
+    // Tuft of big dark leaves for the foreground frame (authored silhouettes, picked and mirrored by seed); sways gently with t.
     tuft(x, y, h, t = 0, seed = 0, color = mixCol(P.leafDk, P.ink, .5)) {
-      for (let i = 0; i < 7; i++) { const a = (i - 3) * .2 + .2 * (hash(seed + i) - .5) + .05 * Math.sin(t * 1.3 + i + seed); this.blade(x + (i - 3) * h * .035, y, h * (.55 + .45 * hash(seed + i + 9)), a, i & 1 ? color : mixCol(color, P.ink, .25)); }
+      const L = PARTS.scenery.leaf;
+      for (let i = 0; i < 7; i++) {
+        const a = (i - 3) * .2 + .2 * (hash(seed + i) - .5) + .05 * Math.sin(t * 1.3 + i + seed), f = hash(seed + i + 17) < .5 ? -1 : 1;
+        cut([place(scene(L[Math.floor(hash(seed + i + 31) * L.length)]), [x + (i - 3) * h * .035, y], f * a, h * (.55 + .45 * hash(seed + i + 9)) / 100, f, 1, i & 1 ? color : mixCol(color, P.ink, .25))], 0, 0, true);
+      }
     },
     // Screen-space finish: climate grade (rain 0..1 turns it colder and darker; the dry look stays warm from the sky and
     // the lit tones) and a subtle paper grain
@@ -427,24 +399,20 @@
       const pts = []; for (let i = 0; i <= 8; i++) { const a = Math.PI + i * Math.PI / 8, k = .8 + .3 * hash(seed * 31 + i); pts.push([x + Math.cos(a) * r * k, y + Math.sin(a) * r * .75 * k]); }
       pts[0][1] = pts[8][1] = y; pts.push([x, y + r * .1]); parts([{ smooth: true, poly: pts, fill: P.stone }], clamp(r * .04, 1.5, STYLE.outline.weight / 2));
     },
-    // Tree rooted at (x, y), height h; bend (wind) leans the crown. The seed picks the kind (round, tall or pine), the
-    // branches and the leaf masses; haze (0..1) fades it toward the sky for distant layers (no outline past .3).
+    // Tree rooted at (x, y), height h; bend (wind) sways it from the root, the crown more than the trunk. The seed picks
+    // the kind (round, tall or pine), the authored silhouette and its mirror; haze (0..1) fades it toward the sky for
+    // distant layers (flat, no outline past .3).
     tree(x, y, h, bend = 0, seed = 0, haze = 0) {
-      const kind = Math.floor(hash(seed * 5 + 1) * 3), hz = col => mixCol(col, P.skyLow, haze), wgt = haze > .3 ? 0 : clamp(h * .02, 2, STYLE.outline.weight);
-      const lean = Math.sin(bend) * h, at = k => [x + lean * k * k, y - h * k], j = i => hash(seed * 7 + i), wood = hz(P.wood);
-      if (kind === 2) {  // pine: thin trunk, four tiers
-        parts([{ b: [[x, y], h * .035, at(.95), h * .012], fill: wood }], wgt);
-        parts([0, 1, 2, 3].map(i => { const k = .2 + i * .19, [cx, cy] = at(k), [tx, ty] = at(k + .34), w = h * (.3 - i * .055) * (.9 + .2 * j(i)); return { poly: [[cx - w, cy], [tx, ty], [cx + w, cy], [cx, cy - h * .03]], fill: hz(P.leafDk) }; }), wgt);
-        return;
-      }
-      const tall = kind === 1, [cx, cy] = at(.56), trunk = [{ b: [[x, y], h * .05, at(.56), h * .026], fill: wood }];
-      for (const s of [-1, 1]) { const [bx, by] = at(.2 + .1 * j(s + 5)); trunk.push({ b: [[bx, by], h * .02, [bx + s * h * (tall ? .08 : .17) + lean * .3, by - h * (.2 + .06 * j(s + 8))], h * .009], fill: wood }); }
-      parts(trunk, wgt);
-      const masses = tall ? [[0, .06, .16], [-.07, -.08, .15], [.07, -.18, .14], [-.03, -.3, .13], [.02, -.41, .1]] : [[0, -.1, .27], [-.21, .02, .19], [.21, 0, .2], [-.1, -.28, .2], [.13, -.25, .19], [-.3, -.12, .13]];
-      const blobs = masses.map(([dx, dy, r], i) => ({ e: [cx + (dx + .04 * (j(i) - .5)) * h + lean * .1, cy + dy * h, r * h * (.85 + .3 * j(i + 20)), r * h * .85], fill: hz(P.leaf) }));
-      parts(blobs, wgt);
-      c.beginPath(); for (const { e: [bx, by, rx, ry] } of blobs.slice(1)) { c.moveTo(bx + Math.cos(.2) * rx * .7, by + Math.sin(.2) * ry * .7); c.ellipse(bx, by, rx * .7, ry * .7, 0, .2, 1.6); }
-      c.strokeStyle = shd(hz(P.leaf)); c.lineWidth = Math.max(1.5, h * .01); c.lineCap = 'round'; c.stroke();  // leaf clusters
+      const S = PARTS.scenery, kind = ['round', 'tall', 'pine'][Math.floor(hash(seed * 5 + 1) * 3)], pick = (l, i) => l[Math.floor(hash(seed * 7 + i) * l.length)];
+      const hz = col => mixCol(col, P.skyLow, haze), flat = haze > .3, wgt = flat ? 0 : clamp(h * .02, 2, STYLE.outline.weight), f = hash(seed * 3 + 2) < .5 ? -1 : 1, u = h / 100;
+      const crown = place(scene(pick(S[kind], 2), true), [x, y], f * .5 * bend, u, f, 1, hz(kind === 'pine' ? P.leafDk : P.leaf));
+      cut([place(scene(kind === 'pine' ? S.pineTrunk : pick(S.trunk, 1)), [x, y], f * .35 * bend, u, f, 1, hz(P.wood))], wgt, 0, flat);
+      cut([crown], wgt, 0, flat);
+      if (kind !== 'pine') inside(crown, k => {  // leaf clusters: short arcs on the shadow side of three masses
+        const b = box(crown.q); c.beginPath();
+        for (const [dx, dy] of [[-.42, -.25], [.36, .05], [-.05, .42]]) { const r = .24 * Math.min(b.hw, b.hh), cx = b.cx + dx * b.hw, cy = b.cy + dy * b.hh; c.moveTo(cx + Math.cos(.2) * r, cy + Math.sin(.2) * r); c.arc(cx, cy, r, .2, 1.7); }
+        c.strokeStyle = shd(hz(P.leaf)); c.lineWidth = Math.max(1.5, h * .01) * k; c.lineCap = 'round'; c.stroke();
+      });
     },
     // Leaf centred at (x, y), w long and h wide, rotated by angle; cut (0..1) bites a half circle out of one edge.
     leafPiece(x, y, w, h, angle = 0, color = P.leaf, cut = 0) {
