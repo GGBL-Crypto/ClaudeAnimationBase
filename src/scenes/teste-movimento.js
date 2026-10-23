@@ -88,10 +88,10 @@
     const point = anticipate(t, 6.9, .14, .1) * (t < 10), cover = anticipate(t, 20.95, .08, .25), look = anticipate(t, 6.2, .1, .25) * (t < 10);
     let p = creaturePose(SPECS.human, o);
     if (point) p = creaturePose(SPECS.human, { ...o, gesture: { limb: 'armL', target: [ANTS_AT[0] + 10 * noise1(41, t * .9), ANTS_AT[1] + 8 + 12 * noise1(42, t * .7)], k: point, hand: 'point' } });
-    if (cover) {  // near arm by gesture, far arm by its own IK: both hands up against the rain in front of the brim (her arms are too short for the big head: hands inside it hide)
+    if (cover) {  // near arm by gesture, far arm by its own IK: both hands up over the back of the head against the rain (the arm passes behind the face, never across it)
       const top = (dx, dy) => [p.head.x + dx * HS, p.head.y + dy * HS], lb = SPECS.human.limbs[3], r = p.limbs.armR;
-      p = creaturePose(SPECS.human, { ...o, gesture: { limb: 'armL', target: top(.27, -.13), k: cover } });
-      const end = r.end.map((v, i) => lerp(v, top(.21, -.11)[i], cover)), q = ik2(r.root, end, lb.l1 * HS, lb.l2 * HS, lb.bend * p.facing);
+      p = creaturePose(SPECS.human, { ...o, gesture: { limb: 'armL', target: top(-.12, -.14), k: cover } });
+      const end = r.end.map((v, i) => lerp(v, top(-.06, -.15)[i], cover)), q = ik2(r.root, end, lb.l1 * HS, lb.l2 * HS, lb.bend * p.facing);
       p.limbs.armR = { ...p.limbs.armR, mid: q.mid, end: q.end };
     }
     return nod(p, .01 * look, .012 * (look + cover), .32 * look + .2 * cover);

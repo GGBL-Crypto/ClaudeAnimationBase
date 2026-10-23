@@ -47,11 +47,11 @@
   // Screen angle ↔ the creature's facing-right space (the same flip both ways).
   const turn = (p, a) => p.view === 'side' && p.facing < 0 ? Math.PI - a : a;
   const ang = (a, b) => Math.atan2(b[1] - a[1], b[0] - a[0]);
-  // Piece on a pose: b a point or a screen angle; o = {L (look), dk (darken), col (fill override), wy}. An imported
+  // Piece on a pose: b a point or a screen angle; o = {L (look), dk (darken), col (fill override), wy, sc (scale)}. An imported
   // piece with face variants shows the one for the blink or the expression.
   function pin(p, q, a, b, o) {
     if (q.faces) q = (p.face.blink > .5 && q.faces.blink) || q.faces[p.face.expression] || q;
-    const f = p.view === 'side' ? p.facing : 1, col = o.col || dark(o.L[q.fill], o.dk || 0), s = place(q, a, typeof b === 'number' ? turn(p, b) : b, p.size / 100, f, o.wy || 1, col);
+    const f = p.view === 'side' ? p.facing : 1, col = o.col || dark(o.L[q.fill], o.dk || 0), s = place(q, a, typeof b === 'number' ? turn(p, b) : b, p.size / 100 * (o.sc || 1), f, o.wy || 1, col);
     if (q.spots) s.spots = q.spots.map(sp => [path(sp.d), o.col ? dark(col, .25) : dark(o.L[sp.fill], o.dk || 0)]);
     if (q.art) s.tint = o.col ? v => mixCol(v, o.col, .6) : o.dk ? v => dark(v, o.dk) : null;
     return s;
@@ -142,29 +142,35 @@
   }
 
   // Species decorators: look (default colours; fill keys of parts.js) and build(p, L) → [{z, list} | {z, draw}], drawn in z
-  // order. The side view draws the far limbs 10 layers back, so each side keeps a fixed layer order. Pieces come from
+  // order. The side view draws the far limbs 10 layers back, so each side keeps a fixed layer order: far limbs, body,
+  // head, near limbs, accessories. Lia: far legs and arms (-6, -2), scarf tail 2, near legs 4, body 5, neck 5.3, scarf
+  // 5.5, head 6.2 (ear, hair, face to 6.5), near arm 8, hand 8.6, hat 9.4: an arm passes in front of the head, never
+  // under the face. Bento: far legs, tail, near legs under the body (they come from beneath it), body and neck 5, head
+  // 5.2 (its own outline over the neck), collar 6, near ear 8. Pieces come from
   // pieces(p, L) (an imported character replaces them by name); an imported head brings its own face, so the drawn
   // eyes and mouth are skipped.
   const HANDS = { open: 'hand', point: 'handPoint', fist: 'handFist' };  // limb.hand → glove piece
   const decor = {
     human: {
       look: { color: P.mustard, skin: P.skin, hair: P.hair, shirt: P.mustard, pants: P.shorts, shoe: P.boot, sole: P.bootDk, scarf: P.hero, hat: P.olive, hatBand: P.oliveDk },
-      headScale: 3.7, emoteAt: [1.5, 2.1, 1.1],  // drawn head radius .24 BL; the emote beside the hat crown
+      // The head pieces are drawn at HEAD of their units and neck units above the pose's head (emotes follow), so head and hat are
+      // about 1/3 of her height and a short neck shows between the chin and the scarf.
+      headScale: 2.4, emoteAt: [1.8, 2.6, 1.6], neck: 9,  // drawn head radius .16 BL, neck units above the pose's head; the emote beside the hat crown
       build(p, L) {
-        const Q = pieces(p, L), G = [], [ch, pe] = p.spine, o = { L }, h = p.appendages.hair;
+        const Q = pieces(p, L), G = [], [ch, pe] = p.spine, o = { L }, h = p.appendages.hair, HEAD = .64, NECK = decor.human.neck, oh = { L, sc: HEAD };
         for (const [name, l] of Object.entries(p.limbs)) {
           const k = { L, dk: l.far ? .28 : 0 };
           if (name.startsWith('leg')) { G.push(grp([pin(p, Q.shoe, l.end, rock(p, l), k)], l.far), grp([pin(p, Q.thigh, l.root, l.mid, k), pin(p, Q.shin, l.mid, l.end, k)], l.far)); }
-          else G.push(grp([pin(p, Q.upperArm, l.root, l.mid, k), pin(p, Q.forearm, l.mid, l.end, k)], l.far), grp([pin(p, Q[HANDS[l.hand]] || Q.hand, l.end, ang(l.mid, l.end), k)], l.far));  // the hand alone, over the head
+          else G.push(grp([pin(p, Q.upperArm, l.root, l.mid, k), pin(p, Q.forearm, l.mid, l.end, k)], l.far), grp([pin(p, Q[HANDS[l.hand]] || Q.hand, l.end, ang(l.mid, l.end), k)], l.far));  // the hand alone, over its forearm
         }
-        const torso = pin(p, Q.torso, pt(pe), pt(ch), o), hd = [p.head.x, p.head.y];
-        const head = pin(p, Q.head, hd, p.head.angle, o), hair = pin(p, Q.hair, hd, p.head.angle, o);
-        G.push(grp([pin(p, Q.pelvis, pt(pe), pt(ch), o), torso]), grp([pin(p, Q.scarf, pt(pe), pt(ch), o)]), grp([head]));  // the big head hides the neck and covers the shoulders and arm roots
+        const torso = pin(p, Q.torso, pt(pe), pt(ch), o), hd = at(frameAt(p, p.head.x, p.head.y, p.head.angle), 0, -NECK);
+        const head = pin(p, Q.head, hd, p.head.angle, oh), hair = pin(p, Q.hair, hd, p.head.angle, oh);
+        G.push(grp([pin(p, Q.pelvis, pt(pe), pt(ch), o), torso]), grp([pin(p, Q.neck, at(torso, .8, -26), at(head, 1, 10), o)]), grp([pin(p, Q.scarf, pt(pe), pt(ch), o)]), grp([head]));
         // Scarf tail: from the back of the neck, trailing with the hair chain but hanging lower.
         if (h) G.push(grp([pin(p, Q.scarfTail, at(torso, -7, -30), turn(p, turn(p, ang(h[0], h[3])) - .35), o)]));
         // The hat rides the same spring as the hair (p.lag): it tips forward when she stops and rocks back.
-        G.push(grp([pin(p, Q.ear, at(head, -2, -3.2), p.head.angle, o)]), grp([hair]), grp([pin(p, Q.hat, hd, p.head.angle + p.facing * .35 * (p.lag || 0), o)]));
-        if (!head.q.art) G.push({ z: 9.5, draw: () => humanFace(p, L, head) });
+        G.push(grp([pin(p, Q.ear, at(head, -2, -3.2), p.head.angle, oh)]), grp([hair]), grp([pin(p, Q.hat, hd, p.head.angle + p.facing * .35 * (p.lag || 0), oh)]));
+        if (!head.q.art) G.push({ z: 6.5, draw: () => humanFace(p, L, head) });
         return G;
       },
     },
@@ -180,7 +186,7 @@
         G.push(grp([pin(p, Q.tailSeg, t[0], t[1], o), pin(p, Q.tailSeg, t[1], t[2], { L, wy: .85 }), pin(p, Q.tailTip, t[2], t[3], o)]));
         for (const e of ['earL', 'earR']) { const back = !top && far(p, e); G.push({ ...grp([pin(p, Q.ear, A[e][0], A[e].at(-1), { L, dk: back ? .2 : 0, wy: top && e === 'earR' ? -1 : 1 })]), z: back ? 2 : 8 }); }
         const neck = [pt(p.spine[0]), hd], head = pin(p, Q.head, hd, p.head.angle, o);
-        G.push(grp([pin(p, Q.body, pt(p.spine.at(-1)), pt(p.spine[0]), o), pin(p, Q.neck, ...neck, o), head]));
+        G.push(grp([pin(p, Q.body, pt(p.spine.at(-1)), pt(p.spine[0]), o), pin(p, Q.neck, ...neck, o)]), grp([head]));  // the head's own outline marks the jaw over the neck
         const collar = pin(p, Q.collar, ...neck, o);
         G.push(grp([collar, ...(top ? [] : [pin(p, Q.tag, at(collar, 11.4, 11.2), PI2, o)])]));
         // Eyes: from above both, the patched one on the left; in profile the far eye peeks over the snout, then the
@@ -306,11 +312,11 @@
     const e = p.emote, r = headR(p), f = p.view === 'side' ? p.facing : 1, k = Math.min(e.k, ease(e.a));
     if (k <= 0) return;
     if (e.sym === 'sweat') {
-      const s = k * r * .3, x = p.head.x - f * r * .2, y = p.head.y - r * .5 + r * .5 * (1 - e.a);
+      const s = k * r * .3, x = p.head.x - f * r * .7, y = p.head.y - r * .5 + r * .5 * (1 - e.a) - (decor[p.spec].neck || 0) * p.size / 100;
       Kit.poly([[x - s * .7, y - s * .2], [x, y - s * 1.9], [x + s * .7, y - s * .2]], P.water, { stroke: false }); Kit.ellipse(x, y, s * .72, s * .8, P.water);
     } else {  // emoteAt = [ahead, up, size] in head radii
       const [ex, ey, es] = decor[p.spec].emoteAt || [1.2, 1.9, 1.6];
-      c.save(); c.translate(p.head.x + f * r * ex, p.head.y - r * ey); c.scale(k, k); Kit.text({ note: '♪', zzz: 'z z z' }[e.sym] || e.sym, 0, 0, Math.max(14, r * es), P.ink); c.restore();
+      c.save(); c.translate(p.head.x + f * r * ex, p.head.y - r * ey - (decor[p.spec].neck || 0) * p.size / 100); c.scale(k, k); Kit.text({ note: '♪', zzz: 'z z z' }[e.sym] || e.sym, 0, 0, Math.max(14, r * es), P.ink); c.restore();
     }
   }
 

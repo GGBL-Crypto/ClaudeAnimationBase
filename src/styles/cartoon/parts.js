@@ -23,7 +23,8 @@ var CARTOON_PARTS = (() => {
 
   const parts = {
     human: {
-      // Lia: big rounded-square head (head and hat about 0.47 of her height, chin below the shoulders), noodle limbs, glove hands, big boots.
+      // Lia: big rounded-square head (drawn at decor.human.headScale: head and hat about 1/3 of her height, on a short
+      // neck), noodle limbs, glove hands, big boots.
       name: 'Lia',
       side: {
         // Noodle legs and arms: one constant width end to end (legs 6, arms 5 units), round ends past the joints.
@@ -35,12 +36,12 @@ var CARTOON_PARTS = (() => {
           pivot: [0, 0], len: 20, angle: -D, layer: 5, fill: 'pants', lines: ['M 5.4 2.4 C 7 3.4 8.6 3.6 10.4 3.2'] },
         torso: { d: 'M -8.6 3 C -9.2 -8 -9.4 -20 -8.6 -27 C -8 -31.6 -4.6 -33.4 0 -33.4 C 4.6 -33.4 8.4 -31.6 8.8 -27 C 9.6 -20 10.6 -8 10.4 3 C 6 4.8 -4.6 4.8 -8.6 3 Z', pivot: [0, 0], len: 20, angle: -D, layer: 5.1, fill: 'shirt',
           lines: ['M -8.6 3 C -4.6 4.8 6 4.8 10.4 3', 'M 2.6 -20.6 L 8.4 -20.6 L 8.4 -16 C 6.8 -15 4.2 -15 2.6 -16 Z'] },
-        neck: { d: 'M -3 3 L -3 -11 L 3 -11 L 3 3 Z', pivot: [0, 0], len: 11, angle: -D, layer: 6, fill: 'skin' },
-        head: { d: 'M -7.3 -32.5 L 11.3 -32.5 C 20 -32.5 26 -26.5 26 -17.8 L 26 -0.2 C 29.7 -0.5 30.3 5.4 25.9 5.6 C 25.2 12 20 15.5 11.3 15.5 L -7.3 15.5 C -16 15.5 -22 9.5 -22 0.8 L -22 -17.8 C -22 -26.5 -16 -32.5 -7.3 -32.5 Z', pivot: [0, 0], len: 12, layer: 9.05, fill: 'skin' },
-        ear: { d: 'M 0 -5.1 C 4.3 -5.1 4.3 5.1 0 5.1 C -4.3 5.1 -4.3 -5.1 0 -5.1 Z', pivot: [0, 0], len: 12, layer: 9.1, fill: 'skin', lines: ['M 1.3 -2.1 C -2.1 -1.9 -2.1 2.1 1.1 2.4'] },
+        neck: { d: 'M -3.6 3 L -3.6 -11 L 3.6 -11 L 3.6 3 Z', pivot: [0, 0], len: 11, angle: -D, layer: 5.3, fill: 'skin' },
+        head: { d: 'M -7.3 -32.5 L 11.3 -32.5 C 20 -32.5 26 -26.5 26 -17.8 L 26 -0.2 C 29.7 -0.5 30.3 5.4 25.9 5.6 C 25.2 12 20 15.5 11.3 15.5 L -7.3 15.5 C -16 15.5 -22 9.5 -22 0.8 L -22 -17.8 C -22 -26.5 -16 -32.5 -7.3 -32.5 Z', pivot: [0, 0], len: 12, layer: 6.2, fill: 'skin' },
+        ear: { d: 'M 0 -5.1 C 4.3 -5.1 4.3 5.1 0 5.1 C -4.3 5.1 -4.3 -5.1 0 -5.1 Z', pivot: [0, 0], len: 12, layer: 6.3, fill: 'skin', lines: ['M 1.3 -2.1 C -2.1 -1.9 -2.1 2.1 1.1 2.4'] },
         // Short hair: a bob at the back and a fringe cut in teeth under the hat brim.
         hair: { d: 'M -21.2 -17.8 C -17.5 -28.5 -7.3 -34.6 2 -34.4 C 11.3 -34.1 19.9 -29.8 23.1 -22.6 L 20.7 -20.2 L 18.8 -23.2 L 16.4 -19.7 L 14.3 -22.9 L 11.9 -19.7 L 9.7 -22.6 L 7.3 -20 L 5.5 -22.1 C 2 -20.5 -1.2 -17.8 -2.3 -12.5 L -4.1 -9.3 C -5.2 -12.8 -7.6 -13.8 -9.5 -13 C -8.9 -7.2 -9.5 0.8 -13.2 8 C -17.5 8.6 -22.5 5.9 -24.4 0.3 C -26 -5.8 -24.4 -13 -21.2 -17.8 Z',
-          pivot: [0, 0], len: 12, layer: 9.2, fill: 'hair', lines: ['M -13.5 -13.8 C -15.9 -9.8 -17.5 -4.5 -18 0.8'] },
+          pivot: [0, 0], len: 12, layer: 6.4, fill: 'hair', lines: ['M -13.5 -13.8 C -15.9 -9.8 -17.5 -4.5 -18 0.8'] },
         // Explorer hat: dome crown and wide brim as one silhouette, with a darker band.
         hat: { d: 'M -29.5 -30.4 C -27.3 -33.3 -19.3 -34.4 -15.3 -34.1 C -15.9 -44.5 -8.7 -53.3 2 -53.6 C 12.7 -53.8 19.6 -45.8 19.3 -34.1 C 24.7 -34.1 32.1 -33 34 -30.6 C 34.8 -29 32.7 -27.4 28.7 -27.4 L -26 -28 C -29.2 -28 -30.5 -29 -29.5 -30.4 Z',
           pivot: [0, 0], len: 12, layer: 9.4, fill: 'hat', spots: [{ d: 'M -15.3 -34.1 C -15.3 -36.5 -15.1 -38.4 -14.5 -40 C -3.3 -41 8.7 -41 19.5 -39.7 C 19.5 -37.8 19.3 -36 19.3 -34.1 Z', fill: 'hatBand' }],
@@ -54,12 +55,12 @@ var CARTOON_PARTS = (() => {
         forearm: { d: 'M -2.5 0 C -2.5 -3.4 2.5 -3.4 2.5 0 L 2.5 16 C 2.5 19.4 -2.5 19.4 -2.5 16 Z', pivot: [0, 0], len: 16, angle: D, layer: 8.1, fill: 'skin' },
         // Glove hand: three fingers and a thumb (+x, the front).
         hand: { d: 'M -3 -1.2 C -1 -2.4 1.6 -2.4 3.2 -1 C 4 0 4.4 0.8 5.4 1 C 7.4 1.4 7.6 4.2 5.6 4.6 C 4.8 4.8 4.2 4.6 3.8 4.4 C 4.2 6 4.2 7.4 3.8 8.4 C 3.6 10.6 1.4 10.6 1.4 8.8 C 1.2 10.8 -1.2 10.8 -1.2 8.8 C -1.4 10.6 -3.8 10.4 -3.8 8.2 C -4.4 5.6 -4.2 2 -3 -1.2 Z',
-          pivot: [0, 0], len: 6, angle: D, layer: 9.6, fill: 'skin', lines: ['M 1.4 8.8 L 1.3 7', 'M -1.2 8.8 L -1.2 7'] },
+          pivot: [0, 0], len: 6, angle: D, layer: 8.6, fill: 'skin', lines: ['M 1.4 8.8 L 1.3 7', 'M -1.2 8.8 L -1.2 7'] },
         // The other glove poses (limb.hand): pointing (index finger along the forearm) and fist.
         handPoint: { d: 'M -3 -1.2 C -1 -2.4 1.6 -2.4 3.2 -1 C 4.6 0.4 5 2.6 4.6 4.8 C 4.4 5.8 3.8 6.4 2.8 6.6 L 2.8 13.4 C 2.8 15.6 0.2 15.6 0.2 13.4 L 0.2 7.4 C -1.4 7.8 -3.4 7.2 -4 5.4 C -4.6 3.4 -4.2 0.6 -3 -1.2 Z',
-          pivot: [0, 0], len: 6, angle: D, layer: 9.6, fill: 'skin', lines: ['M -3.6 4.4 C -2.2 5.2 -0.6 5.2 0.2 4.6'] },
+          pivot: [0, 0], len: 6, angle: D, layer: 8.6, fill: 'skin', lines: ['M -3.6 4.4 C -2.2 5.2 -0.6 5.2 0.2 4.6'] },
         handFist: { d: 'M -3.4 -1.2 C -1.2 -2.6 2 -2.6 3.8 -1 C 5.4 0.6 5.6 3.6 4.6 5.6 C 3.6 7.4 1.4 8 -0.6 7.8 C -2.8 7.6 -4.4 6.2 -4.6 4 C -4.8 2 -4.6 0 -3.4 -1.2 Z',
-          pivot: [0, 0], len: 6, angle: D, layer: 9.6, fill: 'skin', lines: ['M -3.4 4.6 C -1.6 5.6 1 5.6 2.8 4.4', 'M 4.8 2.2 C 3.4 2.4 2.4 3 1.8 4'] },
+          pivot: [0, 0], len: 6, angle: D, layer: 8.6, fill: 'skin', lines: ['M -3.4 4.6 C -1.6 5.6 1 5.6 2.8 4.4', 'M 4.8 2.2 C 3.4 2.4 2.4 3 1.8 4'] },
       },
       // Face in head units: two huge white eyes touching (the far one smaller, toward the nose: far = [dx, dy,
       // scale] from the near one), each with a small pupil and its brow; per expression the eye kind, open fraction

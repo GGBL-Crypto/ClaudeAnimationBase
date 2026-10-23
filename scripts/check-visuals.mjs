@@ -12,7 +12,7 @@ try {
     assert.equal(await page.evaluate(()=>projectInfo().duration),6,'Metadados sobrescritos pelo motor');
     const a=await frameOf(page,2.5);await frameOf(page,5.2);const b=await frameOf(page,2.5);
     assert.ok(a.equals(b),style+': frame depende do histórico');
-    if(style==='cartoon'){const f=n=>frameOf(page,n/24),[x,y,z]=[await f(61),await f(60),await f(62)];assert.ok(x.equals(y)&&!x.equals(z),'cartoon: quadros 2k e 2k+1 devem ser iguais (animação em 2s)');}
+    if(style==='cartoon'){const f=n=>frameOf(page,n/24),[x,y,z]=[await f(61),await f(60),await f(62)];assert.ok(!x.equals(y)&&!x.equals(z),'cartoon: quadros vizinhos devem diferir (padrão em 1s)');}
     const other=await openPage(browser,{...args,project:'visit',style});
     assert.ok(a.equals(await frameOf(other,2.5)),style+': workers produzem imagens diferentes');await other.close();
     const checks=await page.evaluate(()=>{
