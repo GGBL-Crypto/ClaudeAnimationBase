@@ -21,11 +21,11 @@ function rain(t, area, rate, seed) {
   return out;
 }
 // Tempos de início de apoio (mudança de ciclo do limbCycle), amostrando a 1/120 s.
-function stepEvents(sOf, t0, t1, offset, stride, duty) {
+function stepEvents(sOf, t0, t1, offset, stride, duty, vary = 0, seed = 0) {
   const out = [], h = 1 / 120;
-  let prev = limbCycle(sOf(t0), offset, stride, duty);
+  let prev = limbCycle(sOf(t0), offset, stride, duty, vary, seed);
   for (let t = t0 + h; t <= t1; t += h) {
-    const cur = limbCycle(sOf(t), offset, stride, duty);
+    const cur = limbCycle(sOf(t), offset, stride, duty, vary, seed);
     if (cur.k > prev.k && cur.stance) out.push(t);
     prev = cur;
   }

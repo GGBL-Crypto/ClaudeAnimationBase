@@ -42,6 +42,7 @@ var SPECS = {
       { name: 'LH', foot: true, attach: 2, along: -.03, side: 1, l1: .26, l2: .27, rest: [0, .12], bend: 1 },
       { name: 'RH', foot: true, attach: 2, along: -.03, side: -1, l1: .26, l2: .27, rest: [0, .12], bend: 1 },
     ],
+    organic: { nod: .02, flex: .012 },  // cabeça acena e coluna flexiona no ritmo das patas dianteiras
     appendages: [
       { name: 'tail', attach: 2, at: [-.12, -.06], angle: Math.PI + .7, lengths: [.1, .1, .08], motion: { lag: .3, amp: .3, freq: 1.8, gravity: .08 } },
       { name: 'earL', attach: 'head', side: 1, at: [-.03, -.07], angle: 2.1, lengths: [.06, .05], motion: { lag: .3, amp: .15, freq: 1.2, gravity: .4 } },
@@ -83,6 +84,7 @@ var SPECS = {
   bird: {
     // Salta com os dois pés juntos (hop: o corpo sobe com os pés); o.gait = 'fly' voa pelo caminho com wings.phase.
     id: 'bird', gait: { duty: .45, offsets: { L: 0, R: 0 } }, hop: true, flyer: { freq: 6 }, views: ['side', 'top'], stride: .4, lift: .12,
+    organic: { bob: 0, twist: 0 },  // salta: o corpo já sobe e desce com os pés
     spine: [{ offset: 0, r: .17, h: .3 }, { offset: .22, r: .12, h: .32 }],
     head: { offset: -.2, r: .1, h: .46 },
     limbs: [

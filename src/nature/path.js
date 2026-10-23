@@ -23,7 +23,42 @@ function makePath(points) {
   return { length, at };
 }
 // Deslocamento s(t) por keyframes; speed = derivada central, moving = 0..1 (0 parado).
-function travel(t, keys) {
-  const h = 1 / 48, s = kf(t, keys), speed = (kf(t + h, keys) - kf(t - h, keys)) / (2 * h);
-  return { s, speed, moving: clamp(Math.abs(speed) / .3) };
+// Sem o, cada trecho é suavizado por kf. Com o = {start, stop, vary = .08, seed = 0}: trechos com velocidade constante;
+// partindo do repouso (primeira chave ou após uma pausa) a velocidade sobe com ease em `start` s, e ao parar desce em
+// `stop` s, sem mudar as chaves. A velocidade oscila por noise1 até ±vary. Devolve também lean (antecipação antes da
+// partida e assentamento com overshoot após a parada, em unidades da inclinação de marcha) e drag (inércia atrasada e
+// amortecida: > 0 quando o corpo freia, para cauda, orelhas e cabelo).
+function travel(t, keys, o) {
+  const h = 1 / 48;
+  if (!o) { const s = kf(t, keys), speed = (kf(t + h, keys) - kf(t - h, keys)) / (2 * h); return { s, speed, moving: clamp(Math.abs(speed) / .3) }; }
+  const { start = .6, stop = .6, vary = .08, seed = 0 } = o, n = keys.length, I = x => x * x * x - x * x * x * x / 2;  // ∫ ease
+  const still = i => i < 0 || i >= n - 1 || keys[i + 1][1] === keys[i][1];
+  const S = t => {
+    if (t <= keys[0][0]) return keys[0][1];
+    let i = 0; while (i < n - 1 && t >= keys[i + 1][0]) i++;
+    if (i === n - 1) return keys[i][1];
+    const [a, sa] = keys[i], [b, sb] = keys[i + 1], d = b - a;
+    if (sa === sb) return sa;
+    let ra = still(i - 1) ? start : 0, rb = still(i + 1) ? stop : 0;
+    if (ra + rb > d) { const k = d / (ra + rb); ra *= k; rb *= k; }
+    // Ruído de ritmo: o tempo do trecho é deformado (zero nas pontas), limitado para |velocidade − 1| ≤ vary.
+    const f = .7, A = vary / (Math.PI * f + Math.PI / d), w = Math.sin(Math.PI * (t - a) / d);
+    const u = clamp(t - a + A * w * w * noise1(seed, t * f), 0, d), V = 1 / (d - ra / 2 - rb / 2);
+    const x = u < ra ? ra * I(u / ra) : u > d - rb ? d - ra / 2 - rb / 2 - rb * I((d - u) / rb) : u - ra / 2;
+    return lerp(sa, sb, V * x);
+  };
+  const s = S(t), speed = (S(t + h) - S(t - h)) / (2 * h);
+  let lean = 0, drag = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const [a, sa] = keys[i], [b, sb] = keys[i + 1];
+    if (sa === sb) continue;
+    if (still(i - 1)) lean += .8 * ease(seg(t, a - .35, a)) * (1 - ease(seg(t, a, a + start)));  // inclina antes do 1º passo
+    if (still(i + 1)) lean += 1.2 * spring(t, b - .1, 5, 10);  // o tronco passa do ponto e volta
+  }
+  // Mola subamortecida excitada pela desaceleração: soma das variações de velocidade no último segundo.
+  for (let j = 0, D = .08, v0 = speed; j < 12; j++) {
+    const v1 = (S(t - j * D) - S(t - (j + 1) * D)) / D, g = 3 * Math.exp(-4 * j * D) * Math.sin(8 * j * D + .4);
+    drag += (v1 - v0) * g; v0 = v1;
+  }
+  return { s, speed, moving: clamp(Math.abs(speed) / .3), lean, drag };
 }

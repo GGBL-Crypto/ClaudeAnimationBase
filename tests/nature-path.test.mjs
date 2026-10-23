@@ -23,3 +23,12 @@ test('travel reports zero motion while holding', () => {
   const r = ctx.travel(5, [[0, 0], [2, 4], [6, 4]]); assert.equal(r.s, 4); assert.equal(r.moving, 0);
   assert.ok(ctx.travel(1, [[0, 0], [2, 4]]).moving > 0);
 });
+test('travel with ramps starts from rest, keeps its keys, varies its pace and reports lean and drag', () => {
+  const K = [[1, 0], [5, 4]], o = { start: .8, stop: .8, seed: 2 }, v = t => ctx.travel(t, K, o).speed;
+  assert.equal(ctx.travel(1, K, o).s, 0); assert.equal(ctx.travel(5, K, o).s, 4);
+  assert.ok(v(1.03) < .05 && v(1.03) < v(1.3) && v(1.3) < v(1.6) && v(1.6) < v(2), 'partida');
+  const cruise = [2, 2.4, 2.8, 3.2, 3.6].map(v);  // nominal 4 / (4 - .8) = 1.25 BL/s
+  assert.ok(cruise.every(x => Math.abs(x / 1.25 - 1) <= .08), `${cruise}`); assert.ok(Math.max(...cruise) - Math.min(...cruise) > .01);
+  assert.ok(ctx.travel(.9, K, o).lean > 0, 'antecipação'); assert.ok(ctx.travel(5.15, K, o).lean > 0, 'assentamento');
+  assert.ok(ctx.travel(4.7, K, o).drag > 0 && ctx.travel(1.4, K, o).drag < 0, 'inércia');
+});

@@ -39,3 +39,23 @@ test('stopped dog stands on all four paws, each near its shoulder or hip', () =>
     assert.ok(Math.abs(l.end[0] - l.root[0]) < .22 * 120, `${s} ${name} sob o corpo`);
   }
 });
+test('the human pelvis dips twice per gait cycle, lowest near each contact, and the head moves less', () => {
+  const H = { ...ctx.SPECS.human, organic: { vary: 0 } }, N = 48, ys = [], hs = [], range = a => Math.max(...a) - Math.min(...a);
+  for (let i = 0; i < N; i++) { const p = ctx.creaturePose(H, { path: P, s: 2.25 + .75 * i / N, size: 120, view: 'side', ground: flat, t: 0, seed: 1 }); ys.push(p.spine[1].y); hs.push(p.head.y); }
+  const amp = k => Math.hypot(...[Math.cos, Math.sin].map(f => ys.reduce((a, y, i) => a + y * f(2 * Math.PI * k * i / N), 0)));
+  for (const k of [1, 3, 4]) assert.ok(amp(2) > amp(k), `harmônico ${k}`);
+  const lo = ys.indexOf(Math.max(...ys));  // contatos (s = 2.25: pé L, c = 3) em i = 0 e 24
+  assert.ok([0, 24, 48].some(c => Math.abs(lo - c) <= 6), `mais baixo em ${lo}`);
+  assert.ok(range(hs) < .75 * range(ys), 'cabeça estabilizada');
+});
+test('stopped creatures still breathe: the chest moves over 4 s', () => {
+  for (const id of ['human', 'dog']) { const ys = []; for (let t = 0; t <= 4; t += .25) ys.push(pose(id, 2, { t, moving: 0 }).spine[0].y); assert.ok(Math.max(...ys) - Math.min(...ys) > .5, id); }
+});
+test('mood changes expression with a take: blink, squash released by backOut and an emote', () => {
+  const K = [[0, 'neutral'], [2, 'scared', '!']], m = t => ctx.mood(t, K, 1);
+  assert.equal(m(1.5).expression, 'neutral'); assert.equal(m(2.01).expression, 'scared');
+  assert.ok(m(2).blink > .9 && m(1.95).sq > 0, 'fecha os olhos e achata');
+  assert.ok(Math.min(...[2.2, 2.25, 2.3, 2.35].map(t => m(t).sq)) < 0 && m(3).sq === 0, 'solta com backOut e assenta');
+  assert.equal(m(1.5).emote, null); assert.equal(m(2.5).emote.sym, '!'); assert.equal(m(2.5).emote.k, 1); assert.equal(m(4).emote, null);
+  let n = 0; for (let t = 0; t < 20; t += 1 / 24) n += ctx.blink(t, 5) > .5; assert.ok(n >= 4, `piscadas ${n}`);
+});

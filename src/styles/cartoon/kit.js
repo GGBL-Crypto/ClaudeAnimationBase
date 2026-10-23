@@ -12,7 +12,12 @@
   const ink = (weight = STYLE.outline.weight) => { c.strokeStyle = P.ink; c.lineWidth = weight; c.lineJoin = c.lineCap = 'round'; c.stroke(); };
   const alpha = (a, fn) => { c.save(); c.globalAlpha = a; try { fn(); } finally { c.restore(); } };
   window.Kit = {
-    cam(cx, cy, zoom = 1, rot = 0) { c.save(); c.translate(W / 2, H / 2); c.scale(zoom, zoom); c.rotate(rot); c.translate(-cx, -cy); },
+    // shake = null | {t, k = 1, seed = 0}: tremor de mão por noise1 (src/nature/noise.js), até 0,3% do quadro com k = 1.
+    cam(cx, cy, zoom = 1, rot = 0, shake = null) {
+      c.save(); c.translate(W / 2, H / 2);
+      if (shake) { const { t, k = 1, seed = 0 } = shake; c.translate(.003 * W * k * noise1(seed, t * .9), .003 * H * k * noise1(seed + 1, t * .8)); }
+      c.scale(zoom, zoom); c.rotate(rot); c.translate(-cx, -cy);
+    },
     camEnd() { c.restore(); },
     poly(pts, fill, o = {}) {
       const { stroke = true, weight, alpha: a = 1, smooth = false } = o;

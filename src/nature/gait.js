@@ -7,16 +7,21 @@ var GAITS = {
   tripod: { duty: .6, offsets: { L1: 0, R2: 0, L3: 0, R1: .5, L2: .5, R3: .5 } },
   spider: { duty: .6, offsets: { L1: 0, R2: 0, L3: 0, R4: 0, R1: .5, L2: .5, R3: .5, L4: .5 } },
 };
+// Fase da marcha (ciclos) na distância s. vary > 0: cada passada mede (1 ± vary) stride por ruído estável em s
+// (seed), então nenhum ciclo repete o anterior; vary = 0 é o ciclo fixo.
+function gaitPhase(s, stride, vary = 0, seed = 0) { const x = s / stride; return vary ? x + vary / 2 * noise1(seed, x) : x; }
+// Inversa de gaitPhase: distância em que a fase vale c (ponto fixo; contrai por vary · PI / 2 < .1).
+function gaitDist(c, stride, vary = 0, seed = 0) { let x = c; if (vary) for (let i = 0; i < 5; i++) x = c - vary / 2 * noise1(seed, x); return x * stride; }
 // Ciclo k do membro na distância s; u = progresso 0..1 dentro do apoio ou do balanço.
-function limbCycle(s, offset, stride, duty) {
-  const c = s / stride + offset, k = Math.floor(c), f = c - k, stance = f < duty;
+function limbCycle(s, offset, stride, duty, vary = 0, seed = 0) {
+  const c = gaitPhase(s, stride, vary, seed) + offset, k = Math.floor(c), f = c - k, stance = f < duty;
   return { k, f, stance, u: stance ? f / duty : (f - duty) / (1 - duty) };
 }
-// Pé preso à âncora do apoio k; no balanço viaja até a âncora k + 1 e sobe o.lift. Parado (moving → 0), o pé do balanço
+// Pé preso à âncora do apoio k (o.vary, o.seed: variação por passada, ver gaitPhase); no balanço viaja até a âncora k + 1 e sobe o.lift. Parado (moving → 0), o pé do balanço
 // desce sob a raiz (plant(s)) e conta como apoio: o ser fica de pé sobre todos os pés.
 function footAt(s, offset, o) {
-  const { k, stance, u } = limbCycle(s, offset, o.stride, o.duty);
-  const aK = k => (k - offset) * o.stride + o.duty * o.stride / 2, a = o.plant(aK(k));
+  const { k, stance, u } = limbCycle(s, offset, o.stride, o.duty, o.vary, o.seed);
+  const aK = k => o.vary ? gaitDist(k - offset + o.duty / 2, o.stride, o.vary, o.seed) : (k - offset) * o.stride + o.duty * o.stride / 2, a = o.plant(aK(k));
   if (stance) return { pos: a, stance, lift: 0 };
   const b = o.plant(aK(k + 1)), e = ease(u), m = o.moving ?? 1, w = (1 - m) * Math.sin(Math.PI * u), r = w ? o.plant(s) : a;
   return { pos: [lerp(lerp(a[0], b[0], e), r[0], w), lerp(lerp(a[1], b[1], e), r[1], w)], stance: !m, lift: o.lift * Math.sin(Math.PI * u) * m };

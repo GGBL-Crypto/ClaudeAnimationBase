@@ -95,7 +95,7 @@
   };
   // Profile face: one eye, brow, mouth and blush toward the front of the head (R = head radius in BL).
   function humanFace(p, L, hf, R) {
-    const F = FACES[p.face.expression] || FACES.neutral, S = p.size, w = Math.max(1.5, .007 * S), ink = edge(L.skin), wide = F.eye === 'wide';
+    const F = FACES[p.face.expression] || FACES.neutral, S = p.size, w = Math.max(1.5, .007 * S), ink = edge(L.skin), wide = F.eye === 'wide', lid = F.lid * (1 - (p.face.blink || 0));
     const pt = (dx, dy) => hf(.52 * R + dx, -.1 * R + dy), rx = .13 * R * S, ry = (wide ? .27 : .22) * R * S, top = -(wide ? .27 : .22) * R;
     const [bx, by] = hf(.42 * R, .3 * R); c.save(); c.globalAlpha = .35; c.beginPath(); c.ellipse(bx, by, .17 * R * S, .1 * R * S, 0, 0, TAU); c.fillStyle = P.blush; c.fill(); c.restore();
     if (F.eye === 'x') { stroke([pt(-.12 * R, -.12 * R), pt(.12 * R, .12 * R)], w, P.ink, false); stroke([pt(-.12 * R, .12 * R), pt(.12 * R, -.12 * R)], w, P.ink, false); }
@@ -103,8 +103,8 @@
     else {
       const [x, y] = pt(0, 0); c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TAU); c.fillStyle = P.eye; c.fill(); c.strokeStyle = ink; c.lineWidth = w * .6; c.stroke();
       const [px, py] = pt(.05 * R, .03 * R + (F.look || 0)); dot(px, py, (wide ? .075 : .1) * R * S, P.ink); dot(px - .03 * R * S, py - .04 * R * S, .03 * R * S, P.eye);
-      if (F.lid < 1) {  // upper lid in skin, slanting down toward the nose when angry
-        const yIn = top + (1 - F.lid) * -2 * top + (F.slant ? .08 * R : 0), yOut = top + (1 - F.lid) * -2 * top - (F.slant ? .08 * R : 0), a = pt(.2 * R, yIn), b = pt(-.2 * R, yOut);
+      if (lid < 1) {  // upper lid in skin, slanting down toward the nose when angry
+        const yIn = top + (1 - lid) * -2 * top + (F.slant ? .08 * R : 0), yOut = top + (1 - lid) * -2 * top - (F.slant ? .08 * R : 0), a = pt(.2 * R, yIn), b = pt(-.2 * R, yOut);
         c.save(); c.beginPath(); c.ellipse(x, y, rx + w * .3, ry + w * .3, 0, 0, TAU); c.clip();
         c.beginPath(); c.moveTo(...pt(.3 * R, top - .1 * R)); c.lineTo(...pt(-.3 * R, top - .1 * R)); c.lineTo(...b); c.lineTo(...a); c.closePath(); c.fillStyle = L.skin; c.fill(); c.restore();
         stroke([a, b], w, ink, false);
@@ -200,7 +200,7 @@
         const S = p.size, hf = headFrame(p), top = p.view !== 'side', body = this.body(p, L).slice(0, 4);
         clipTo(body, () => { const g = p.spine[1], f = segFrame(p, 1); c.globalAlpha = .65; c.beginPath(); c.ellipse(...f(-.05, top ? 0 : -.13), .24 * S, .12 * S, g.angle, 0, TAU); c.fillStyle = L.dark; c.fill(); });  // saddle
         const nose = hf(.205, top ? 0 : .02); dot(nose[0], nose[1], .03 * S, edge(L.dark)); gloss(nose[0], nose[1], .02 * S, .6);
-        for (const side of top ? [-1, 1] : [1]) { const [x, y] = hf(.05, top ? .055 * side : -.035); dot(x, y, .02 * S, P.ink); dot(x + .006 * S, y - .007 * S, .007 * S, P.eye); }
+        for (const side of top ? [-1, 1] : [1]) { const [x, y] = hf(.05, top ? .055 * side : -.035); if (p.face.blink > .5) stroke([[x - .022 * S, y], [x + .022 * S, y]], Math.max(1.5, .008 * S)); else { dot(x, y, .02 * S, P.ink); dot(x + .006 * S, y - .007 * S, .007 * S, P.eye); } }
         if (!top) { stroke([hf(.2, .07), hf(.13, .075)], Math.max(1.5, .008 * S), edge(L.color)); for (const e of ['earL', 'earR']) if (!far(p, e)) parts(chainParts(p.appendages[e], .04 * S, .028 * S, L.dark), lw(p)); }
       },
     },
@@ -326,22 +326,39 @@
     c.fill(); c.restore();
   }
 
+  // Emote perto da cabeça ('!', '?', 'sweat', 'note', 'zzz'): surge com backOut e encolhe ao sumir (k = min(k, a)).
+  function emote(p) {
+    const e = p.emote, r = headR(p), f = p.view === 'side' ? p.facing : 1, k = Math.min(e.k, e.a);
+    if (k <= 0) return;
+    if (e.sym === 'sweat') {
+      const s = backOut(k) * r * .3, x = p.head.x - f * r * .2, y = p.head.y - r * .5 + r * .5 * (1 - e.a);
+      Kit.poly([[x - s * .7, y - s * .2], [x, y - s * 1.9], [x + s * .7, y - s * .2]], P.water, { stroke: false }); Kit.ellipse(x, y, s * .72, s * .8, P.water);
+    } else Kit.text({ note: '♪', zzz: 'z z z' }[e.sym] || e.sym, p.head.x + f * r * 1.2, p.head.y - r * 1.9, Math.max(14, r * 1.6), P.ink, { k });
+  }
+
   function creature(p, look = {}) {
     const D = decor[p.spec]; if (!D) throw new Error(`Sem desenho para o ser ${p.spec}`);
-    const L = { ...D.look, ...look }, side = p.view === 'side', w = lw(p), limbs = Object.entries(p.limbs);
-    contact(p);
-    if (p.size < 28) simple(p, D, L);
-    else {
-      const draw = ([name, l]) => { const g = D.limb(p, L, l, name, l.far); for (const q of Array.isArray(g[0]) ? g : [g]) parts(q, w); D.detail?.(p, L, l, name, l.far); };
-      const behind = ([, l]) => l.far || !side || (D.legsBehind && l.foot);
-      limbs.filter(behind).sort(([, a], [, b]) => b.far - a.far).forEach(draw);
-      D.back?.(p, L);
-      const B = D.body(p, L); for (const g of Array.isArray(B[0]) ? B : [B]) parts(g, w);
-      D.over?.(p, L);
-      limbs.filter(e => !behind(e)).forEach(draw);
-      D.front?.(p, L);
+    const L = { ...D.look, ...look }, side = p.view === 'side', w = lw(p), limbs = Object.entries(p.limbs), sq = p.sq || 0;
+    if (sq) {  // squash (sq > 0) e stretch (sq < 0) a partir do chão sob o corpo, preservando o volume
+      const fs = Object.values(p.limbs).filter(l => l.foot), x = (p.spine[0].x + p.spine.at(-1).x) / 2, y = fs.length ? Math.max(...fs.map(l => l.end[1])) : p.spine[0].y;
+      c.save(); c.translate(x, y); c.scale(1 + .5 * sq, 1 - sq); c.translate(-x, -y);
     }
-    if (p.carry) NatureArt.leafPiece(p.carry.x, p.carry.y, p.carry.w, p.carry.h, p.carry.angle, P.leaf);
+    try {
+      contact(p);
+      if (p.size < 28) simple(p, D, L);
+      else {
+        const draw = ([name, l]) => { const g = D.limb(p, L, l, name, l.far); for (const q of Array.isArray(g[0]) ? g : [g]) parts(q, w); D.detail?.(p, L, l, name, l.far); };
+        const behind = ([, l]) => l.far || !side || (D.legsBehind && l.foot);
+        limbs.filter(behind).sort(([, a], [, b]) => b.far - a.far).forEach(draw);
+        D.back?.(p, L);
+        const B = D.body(p, L); for (const g of Array.isArray(B[0]) ? B : [B]) parts(g, w);
+        D.over?.(p, L);
+        limbs.filter(e => !behind(e)).forEach(draw);
+        D.front?.(p, L);
+      }
+      if (p.carry) NatureArt.leafPiece(p.carry.x, p.carry.y, p.carry.w, p.carry.h, p.carry.angle, P.leaf);
+    } finally { if (sq) c.restore(); }
+    if (p.emote) emote(p);
   }
 
   // Paper grain tile: speckle plus short horizontal fibres, built once from hash() and reused on every frame.

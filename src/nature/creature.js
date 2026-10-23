@@ -14,6 +14,36 @@ function chain(base, angle0, lengths, t, seed, o = {}) {
   return pts;
 }
 
+// Vida orgânica (valores padrão; spec.organic sobrepõe), em BL ou radianos: vary = variação de cada passada;
+// bob = descida do corpo em cada contato (2 por ciclo); lean = inclinação do tronco em marcha (cresce com a altura do
+// segmento); twist = contra-rotação ombros × quadris; nod/flex = aceno da cabeça e flexão da coluna no ritmo das patas;
+// breath = subida do peito (período 3–4 s, sempre ativo); idle = micro-ajustes da cabeça; stab = fração do balanço
+// que a cabeça compensa; follow = rad por BL/s² de o.drag nos apêndices (atraso e overshoot ao frear).
+var ORGANIC = { vary: .05, bob: .012, lean: .08, twist: .015, nod: 0, flex: 0, breath: .006, idle: .03, stab: .5, follow: .3 };
+
+// Piscar periódico por semente: uma piscada de .14 s em ponto sorteado de cada janela de `period` s. 1 = fechado.
+function blink(t, seed = 0, period = 3.6) {
+  const i = Math.floor(t / period), t0 = (i + .1 + .7 * hash(seed * 31 + i + .5)) * period;
+  return clamp(1 - Math.abs(t - t0 - .07) / .07);
+}
+
+// Troca de expressão com take, em vez de trocar de uma vez. keys = [[t, expressão, emote?], ...]; emote: '!', '?',
+// 'sweat', 'note', 'zzz'. Na troca os olhos fecham (a expressão muda com eles fechados) e o corpo achata (sq > 0)
+// e solta com backOut (passa a esticar, sq < 0, e assenta). O emote surge com backOut e some depois de 1,6 s.
+// Devolve {expression, take, sq, blink, emote: null | {sym, k, a}}; take = 0..1 do achatamento.
+function mood(t, keys, seed = 0) {
+  let i = 0; while (i + 1 < keys.length && t >= keys[i + 1][0]) i++;
+  const [t0, expression, sym] = keys[i], next = keys[i + 1], key = next && next[0] - t < .12 ? next[0] : i ? t0 : null;
+  let take = 0, eyes = 0;
+  if (key !== null) {
+    const d = t - key;
+    take = d < 0 ? ease(seg(d, -.12, 0)) : 1 - backOut(seg(d, 0, .45));
+    eyes = 1 - seg(Math.abs(d), .05, .12);
+  }
+  const age = t - t0, emote = sym && age >= 0 && age < 1.6 ? { sym, k: seg(age, .05, .35), a: 1 - seg(age, 1.3, 1.6) } : null;
+  return { expression, take: Math.max(0, take), sq: .12 * take, blink: Math.max(eyes, blink(t, seed)), emote };
+}
+
 // Pose de qualquer ser descrito por uma especificação. Coluna em s − offset do caminho (efeito vagão); pés plantados
 // pela marcha (footAt); corpo baixa o bastante para cada pé alcançar o chão, o que dá o balanço vertical da passada.
 function creaturePose(spec, o) {
@@ -26,6 +56,12 @@ function creaturePose(spec, o) {
   if (typeof gaitName === 'string' && !flying && !gait) throw new Error(`Marcha desconhecida: ${gaitName}`);
   const sv = view === 'side', air = flying || !!spec.swimmer, life = clamp(o.alive ?? 1), dead = 1 - life, ageK = 1 - .5 * clamp(age);
   const sB = s - .1 * flinch;  // o susto recua o corpo; os pés plantados ficam onde estão
+  // Vida orgânica: fase da marcha gp (ciclos, com a variação por passada), beat = 1 em cada contato (2 por ciclo).
+  const org = { ...ORGANIC, ...spec.organic }, walk = sv && !air, m = moving * ageK * life;
+  const foot0 = spec.limbs.find(lb => lb.foot), gp = gait && foot0 ? gaitPhase(s, spec.stride, org.vary, seed + 501) + gait.offsets[foot0.key || foot0.name] : 0;
+  const beat = (1 + Math.cos(2 * TAU * gp)) / 2, low = Math.min(...spec.spine.map(g => g.h || 0));
+  const lean = walk ? org.lean * (moving + (o.lean || 0)) * life : 0, twist = walk && gait ? org.twist * size * m * Math.cos(TAU * gp) : 0;
+  const breath = sv ? org.breath * size * life * Math.sin(TAU * t / (3 + hash(seed * 3.7 + 1))) : 0;
   // path.at limita d a [0, length]; aqui o caminho continua reto pela tangente das pontas, senão o corpo se amassa nelas.
   const at = d => { const c = clamp(d, 0, path.length), p = path.at(c), e = d - c; return e ? { x: p.x + e * Math.cos(p.angle), y: p.y + e * Math.sin(p.angle), angle: p.angle } : p; };
   const dir = sv ? o.facing || (Math.cos(at(sB * size).angle) < 0 ? -1 : 1) : 1;
@@ -33,8 +69,9 @@ function creaturePose(spec, o) {
   // Desloca p em BL: dx à frente; dy para baixo na vista lateral, para a direita do ser na vista superior.
   const local = (p, a, dx, dy) => sv ? [p[0] + dir * dx * size, p[1] + dy * size]
     : [p[0] + (Math.cos(a) * dx - Math.sin(a) * dy) * size, p[1] + (Math.sin(a) * dx + Math.cos(a) * dy) * size];
-  const place = (back, h) => { const p = at((sB - back) * size), gy = groundAt(p); return { x: p.x, y: sv && !air ? gy - h * size : p.y, a: p.angle, gy }; };
-  const rootOf = (lb, g) => sv ? local([g.x, g.y], 0, lb.along, -(lb.h || 0)) : local([g.x, g.y], g.a, lb.along, -lb.side * spec.spine[lb.attach].r * .5);
+  // O tronco inclina à frente (mais quanto mais alto o segmento); os ombros (attach 0) giram contra os quadris.
+  const place = (back, h) => { const p = at((sB - back) * size), gy = groundAt(p); return { x: p.x + (lean ? dir * lean * size * (h - low + .1) : 0), y: sv && !air ? gy - h * size : p.y, a: p.angle, gy }; };
+  const rootOf = (lb, g) => sv ? local([g.x + dir * lb.side * (lb.attach ? 1 : -1) * twist, g.y], 0, lb.along, -(lb.h || 0)) : local([g.x, g.y], g.a, lb.along, -lb.side * spec.spine[lb.attach].r * .5);
 
   // Coluna; nadadores ondulam numa onda viajante que cresce da cabeça para a cauda. A onda é lateral: inteira na vista
   // superior, quase nada na lateral (sw.side), onde quem bate é a nadadeira caudal.
@@ -54,28 +91,30 @@ function creaturePose(spec, o) {
     const g = spec.spine[lb.attach], key = lb.key || lb.name, ph = gait.offsets[key], lat = -lb.side * (g.r * .5 + lb.rest[1]);
     if (ph === undefined) throw new Error(`A marcha não tem fase para o membro ${key}`);
     const plant = sA => { const p = at((sA - g.offset + lb.along + lb.rest[0]) * size); return sv ? [p.x, groundAt(p)] : local([p.x, p.y], p.angle, 0, lat); };
-    const f = footAt(s, ph, { stride: spec.stride, duty: gait.duty, lift: spec.lift * size * ageK, moving, plant });
+    const f = footAt(s, ph, { stride: spec.stride, duty: gait.duty, lift: spec.lift * size * ageK, moving, plant, vary: org.vary, seed: seed + 501 });
     if (sv && !f.stance) f.pos = [f.pos[0], groundAt({ x: f.pos[0], y: f.pos[1] }) - f.lift];
     steps[lb.name] = f;
   }
   // Saltadores sobem junto com os pés; depois o corpo baixa até cada pé (contínuo: pés no ar pedem menos).
-  let shift = 0;
+  let shift = 0, drop = 0;
   if (sv && !air && legs.length) {
     const hop = spec.hop ? Math.max(...legs.map(lb => steps[lb.name].lift)) : 0;
-    let drop = 0;
     for (const lb of legs) {
       const r = rootOf(lb, segs[lb.attach]), f = steps[lb.name].pos, R = .97 * (lb.l1 + lb.l2) * size, dx = f[0] - r[0];
       if (Math.abs(dx) < R) drop = Math.max(drop, f[1] - (r[1] - hop) - Math.sqrt(R * R - dx * dx));
     }
     shift = drop - hop;
   }
+  // Peso: o corpo desce mais em cada contato (bob), a coluna flexiona, o peito respira; a cabeça compensa parte do
+  // balanço (stab), acena no ritmo das patas (nod) e faz micro-ajustes que param entre um e outro (idle).
+  const bob = walk && legs.length ? org.bob * size * m * beat : 0, wave = org.flex * size * m * Math.sin(2 * TAU * gp);
   // Morte: o corpo deita no chão (segmentos altos caem para trás, como um humano de costas).
-  const low = Math.min(...spec.spine.map(g => g.h || 0));
-  const settle = (q, h, r) => ({ ...q, x: sv ? q.x - dir * (h - low) * size * dead : q.x, y: sv ? lerp(q.y + shift, q.gy - r * size, dead) : q.y });
-  const body = segs.map((q, i) => settle(q, spec.spine[i].h || 0, spec.spine[i].r));
-  const head = settle(place(spec.head.offset, spec.head.h || 0), spec.head.h || 0, spec.head.r);
+  const settle = (q, h, r, dy) => ({ ...q, x: sv ? q.x - dir * (h - low) * size * dead : q.x, y: sv ? lerp(q.y + dy, q.gy - r * size, dead) : q.y });
+  const body = segs.map((q, i) => settle(q, spec.spine[i].h || 0, spec.spine[i].r, shift + bob + (i && i < n - 1 ? wave : 0) - (i ? 0 : breath)));
+  const head = settle(place(spec.head.offset, spec.head.h || 0), spec.head.h || 0, spec.head.r, shift + bob - org.stab * (drop + bob) + org.nod * size * m * beat - .6 * breath);
   head.y -= .05 * size * flinch * life;
-  const tilt = -.35 * flinch + .7 * dead, headAngle = sv ? (dir > 0 ? tilt : Math.PI - tilt) : head.a;  // tilt < 0 ergue
+  const micro = org.idle * life * noise1(seed * 7 + 3, Math.floor(t * .8) + ease(frac(t * .8) * 4));
+  const tilt = -.35 * flinch + .7 * dead + micro, headAngle = sv ? (dir > 0 ? tilt : Math.PI - tilt) : head.a + micro;  // tilt < 0 ergue
   const spine = body.map((q, i) => {
     const A = body[i - 1] || q, B = body[i + 1] || q, d = Math.hypot(A.x - B.x, A.y - B.y);
     return { x: q.x, y: q.y, angle: d > 1e-6 ? Math.atan2(A.y - B.y, A.x - B.x) : sv ? (dir > 0 ? 0 : Math.PI) : q.a, r: spec.spine[i].r * size };
@@ -110,6 +149,7 @@ function creaturePose(spec, o) {
     const anc = ap.attach === 'head' ? { x: head.x, y: head.y, angle: headAngle } : spine[ap.attach], side = ap.side || 0;
     const base = sv ? local([anc.x, anc.y], 0, ap.at[0], ap.at[1]) : local([anc.x, anc.y], anc.angle, ap.at[0], 0);
     let a0 = sv ? (dir > 0 ? anc.angle : Math.PI - anc.angle) + ap.angle : Math.cos(ap.angle) < 0 ? Math.PI + side * .5 : -side * .5;
+    if (sv) a0 -= org.follow * (o.drag || 0) * life * Math.sin(a0);  // inércia: ao frear, a ponta segue para a frente
     if (sv) a0 += .5 * flinch * Math.atan2(Math.sin(-Math.PI / 2 - a0), Math.cos(-Math.PI / 2 - a0));  // susto ergue
     const m = ap.motion, k = life * ageK, sd = seed * 13 + i + 1, len = ap.lengths.map(l => l * size);
     let pts;
@@ -129,6 +169,6 @@ function creaturePose(spec, o) {
   }
   return {
     spec: spec.id, size, view, facing: dir, spine, limbs, appendages, head: { x: head.x, y: head.y, angle: headAngle },
-    face: { expression: o.expression || 'neutral' }, ...(spec.flyer && { wings: { phase: flying ? frac(t * spec.flyer.freq) : 0, open: flying ? 1 : 0 } }), carry,
+    face: { expression: o.expression || 'neutral', blink: o.blink ?? blink(t, seed) }, sq: o.sq || 0, emote: o.emote || null, ...(spec.flyer && { wings: { phase: flying ? frac(t * spec.flyer.freq) : 0, open: flying ? 1 : 0 } }), carry,
   };
 }

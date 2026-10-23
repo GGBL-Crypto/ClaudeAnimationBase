@@ -7,10 +7,10 @@ import { natureContext } from './nature-helpers.mjs';
 // Contexto Canvas2D falso: registra o nome de cada chamada; propriedades são atribuíveis.
 function load() {
   const calls = [], c = new Proxy({}, { get: (o, k) => k in o ? o[k] : (...a) => { calls.push(k); return k === 'createLinearGradient' || k === 'createRadialGradient' ? { addColorStop() {} } : undefined; }, set: (o, k, v) => (o[k] = v, true) });
-  const ctx = natureContext();
+  const ctx = natureContext(['src/nature/noise.js']);
   ctx.window.animationEngine = { context: c };
   vm.runInContext(readFileSync('src/styles/cartoon/kit.js', 'utf8'), ctx, { filename: 'kit.js' });
-  return { Kit: ctx.window.Kit, calls };
+  return { Kit: ctx.window.Kit, calls, c };
 }
 
 test('Kit expõe os 11 nomes', () => {
@@ -32,4 +32,10 @@ test('primitivas desenham sem lançar e sem sobrar estado', () => {
   Kit.line([[0, 0], [5, 5], [9, 2]], '#000', 4); Kit.line([[0, 0], [5, 5]], '#000', 4, { smooth: false });
   Kit.gradient('#fff', '#000'); Kit.text('oi', 100, 100, 40, '#fff', { k: .5 }); Kit.wipe(.5); Kit.iris(100, 100, 50); Kit.flash(.5, '#fff'); Kit.vignette(.5);
   assert.equal(calls.filter(k => k === 'save').length, calls.filter(k => k === 'restore').length);
+});
+test('cam com tremor de mão: desvio até 0,3% do quadro, variando com t', () => {
+  const { Kit, c } = load(), moves = [], xs = new Set();
+  c.translate = (x, y) => moves.push([x, y]);
+  for (let t = 0; t < 10; t += .37) { moves.length = 0; Kit.cam(960, 540, 1.2, 0, { t }); Kit.camEnd(); assert.ok(Math.abs(moves[1][0]) <= .003 * 1920 && Math.abs(moves[1][1]) <= .003 * 1080); xs.add(moves[1][0].toFixed(2)); }
+  assert.ok(xs.size > 10);
 });
