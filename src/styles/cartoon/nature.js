@@ -114,11 +114,11 @@
         else {
           const wide = E.eye === 'wide', eye = path(F.eye[E.eye]), ry = F.eye.ry[E.eye], top = ey - ry;
           c.fillStyle = P.eye; c.fill(eye);
-          const r = wide ? .95 : 1.25;
-          c.beginPath(); c.ellipse(ex + 1.6, ey + .8 + 1.5 * (E.look || 0), r, r * 1.2, 0, 0, TAU); c.fillStyle = P.line; c.fill();
+          const r = wide ? 1.3 : 1.7;
+          c.beginPath(); c.ellipse(ex + 2.6, ey + 1 + 2 * (E.look || 0), r, r * 1.2, 0, 0, TAU); c.fillStyle = P.line; c.fill();
           if (lid < 1) {  // upper lid in skin, slanting down toward the nose when angry
-            const y = top + (1 - lid) * 2 * ry, s = E.slant ? 1.2 : 0, a = [ex + 4.8, y + s], b = [ex - 4.8, y - s];
-            c.save(); c.clip(eye); c.beginPath(); c.moveTo(ex + 5, top - 1); c.lineTo(ex - 5, top - 1); c.lineTo(...b); c.lineTo(...a); c.closePath(); c.fillStyle = L.skin; c.fill(); c.restore();
+            const y = top + (1 - lid) * 2 * ry, s = E.slant ? 1.6 : 0, a = [ex + 8, y + s], b = [ex - 8, y - s];
+            c.save(); c.clip(eye); c.beginPath(); c.moveTo(ex + 8, top - 2); c.lineTo(ex - 8, top - 2); c.lineTo(...b); c.lineTo(...a); c.closePath(); c.fillStyle = L.skin; c.fill(); c.restore();
             c.beginPath(); c.moveTo(...b); c.lineTo(...a); c.lineWidth = w / k; c.stroke();
           }
           c.lineWidth = w / k; c.stroke(eye);
@@ -147,21 +147,21 @@
   const decor = {
     human: {
       look: { color: P.mustard, skin: P.skin, hair: P.hair, shirt: P.mustard, pants: P.shorts, shoe: P.boot, sole: P.bootDk, scarf: P.hero, hat: P.olive, hatBand: P.oliveDk },
-      headScale: 2.4, emoteUp: 3,  // the emote clears the hat
+      headScale: 3.7, emoteUp: 2.7,  // drawn head radius .24 BL; the emote clears the hat
       build(p, L) {
         const Q = pieces(p, L), G = [], [ch, pe] = p.spine, o = { L }, h = p.appendages.hair;
         for (const [name, l] of Object.entries(p.limbs)) {
           const k = { L, dk: l.far ? .28 : 0 };
           if (name.startsWith('leg')) { G.push(grp([pin(p, Q.shoe, l.end, rock(p, l), k)], l.far), grp([pin(p, Q.thigh, l.root, l.mid, k), pin(p, Q.shin, l.mid, l.end, k)], l.far)); }
-          else G.push(grp([pin(p, Q.upperArm, l.root, l.mid, k), pin(p, Q.forearm, l.mid, l.end, k), pin(p, Q.hand, l.end, ang(l.mid, l.end), k)], l.far));
+          else G.push(grp([pin(p, Q.upperArm, l.root, l.mid, k), pin(p, Q.forearm, l.mid, l.end, k)], l.far), grp([pin(p, Q.hand, l.end, ang(l.mid, l.end), k)], l.far));  // the hand alone, over the head
         }
-        const torso = pin(p, Q.torso, pt(pe), pt(ch), o), neckAt = at(torso, 0, -29), hd = [p.head.x, p.head.y];
+        const torso = pin(p, Q.torso, pt(pe), pt(ch), o), hd = [p.head.x, p.head.y];
         const head = pin(p, Q.head, hd, p.head.angle, o), hair = pin(p, Q.hair, hd, p.head.angle, o);
-        G.push(grp([pin(p, Q.pelvis, pt(pe), pt(ch), o), torso]), grp([pin(p, Q.scarf, pt(pe), pt(ch), o)]), grp([pin(p, Q.neck, neckAt, hd, o), head]));
+        G.push(grp([pin(p, Q.pelvis, pt(pe), pt(ch), o), torso]), grp([pin(p, Q.scarf, pt(pe), pt(ch), o)]), grp([head]));  // the big head hides the neck and covers the shoulders and arm roots
         // Scarf tail: from the back of the neck, trailing with the hair chain but hanging lower.
         if (h) G.push(grp([pin(p, Q.scarfTail, at(torso, -7, -30), turn(p, turn(p, ang(h[0], h[3])) - .35), o)]));
-        G.push(grp([pin(p, Q.ear, at(head, -1, -1), p.head.angle, o)]), grp([hair]), grp([pin(p, Q.hat, hd, p.head.angle, o)]));
-        if (!head.q.art) G.push({ z: 6.3, draw: () => humanFace(p, L, head) });
+        G.push(grp([pin(p, Q.ear, at(head, -2, -3.2), p.head.angle, o)]), grp([hair]), grp([pin(p, Q.hat, hd, p.head.angle, o)]));
+        if (!head.q.art) G.push({ z: 9.5, draw: () => humanFace(p, L, head) });
         return G;
       },
     },
@@ -170,7 +170,7 @@
       build(p, L) {
         const top = p.view !== 'side', Q = pieces(p, L), G = [], o = { L }, A = p.appendages, hd = [p.head.x, p.head.y];
         for (const [name, l] of Object.entries(p.limbs)) {
-          const k = { L, dk: l.far ? .2 : 0 }, front = name.endsWith('F');
+          const k = l.far ? { L, col: mixCol(L.color, P.furDk, .45) } : { L }, front = name.endsWith('F');  // far legs: warm darker cream
           G.push(grp([pin(p, front ? Q.armUpper : Q.hipUpper, l.root, l.mid, k), pin(p, Q.legLower, l.mid, l.end, k), pin(p, Q.paw, l.end, top ? ang(l.mid, l.end) : rock(p, l, .2), k)], l.far || top));
         }
         const t = A.tail;
@@ -184,10 +184,10 @@
         // near one inside the patch, with its brow.
         if (!head.q.art) G.push({ z: 6.2, draw: () => {
           const w = Math.max(1.5, 1.4 * fwOf(p));
-          if (top) for (const s of [-1, 1]) eyeAt(head, 6.2, 5.8 * s, 4, p.face.blink, w);
+          if (top) for (const s of [-1, 1]) eyeAt(head, 6.6, 6.4 * s, 5.6, p.face.blink, w);
           else {
-            eyeAt(head, 13.5, -10.5, 4.5, p.face.blink, w); eyeAt(head, 4.8, -8, 5.2, p.face.blink, w);
-            inside(head, u => { c.beginPath(); c.moveTo(-0.2, -17.8); c.quadraticCurveTo(4.5, -20.8, 9.5, -18.2); c.lineWidth = w * u; c.strokeStyle = P.line; c.stroke(); });
+            eyeAt(head, 16, -12.5, 6.5, p.face.blink, w); eyeAt(head, 4.8, -8, 7.5, p.face.blink, w);
+            inside(head, u => { c.beginPath(); c.moveTo(-2, -19.8); c.quadraticCurveTo(4.8, -23.6, 11, -20.2); c.lineWidth = w * u; c.strokeStyle = P.line; c.stroke(); });
           }
         } });
         return G;

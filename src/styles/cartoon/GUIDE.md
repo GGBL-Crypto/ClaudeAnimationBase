@@ -27,10 +27,10 @@ Validação: ausência de bibliotecas p5 na página, curvas sem serrilhado indev
 
 ## Peças recortadas (`parts.js`)
 
-Os seres são bonecos de recorte: cada peça de `CARTOON_PARTS` é um caminho SVG (`Path2D`, criado uma vez) preso a um osso da pose por `NatureArt.decor[spec].build`, desenhada chapada com contorno preto. Linguagem de forma, não anatomia: 2 ou 3 formas geométricas grandes por ser, cabeça humana de 1/3 a 1/2 da altura (Lia: 0,39 até o queixo, com o chapéu), membros em macarrão (tubo de largura quase constante), mãos-luva de 4 dedos, pés grandes, olhos grandes brancos com pupila pequena e um detalhe marcante por personagem. Personagens recorrentes têm nome e paleta fixa (`look`, cores em `config.js`):
+Os seres são bonecos de recorte: cada peça de `CARTOON_PARTS` é um caminho SVG (`Path2D`, criado uma vez) preso a um osso da pose por `NatureArt.decor[spec].build`, desenhada chapada com contorno preto. Linguagem de forma, não anatomia: 2 ou 3 formas geométricas grandes por ser, cabeça humana de 1/3 a 1/2 da altura (Lia: 0,47 até o queixo, com o chapéu; a cabeça cobre os ombros e fica acima dos braços, só as mãos passam por cima dela), membros em macarrão (tubo de largura quase constante), mãos-luva de 4 dedos, pés grandes, olhos enormes, brancos e encostados (cerca de 1/3 da altura da cabeça), com pupila pequena e um detalhe marcante por personagem. Personagens recorrentes têm nome e paleta fixa (`look`, cores em `config.js`):
 
 - Lia, exploradora: cabeça redonda, cabelo castanho curto com franja recortada, chapéu de explorador verde-oliva (`olive`), camisa mostarda (`mustard`), lenço vermelho, short verde (`shorts`), botas marrons grandes (`boot`).
-- Bento, vira-lata: corpo em feijão creme (`cream`), mancha marrom num olho e orelhas longas caídas (`patch`), focinho comprido com nariz preto grande, pernas finas saindo de baixo do corpo com patas redondas, coleira vermelha com plaquinha dourada (`gold`).
+- Bento, vira-lata: corpo em feijão creme (`cream`), mancha marrom num olho e orelhas longas caídas (`patch`), focinho comprido com nariz preto grande, pernas curtas e finas (em `specs.js`) saindo de baixo do corpo com patas redondas; pernas do lado de longe em creme mais escuro e quente, coleira vermelha com plaquinha dourada (`gold`).
 - O vermelho `hero` é a cor-herói: só no lenço da Lia e na coleira do Bento, nunca decorativo.
 
 Na vista lateral os dois mostram os dois olhos: o de longe menor, junto ao nariz (Lia) ou espiando por cima do focinho (Bento).

@@ -34,13 +34,13 @@ var SPECS = {
   },
   dog: {
     id: 'dog', gait: 'quadWalk', views: ['side', 'top'], stride: .6, lift: .08,
-    spine: [{ offset: 0, r: .15, h: .46 }, { offset: .25, r: .14, h: .46 }, { offset: .5, r: .14, h: .47 }],
-    head: { offset: -.2, r: .11, h: .64 },
+    spine: [{ offset: 0, r: .15, h: .38 }, { offset: .25, r: .14, h: .38 }, { offset: .5, r: .14, h: .39 }],  // patas curtas de desenho de TV
+    head: { offset: -.2, r: .11, h: .56 },
     limbs: [
-      { name: 'LF', foot: true, attach: 0, along: .03, side: 1, l1: .25, l2: .27, rest: [0, .12], bend: 1 },
-      { name: 'RF', foot: true, attach: 0, along: .03, side: -1, l1: .25, l2: .27, rest: [0, .12], bend: 1 },
-      { name: 'LH', foot: true, attach: 2, along: -.03, side: 1, l1: .26, l2: .27, rest: [0, .12], bend: 1 },
-      { name: 'RH', foot: true, attach: 2, along: -.03, side: -1, l1: .26, l2: .27, rest: [0, .12], bend: 1 },
+      { name: 'LF', foot: true, attach: 0, along: .03, side: 1, l1: .2, l2: .22, rest: [0, .12], bend: 1 },
+      { name: 'RF', foot: true, attach: 0, along: .03, side: -1, l1: .2, l2: .22, rest: [0, .12], bend: 1 },
+      { name: 'LH', foot: true, attach: 2, along: -.03, side: 1, l1: .21, l2: .22, rest: [0, .12], bend: 1 },
+      { name: 'RH', foot: true, attach: 2, along: -.03, side: -1, l1: .21, l2: .22, rest: [0, .12], bend: 1 },
     ],
     organic: { nod: .02, flex: .012 },  // cabeça acena e coluna flexiona no ritmo das patas dianteiras
     appendages: [
