@@ -121,11 +121,11 @@
     A().sky(rk);
     const c = animationEngine.context; c.save(); c.globalAlpha = 1 - .7 * rk;  // clouds dissolve into the rain sky
     layer(cx, cy, zoom, .08, () => { A().cloud(320 + 7 * t, 130, .8, 1); A().cloud(1450 + 5 * t, 90, .6, 2); A().cloud(2500 + 4 * t, 170, .7, 3); }, hand(t)); c.restore();
-    layer(cx, cy, zoom, .25, (a, b) => A().ground(x => 600 + 50 * Math.sin(x * .002 + 1) + 22 * Math.sin(x * .0057), a, b, mixCol(P.foliage, air, .62)), hand(t));
+    layer(cx, cy, zoom, .25, (a, b) => A().ground(x => 600 + 50 * Math.sin(x * .002 + 1) + 22 * Math.sin(x * .0057), a, b, mixCol(P.foliage, air, .4)), hand(t));
     layer(cx, cy, zoom, .55, (a, b) => {
       const hill = x => 720 + 26 * Math.sin(x * .0035 + 2) + 12 * Math.sin(x * .011);
-      for (let k = Math.floor(a / 120); k * 120 < b; k++) if (hash(k + 70) < .7) { const x = k * 120 + 60 * hash(k + 71); A().tree(x, hill(x) + 10, 110 + 90 * hash(k + 72), .04 * wind(t, x), k + 30, .45 + .3 * rk); }
-      A().ground(hill, a, b, mixCol(P.leafDk, air, .4));
+      for (let k = Math.floor(a / 120); k * 120 < b; k++) if (hash(k + 70) < .7) { const x = k * 120 + 60 * hash(k + 71); A().tree(x, hill(x) + 10, 110 + 90 * hash(k + 72), .04 * wind(t, x), k + 30, .25 + .3 * rk); }
+      A().ground(hill, a, b, mixCol(P.leafDk, air, .2));
     }, hand(t));
     Kit.cam(cx, cy, zoom, 0, hand(t));
     for (const [x, h, sd] of TREES) A().tree(x, gy(x) + 12, h, .05 * wind(t, x) + rk * .12 * noise1(sd, t * 2.5), sd);
@@ -208,7 +208,7 @@
     const z = lerp(1, 1.04, ease(lt / 5));
     A().sky(1);
     Kit.cam(960, 540, z, 0, hand(t));
-    A().ground(x => 215 + 30 * Math.sin(x * .003 + 1) + 12 * Math.sin(x * .009), 0, W, mixCol(P.foliage, air, .62));
+    A().ground(x => 215 + 30 * Math.sin(x * .003 + 1) + 12 * Math.sin(x * .009), 0, W, mixCol(P.foliage, air, .4));
     for (let k = 0; k < 22; k++) if (hash(k + 400) < .75) { const x = k * 95 + 50 * hash(k + 401); A().tree(x, bank(x) + 8, 120 + 70 * hash(k + 402), .06 * wind(t, x) + .08 * noise1(k, t * 2.5), k + 60, .55); }
     A().ground(bank, 0, W);
     for (let k = 0; k < 110; k++) { const x = k * 18 + 9 * hash(k + 300); A().blade(x, bank(x) + 3, 16 + 14 * hash(k + 301), .35 * wind(t, x) + .4 * noise1(k, t * 4), k & 1 ? P.grass : P.grassDk); }

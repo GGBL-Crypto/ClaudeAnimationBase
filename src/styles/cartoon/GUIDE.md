@@ -43,7 +43,7 @@ Para criar ou alterar uma peça:
 2. `pivot` é a junta de onde a peça pende; `angle` é a direção do osso em repouso (0 à frente, π/2 para baixo); `len` é o comprimento do osso. A peça estica ao longo do osso até a junta seguinte, então desenhe as pontas arredondadas passando do pivô e da junta: as peças vizinhas se sobrepõem e a costura some.
 3. `layer` fixa a ordem; na vista lateral os membros do lado de longe descem 10 camadas. Peças do mesmo grupo (mesma chamada de `cut`) formam uma silhueta só: contornos primeiro, depois os tons. Peças que precisam de contorno próprio por cima de outras (orelha, cabelo, lenço, coleira) ficam em grupo separado.
 4. `fill` é a chave da cor no `look`; `spots` são manchas planas dentro da peça (sela do cão, barriga, faixas); `lines` são traços internos pretos.
-5. Rosto humano: `face` tem os olhos (`dot`, `wide`, `arc`, `x`) e, por expressão, olho, pálpebra (`lid`), inclinação, sobrancelha e boca, em unidades da cabeça. `eye.far` = [dx, dy, escala] do olho de longe em relação ao de perto; cada olho leva a sua sobrancelha. `decor.human.emoteUp` põe o emote acima do chapéu.
+5. Rosto humano: `face` tem os olhos (`dot`, `wide`, `arc`, `x`) e, por expressão, olho, pálpebra (`lid`), inclinação, sobrancelha e boca, em unidades da cabeça. `eye.far` = [dx, dy, escala] do olho de longe em relação ao de perto; cada olho leva a sua sobrancelha. `decor.human.emoteAt` põe o emote ao lado da copa do chapéu.
 
 Compare com a referência de estilo em números (proporção da cabeça, espessura do contorno, saturação) com `scripts/compare-ref.mjs` (uso no cabeçalho do script); a folha `modelos` tem Lia e Bento em pé num fundo liso para isso.
 

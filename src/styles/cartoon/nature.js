@@ -147,7 +147,7 @@
   const decor = {
     human: {
       look: { color: P.mustard, skin: P.skin, hair: P.hair, shirt: P.mustard, pants: P.shorts, shoe: P.boot, sole: P.bootDk, scarf: P.hero, hat: P.olive, hatBand: P.oliveDk },
-      headScale: 3.7, emoteUp: 2.7,  // drawn head radius .24 BL; the emote clears the hat
+      headScale: 3.7, emoteAt: [1.5, 2.1, 1.1],  // drawn head radius .24 BL; the emote beside the hat crown
       build(p, L) {
         const Q = pieces(p, L), G = [], [ch, pe] = p.spine, o = { L }, h = p.appendages.hair;
         for (const [name, l] of Object.entries(p.limbs)) {
@@ -196,7 +196,7 @@
     ant: {
       // Head, mesosoma, petiole and gaster are separate inked forms on a thin dark waist; far legs and antennae are
       // thinner and paler so the side view does not tangle. All legs go behind the body.
-      look: { color: P.chitin, dark: P.chitinDk },
+      look: { color: P.purple, dark: P.purpleDk },
       build(p, L) {
         const top = p.view !== 'side', Q = pieces(p, L), G = [], o = { L }, [th, pe, ga] = p.spine, hd = [p.head.x, p.head.y], S = p.size;
         for (const l of Object.values(p.limbs)) { const k = l.far ? { L, col: pale(L.color), wy: .7 } : o; G.push({ ...grp([pin(p, Q.femur, l.root, l.mid, k), pin(p, Q.tibia, l.mid, l.end, k)], l.far), z: l.far ? -8 : 2 }); }
@@ -206,25 +206,29 @@
         const gaster = pin(p, Q.gaster, pt(ga), ga.angle, o), meso = pin(p, Q.mesosoma, pt(th), th.angle, o), head = pin(p, Q.head, hd, p.head.angle, o);
         G.push(grp([gaster]), grp([pin(p, Q.petiole, pt(pe), pe.angle, o)]), grp([meso]), grp([head]));
         const ha = turn(p, p.head.angle);
-        G.push(grp(top ? [-1, 1].map(s => pin(p, Q.mandible, at(head, 7.4, 3 * s), turn(p, ha + .35 * s), { L, wy: s })) : [pin(p, Q.mandible, at(head, 7.4, 4.6), turn(p, ha + .6), { L, wy: .8 })]));
+        G.push(grp(top ? [-1, 1].map(s => pin(p, Q.mandible, at(head, 12.6, 5 * s), turn(p, ha + .35 * s), { L, wy: s })) : [pin(p, Q.mandible, at(head, 12.6, 7.8), turn(p, ha + .6), { L, wy: .8 })]));
         if (!head.q.art) G.push({ z: 6.5, draw: () => {
-          for (const s of top ? [-1, 1] : [0]) inside(head, () => { const x = top ? 2.4 : 2.6, y = top ? 6 * s : -2.2; c.beginPath(); c.ellipse(x, y, 2.7, 2.1, 0, 0, TAU); c.fillStyle = P.line; c.fill(); c.beginPath(); c.ellipse(x - .7, y - .7, .7, .7, 0, 0, TAU); c.fillStyle = P.eye; c.fill(); });
+          const w = Math.max(1.5, 1.4 * fwOf(p));  // big white eyes: both from above; in profile the far one toward the jaw
+          if (top) for (const s of [-1, 1]) eyeAt(head, 5, 7 * s, 4.4, p.face.blink, w);
+          else { eyeAt(head, 11, -6.5, 4.6, p.face.blink, w); eyeAt(head, 4, -5, 5.6, p.face.blink, w); }
         } });
         return G;
       },
     },
     spider: {
-      look: { color: P.wood, dark: mixCol(P.wood, P.ink, .4), mark: mixCol(P.wood, P.cloud, .55) },
+      look: { color: P.brown, dark: mixCol(P.brown, P.ink, .4), mark: mixCol(P.brown, P.cloud, .5) },
       build(p, L) {
         const Q = pieces(p, L), top = p.view !== 'side', G = [], o = { L }, [ce, ab] = p.spine, hd = [p.head.x, p.head.y];
         for (const l of Object.values(p.limbs)) { const k = l.far ? { L, col: pale(L.color), wy: .7 } : o; G.push({ ...grp([pin(p, Q.femur, l.root, l.mid, k), pin(p, Q.tibia, l.mid, l.end, k)], l.far), z: l.far ? -8 : 2 }); }
         for (const a of ['palpL', 'palpR']) { const pp = p.appendages[a], back = far(p, a); G.push({ ...grp([pin(p, Q.palp, pp[0], pp.at(-1), back ? { L, col: pale(L.color), wy: .8 } : o)]), z: back ? 1 : 7 }); }
         const abd = pin(p, Q.abdomen, pt(ab), ab.angle, o), head = pin(p, Q.head, hd, p.head.angle, o), ha = turn(p, p.head.angle);
-        G.push(grp([abd]), grp([pin(p, Q.cephalo, pt(ce), ce.angle, o)]), grp([head]));
+        const ceph = pin(p, Q.cephalo, pt(ce), ce.angle, o);
+        G.push(grp([abd]), grp([ceph]));  // two balls: the head piece only anchors the fangs
         G.push(grp((top ? [-1, 1] : [1]).map(s => pin(p, Q.fang, at(head, 6, top ? 3 * s : 4), turn(p, ha + PI2 - .4 - (top ? 1.1 : 0)), { L, wy: top ? s : 1 }))));
         if (!head.q.art) G.push({ z: 6.5, draw: () => {
-          const eyes = top ? [[7, -3, 2.2], [7, 3, 2.2], [4.5, -6, 1.3], [4.5, 6, 1.3], [2.5, -3.5, 1.2], [2.5, 3.5, 1.2]] : [[6, -3.5, 2.4], [2, -6, 1.5], [4.5, -6.5, 1.3]];
-          inside(head, () => { for (const [x, y, r] of eyes) { c.beginPath(); c.ellipse(x, y, r, r, 0, 0, TAU); c.fillStyle = P.line; c.fill(); c.beginPath(); c.ellipse(x - .3 * r, y - .3 * r, .35 * r, .35 * r, 0, 0, TAU); c.fillStyle = P.eye; c.fill(); } });
+          const w = Math.max(1.5, 1.4 * fwOf(p));  // two big white eyes on the front ball
+          if (top) for (const s of [-1, 1]) eyeAt(ceph, 9, 5.5 * s, 4.6, p.face.blink, w);
+          else { eyeAt(ceph, 11, -8, 5, p.face.blink, w); eyeAt(ceph, 4.5, -7, 6.2, p.face.blink, w); }
         } });
         return G;
       },
@@ -245,13 +249,17 @@
         const head = pin(p, Q.head, hd, p.head.angle, o);
         G.push(grp([pin(p, Q.body, pt(re), pt(fr), o), pin(p, Q.neck, pt(fr), hd, o), head]), grp([pin(p, Q.beak, hd, p.head.angle, o)]));
         for (const s of top ? [-1, 1] : [1]) G.push({ z: 7, list: [wing(s, 0)] });
-        if (!head.q.art) G.push({ z: 6.5, draw: () => { for (const s of top ? [-1, 1] : [0]) eyeAt(head, top ? 4 : 3.6, top ? 6 * s : -2.6, 2.8, p.face.blink, fwOf(p)); } });
+        if (!head.q.art) G.push({ z: 6.5, draw: () => {
+          const w = Math.max(1.5, 1.4 * fwOf(p));
+          if (top) for (const s of [-1, 1]) eyeAt(head, 5, 6.5 * s, 3.8, p.face.blink, w);
+          else { eyeAt(head, 8.6, -4.2, 3.8, p.face.blink, w); eyeAt(head, 3.4, -3.2, 4.6, p.face.blink, w); }
+        } });
         return G;
       },
     },
     fish: {
       // Cut-out body in three pieces along the waving spine (peduncle, mid, fore); narrower from above.
-      look: { color: P.wing, dark: mixCol(P.wing, P.wingAccent, .45), fin: P.wingAccent, belly: mixCol(P.wing, P.cloud, .55) },
+      look: { color: P.orange, dark: P.orangeDk, fin: P.wing, belly: P.wing },
       build(p, L) {
         const Q = pieces(p, L), top = p.view !== 'side', G = [], o = { L, wy: top ? .6 : 1 }, sp = p.spine, hd = [p.head.x, p.head.y], A = p.appendages;
         G.push(grp([pin(p, Q.caudal, A.caudal[0], A.caudal[2], { L, wy: top ? .35 : 1 })]));
@@ -259,7 +267,7 @@
         const fore = pin(p, Q.fore, pt(sp[1]), hd, o);
         G.push(grp([pin(p, Q.peduncle, pt(sp[4]), pt(sp[3]), o), pin(p, Q.mid, pt(sp[3]), pt(sp[1]), o), fore]));
         G.push(grp(top ? [-1, 1].map(s => pin(p, Q.pectoral, at(fore, 16, 14 * s), turn(p, sp[1].angle + s * (2.3 + .25 * Math.sin(ang(...A.pectoral) - sp[1].angle))), { L, wy: -s })) : [pin(p, Q.pectoral, ...A.pectoral, o)]));
-        if (!fore.q.art) G.push({ z: 6.5, draw: () => { for (const s of top ? [-1, 1] : [0]) inside(fore, u => { const x = 37, y = top ? 11 * s : -2.4; c.beginPath(); c.ellipse(x, y, 3.6, 3.6 / o.wy, 0, 0, TAU); c.fillStyle = P.eye; c.fill(); c.lineWidth = Math.max(1.5, fwOf(p)) * u; c.strokeStyle = P.line; c.stroke(); c.beginPath(); c.ellipse(x + 1.2, y, 1.3, 1.3 / o.wy, 0, 0, TAU); c.fillStyle = P.line; c.fill(); }); } });
+        if (!fore.q.art) G.push({ z: 6.5, draw: () => { for (const s of top ? [-1, 1] : [0]) inside(fore, u => { const x = 35, y = top ? 11 * s : -3, r = top ? 4.6 : 6.2; c.beginPath(); c.ellipse(x, y, r, r / o.wy, 0, 0, TAU); c.fillStyle = P.eye; c.fill(); c.lineWidth = Math.max(1.5, fwOf(p)) * u; c.strokeStyle = P.line; c.stroke(); c.beginPath(); c.ellipse(x + .38 * r, y + .1 * r, .3 * r, .36 * r / o.wy, 0, 0, TAU); c.fillStyle = P.line; c.fill(); }); } });
         return G;
       },
     },
@@ -297,7 +305,10 @@
     if (e.sym === 'sweat') {
       const s = k * r * .3, x = p.head.x - f * r * .2, y = p.head.y - r * .5 + r * .5 * (1 - e.a);
       Kit.poly([[x - s * .7, y - s * .2], [x, y - s * 1.9], [x + s * .7, y - s * .2]], P.water, { stroke: false }); Kit.ellipse(x, y, s * .72, s * .8, P.water);
-    } else { c.save(); c.translate(p.head.x + f * r * 1.2, p.head.y - r * (decor[p.spec].emoteUp || 1.9)); c.scale(k, k); Kit.text({ note: '♪', zzz: 'z z z' }[e.sym] || e.sym, 0, 0, Math.max(14, r * 1.6), P.ink); c.restore(); }
+    } else {  // emoteAt = [ahead, up, size] in head radii
+      const [ex, ey, es] = decor[p.spec].emoteAt || [1.2, 1.9, 1.6];
+      c.save(); c.translate(p.head.x + f * r * ex, p.head.y - r * ey); c.scale(k, k); Kit.text({ note: '♪', zzz: 'z z z' }[e.sym] || e.sym, 0, 0, Math.max(14, r * es), P.ink); c.restore();
+    }
   }
 
   function creature(p, look = {}) {

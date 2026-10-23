@@ -109,9 +109,10 @@ var CARTOON_PARTS = (() => {
     },
 
     ant: {
+      // Big round head with big white eyes, three inked body forms on a thin waist, noodle legs.
       side: {
-        head: { d: 'M -8 -2 C -8 -8 -2 -10 3 -9.4 C 8 -8.8 10.6 -4 10 1 C 9.6 5 6 8 1 8 C -4 8 -8 4.4 -8 -2 Z', pivot: [0, 0], len: 10, layer: 6, fill: 'color' },
-        mandible: { d: 'M -1.4 -1.6 C 2 -2.6 5 -1.4 7.4 1.4 C 7.8 2.2 7 2.8 6.2 2.2 C 4.6 1.2 2.6 1 0 1.6 C -2 1.8 -2.6 -1 -1.4 -1.6 Z', pivot: [0, 0], len: 7, layer: 6.1, fill: 'dark' },
+        head: { d: 'M -13.6 -3.4 C -13.6 -13.6 -3.4 -17 5.1 -15.98 C 13.6 -14.96 18.02 -6.8 17 1.7 C 16.32 8.5 10.2 13.6 1.7 13.6 C -6.8 13.6 -13.6 7.48 -13.6 -3.4 Z', pivot: [0, 0], len: 10, layer: 6, fill: 'color' },
+        mandible: { d: 'M -1.82 -2.08 C 2.6 -3.38 6.5 -1.82 9.62 1.82 C 10.14 2.86 9.1 3.64 8.06 2.86 C 5.98 1.56 3.38 1.3 0 2.08 C -2.6 2.34 -3.38 -1.3 -1.82 -2.08 Z', pivot: [0, 0], len: 7, layer: 6.1, fill: 'dark' },
         mesosoma: { d: 'M -10 2 C -11 -3 -7 -8.4 0 -9 C 5 -9.4 9.4 -6.4 10.8 -2 C 11.8 1.6 9.4 5.6 4 6.2 C -1 6.8 -9.4 6 -10 2 Z', pivot: [0, 0], len: 10, layer: 5, fill: 'color',
           spots: [{ d: 'M -8 -3.6 C -6.4 -6.6 -3.4 -8 0 -8.2 C -2.2 -6.6 -4.4 -5 -8 -3.6 Z', fill: 'dark' }] },
         petiole: { d: 'M -3.2 2 C -3.4 -1 -1.8 -5.4 0.4 -5.4 C 2.4 -5.4 3.4 -1 3.2 2 C 2.2 3.8 -2.2 3.8 -3.2 2 Z', pivot: [0, 0], len: 10, layer: 4, fill: 'color' },
@@ -122,8 +123,8 @@ var CARTOON_PARTS = (() => {
         tibia: { d: 'M -1.4 0 C -1.4 -1.8 1.4 -1.8 1.4 0 L 0.9 18 C 2 19.2 2.8 20.2 3.4 21.4 L 2 22 C 1.4 21 0.8 20.4 -0.4 19.6 L -1 18 Z', pivot: [0, 0], len: 21, angle: D, layer: 2.1, fill: 'color' },
       },
       top: {
-        head: { d: 'M -7 0 C -7 -6.6 -3 -8.6 2 -8.6 C 7 -8.6 10 -5 10 0 C 10 5 7 8.6 2 8.6 C -3 8.6 -7 6.6 -7 0 Z', pivot: [0, 0], len: 10, layer: 6, fill: 'color' },
-        mandible: { d: 'M -1 -1.6 C 3 -2 6 -1 8.4 1.6 C 8.8 2.6 7.8 3 7 2.4 C 5 1.2 3 1 0 1.6 C -2 1.8 -2.4 -1.2 -1 -1.6 Z', pivot: [0, 0], len: 7, layer: 6.1, fill: 'dark' },
+        head: { d: 'M -11.9 0 C -11.9 -11.22 -5.1 -14.62 3.4 -14.62 C 11.9 -14.62 17 -8.5 17 0 C 17 8.5 11.9 14.62 3.4 14.62 C -5.1 14.62 -11.9 11.22 -11.9 0 Z', pivot: [0, 0], len: 10, layer: 6, fill: 'color' },
+        mandible: { d: 'M -1.3 -2.08 C 3.9 -2.6 7.8 -1.3 10.92 2.08 C 11.44 3.38 10.14 3.9 9.1 3.12 C 6.5 1.56 3.9 1.3 0 2.08 C -2.6 2.34 -3.12 -1.56 -1.3 -2.08 Z', pivot: [0, 0], len: 7, layer: 6.1, fill: 'dark' },
         mesosoma: { d: 'M -10 0 C -10 -4 -6 -6 0 -6.6 C 6 -7 11 -4.4 11 0 C 11 4.4 6 7 0 6.6 C -6 6 -10 4 -10 0 Z', pivot: [0, 0], len: 10, layer: 5, fill: 'color' },
         petiole: { d: 'M -3 0 C -3 -2.6 -1.4 -3.4 0 -3.4 C 1.4 -3.4 3 -2.6 3 0 C 3 2.6 1.4 3.4 0 3.4 C -1.4 3.4 -3 2.6 -3 0 Z', pivot: [0, 0], len: 10, layer: 4, fill: 'color' },
         gaster: { d: 'M 11 0 C 11 8 4 12 -3 12 C -11 12 -17 7 -17 0 C -17 -7 -11 -12 -3 -12 C 4 -12 11 -8 11 0 Z', pivot: [0, 0], len: 10, layer: 3, fill: 'color',
@@ -132,26 +133,26 @@ var CARTOON_PARTS = (() => {
     },
 
     spider: {
+      // Two balls (the small head piece hides inside the front one, which carries the big eyes), noodle legs.
       side: {
-        abdomen: { d: 'M 22 0 C 22 13 12 22 -1 22 C -15 22 -27 13 -27 1 C -27 -12 -16 -24 -2 -24 C 12 -24 22 -14 22 0 Z', pivot: [0, 0], len: 10, layer: 3, fill: 'color',
-          spots: [{ d: 'M 8 -16 L 0 -10 L -8 -16 L -4 -18.4 L 0 -15.4 L 4 -18.4 Z', fill: 'mark' }, { d: 'M 2 -6 L -6 0 L -14 -6 L -10 -8.4 L -6 -5.4 L -2 -8.4 Z', fill: 'mark' }, { d: 'M -4 4 L -12 10 L -20 4 L -16 1.6 L -12 4.6 L -8 1.6 Z', fill: 'mark' }] },
-        cephalo: { d: 'M 16 -2 C 16 8 9 14 -1 14 C -10 14 -18 9 -18 0 C -18 -10 -12 -17 -2 -17 C 8 -17 16 -12 16 -2 Z', pivot: [0, 0], len: 10, layer: 4, fill: 'color',
-          lines: ['M -12 -6 C -6 -9 2 -9 8 -5'] },
+        abdomen: { d: 'M 23 -1 C 23 13 13 23 -1 23 C -15 23 -25 13 -25 -1 C -25 -15 -15 -25 -1 -25 C 13 -25 23 -15 23 -1 Z', pivot: [0, 0], len: 10, layer: 3, fill: 'color' },
+        cephalo: { d: 'M 17 -1 C 17 9 9 17 -1 17 C -11 17 -19 9 -19 -1 C -19 -11 -11 -19 -1 -19 C 9 -19 17 -11 17 -1 Z', pivot: [0, 0], len: 10, layer: 4, fill: 'color' },
         head: { d: 'M -7 3 C -8 -4 -3 -8 3 -8 C 8 -8 10.4 -3 10 2 C 9.6 6 -6 8 -7 3 Z', pivot: [0, 0], len: 10, layer: 5, fill: 'color' },
         fang: { d: 'M -2.6 0 C -2.6 -2.6 2.6 -2.6 2.6 0 L 1.6 8 C 1.4 9.6 0.2 10.6 -1.2 10.4 L -2 8 Z', pivot: [0, 0], len: 8, angle: D, layer: 5.1, fill: 'dark' },
-        femur: { d: 'M -3.2 0 C -3.2 -3.8 3.2 -3.8 3.2 0 L 2.2 42 C 2.2 44.6 -2.2 44.6 -2.2 42 Z', pivot: [0, 0], len: 42, angle: D, layer: 2, fill: 'color' },
-        tibia: { d: 'M -2.2 0 C -2.2 -2.8 2.2 -2.8 2.2 0 L 1 50 C 1 51.6 -1 51.6 -1 50 Z', pivot: [0, 0], len: 50, angle: D, layer: 2.1, fill: 'color', lines: ['M -1.6 14 L 1.6 14', 'M -1.3 30 L 1.3 30'] },
+        femur: { d: 'M -2.6 0 C -2.6 -3.4 2.6 -3.4 2.6 0 L 2.4 42 C 2.4 45 -2.4 45 -2.4 42 Z', pivot: [0, 0], len: 42, angle: D, layer: 2, fill: 'color' },
+        tibia: { d: 'M -2.4 0 C -2.4 -3 2.4 -3 2.4 0 L 2 50 C 2 53 -2 53 -2 50 Z', pivot: [0, 0], len: 50, angle: D, layer: 2.1, fill: 'color' },
         palp: { d: 'M -1.8 0 C -1.8 -2.4 1.8 -2.4 1.8 0 L 1.4 11 C 1.4 13.4 -1.4 13.4 -1.4 11 Z', pivot: [0, 0], len: 11, angle: D, layer: 6, fill: 'color' },
       },
     },
 
     bird: {
+      // Drop body with a big round head and two big eyes.
       side: {
         body: { d: 'M -14 -2 C -10 -10 4 -15 18 -16 C 30 -16.6 38 -9 38 1 C 38 11 30 17.6 18 17.6 C 6 17.6 -6 12 -14 -2 Z', pivot: [0, 0], len: 22, layer: 5, fill: 'color',
           spots: [{ d: 'M 14 6 C 22 4 32 4 36.6 6.4 C 34.6 13 27.6 16.6 18 16.6 C 12 16.6 8 14 7 12 C 8 9 10 7 14 6 Z', fill: 'belly' }] },
         neck: { d: 'M -2 -11 C 8 -11 16 -8.6 22 -7 C 25.6 -6 25.6 6 22 7 C 16 8.6 8 11 -2 11 C -6.4 11 -6.4 -11 -2 -11 Z', pivot: [0, 0], len: 25.6, layer: 5.1, fill: 'color' },
-        head: { d: 'M -10 0 C -10 -6 -5.6 -10 0 -10 C 5.6 -10 10 -6 10 0 C 10 6 5.6 10 0 10 C -5.6 10 -10 6 -10 0 Z', pivot: [0, 0], len: 10, layer: 5.2, fill: 'color',
-          spots: [{ d: 'M 1 3 C 4 2 8 2.4 9.6 2.8 C 9 6.6 5.6 9.4 1.6 9.6 C 0.4 7.4 0 5 1 3 Z', fill: 'belly' }] },
+        head: { d: 'M -12.5 0 C -12.5 -7.5 -7 -12.5 0 -12.5 C 7 -12.5 12.5 -7.5 12.5 0 C 12.5 7.5 7 12.5 0 12.5 C -7 12.5 -12.5 7.5 -12.5 0 Z', pivot: [0, 0], len: 10, layer: 5.2, fill: 'color',
+          spots: [{ d: 'M 1.25 3.75 C 5 2.5 10 3 12 3.5 C 11.25 8.25 7 11.75 2 12 C 0.5 9.25 0 6.25 1.25 3.75 Z', fill: 'belly' }] },
         beak: { d: 'M 7.6 -3.4 C 11.6 -3.6 16 -1.8 19.8 0 C 16 1.8 11.6 3.2 7.6 3 C 6.6 1.2 6.6 -1.6 7.6 -3.4 Z', pivot: [0, 0], len: 10, layer: 6, fill: 'beak', lines: ['M 8.4 0 L 15 0.2'] },
         wing: { d: 'M -2 -5 C 8 -8.4 22 -6.4 32 -1 C 34 0 33.6 2.6 31 2.6 C 22 3.2 10 6.4 0 6.2 C -5 6 -6 -3 -2 -5 Z', pivot: [0, 0], len: 30, layer: 7, fill: 'dark',
           lines: ['M 12 1.6 C 18 1 24 0.6 30 1', 'M 8 -2.6 C 14 -3 20 -2 26 -0.6'] },
