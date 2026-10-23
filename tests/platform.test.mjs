@@ -57,7 +57,8 @@ test('per-project fps: 30 fps variants get 900 frames on a 1/30 grid, 24 fps 720
     assert.equal(times.length,900);assert.equal(times[1],1/30);assert.equal(times[899],899/30);
   }
   assert.equal(frames('teste-movimento-a').length,720);assert.equal(frames('teste-movimento-b').length,720);
-  assert.deepEqual(['a','b','c','d'].map(v=>{const q=p.resolveProject('teste-movimento-'+v);return q.fps+(q.onTwos===false?' 1s':' 2s');}),['24 2s','24 1s','30 1s','30 2s']);
+  assert.deepEqual(['a','b','c','d'].map(v=>{const q=p.resolveProject('teste-movimento-'+v);return q.fps+(q.onTwos===true?' 2s':' 1s');}),['24 2s','24 1s','30 1s','30 2s']);
+  assert.equal(p.resolveProject('teste-movimento').fps,30);assert.notEqual(p.resolveProject('teste-movimento').onTwos,true);  // default: variant C
   assert.deepEqual(frameTimes([1,1.1],30),[1,1+1/30,1+2/30]);
 });
 test('CLI rejects invalid numeric ranges and keeps equals in paths',()=>{

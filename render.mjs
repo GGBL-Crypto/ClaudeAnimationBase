@@ -47,7 +47,7 @@ async function main() {
   const manifestPath = join(framesDir, 'manifest.json');
   let fps = number(args.fps ?? project.fps, 'fps', { min: 1, max: 120, integer: true });
   // twosTime holds drawings on the project's frame grid; another --fps would hold them unevenly.
-  if (project.style === 'cartoon' && project.onTwos !== false && fps !== project.fps) throw new Error('Cartoon em 2s usa o fps do projeto; registre uma variante com outro fps em vez de --fps');
+  if (project.style === 'cartoon' && project.onTwos === true && fps !== project.fps) throw new Error('Cartoon em 2s usa o fps do projeto; registre uma variante com outro fps em vez de --fps');
   let info = { ...project, width: 1920, height: 1080 };
   const source = sourceSnapshot(), stamp = source.hash;
   const assets=assetSnapshot(project.assetRefs),assetHash=assets.hash;

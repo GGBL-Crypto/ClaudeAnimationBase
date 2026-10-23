@@ -87,7 +87,7 @@ AnimationPlatform.registerProject({
 });
 AnimationPlatform.registerProject({
   id: 'modelos', title: 'Folha de modelos', story: 'Todos os seres andando no lugar, vistas superiores, multidão simplificada e as oito expressões do humano.',
-  duration: 8, fps: 24, bpm: 100, offset: 0, style: 'cartoon', compatibleStyles: ['cartoon'],
+  duration: 8, fps: 30, bpm: 100, offset: 0, style: 'cartoon', compatibleStyles: ['cartoon'],
   scripts: ['src/nature/noise.js', 'src/nature/path.js', 'src/nature/gait.js', 'src/nature/creature.js', 'src/nature/specs.js', 'src/nature/env.js', 'src/scenes/modelos.js'],
   reviewTimes: [.5, 4],
   storyboard: [
@@ -98,7 +98,7 @@ AnimationPlatform.registerProject({
 });
 const TESTE_MOVIMENTO = {
   id: 'teste-movimento', title: 'Teste de movimento', story: 'Pessoa e cão passeiam; ela para e aponta uma trilha de formigas; uma aranha cruza; um pássaro foge do cão; a chuva faz todos reagirem; um peixe nada sob a chuva.',
-  duration: 30, fps: 24, bpm: 100, offset: 0, style: 'cartoon', compatibleStyles: ['cartoon'],
+  duration: 30, fps: 30, bpm: 100, offset: 0, style: 'cartoon', compatibleStyles: ['cartoon'],
   scripts: ['src/nature/noise.js', 'src/nature/path.js', 'src/nature/gait.js', 'src/nature/creature.js', 'src/nature/specs.js', 'src/nature/env.js', 'src/scenes/teste-movimento.js'],
   reviewTimes: [2, 7, 12, 17, 22, 27],
   storyboard: [
@@ -123,7 +123,7 @@ const TESTE_MOVIMENTO = {
   ]
 };
 AnimationPlatform.registerProject(TESTE_MOVIMENTO);
-// fps and cadence test (Task 8f): A 24 fps on twos (= teste-movimento, 12 drawings/s), B 24 on ones, C 30 on ones,
+// fps and cadence test (Task 8f): A 24 fps on twos (12 drawings/s), B 24 on ones, C 30 on ones (= teste-movimento, chosen default),
 // D 30 on twos (15 drawings/s). All have the spring appendages of Part B.
 for (const [v, fps, onTwos] of [['a', 24, true], ['b', 24, false], ['c', 30, false], ['d', 30, true]])
   AnimationPlatform.registerProject({ ...TESTE_MOVIMENTO, id: 'teste-movimento-' + v, title: `Teste de movimento · ${v.toUpperCase()} · ${fps} fps em ${onTwos ? '2s' : '1s'}`, fps, onTwos });
