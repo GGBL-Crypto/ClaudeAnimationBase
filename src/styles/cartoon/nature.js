@@ -7,6 +7,7 @@
   const c = window.animationEngine.context, P = STYLE.palette, PI2 = Math.PI / 2, PARTS = CARTOON_PARTS;
   const dark = (col, k = .3) => mixCol(col, P.ink, k);
   const pale = col => mixCol(col, P.skyLow, .4);
+  const BROOD = mixCol(P.cream, P.cloud, .4);  // eggs, larvae and pupae
   const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 
   // Ellipses {e} and polygons {poly} (smooth: curves through midpoints) as one inked silhouette (rocks, clouds):
@@ -58,7 +59,7 @@
   }
   // Pieces of a pose by name: the authored side (and top) pieces, replaced by name by the imported character look.rig.
   function pieces(p, L) {
-    const A = PARTS[p.spec], R = L.rig && PARTS.rigs[L.rig], top = p.view !== 'side';
+    const A = PARTS[kind(p.spec)], R = L.rig && PARTS.rigs[L.rig], top = p.view !== 'side';
     if (L.rig && !R) throw new Error(`Personagem não carregado: ${L.rig} (chame NatureArt.load('${L.rig}') ao carregar a cena)`);
     if (R && R.spec !== p.spec) throw new Error(`O personagem ${L.rig} é ${R.spec}, não ${p.spec}`);
     return { ...A.side, ...(top && A.top), ...(R && R.side), ...(top && R && R.top) };
@@ -92,8 +93,10 @@
   // Group of pieces at the layer of its first piece (far side of a side view: 10 layers back).
   const grp = (list, back = false) => ({ z: list[0].q.layer - (back ? 10 : 0), list });
   // Outline: STYLE.outline.weight px on a main character (BL ≥ 200 px), thinner on small ones; inner lines half of it.
+  // Variants (queen, soldier...) draw with the pieces and decor of the creature they are like (spec.like).
+  const kind = id => decor[id] ? id : SPECS[id]?.like || id;
   const lw = p => clamp(p.size * .03, 1.5, STYLE.outline.weight), fwOf = p => p.size < 60 ? 0 : .5 * lw(p);
-  const headR = p => SPECS[p.spec].head.r * p.size * (decor[p.spec].headScale || 1);  // drawn head radius (Lia's is big)
+  const headR = p => SPECS[p.spec].head.r * p.size * (decor[kind(p.spec)].headScale || 1);  // drawn head radius (Lia's is big)
   // Appendage points are far (behind the body) when their side faces away from the camera in side view.
   const far = (p, name) => { const ap = SPECS[p.spec].appendages.find(a => a.name === name); return p.view === 'side' && (ap.side || 0) * p.facing < 0; };
   const pt = g => [g.x, g.y];
@@ -203,20 +206,32 @@
       },
     },
     ant: {
-      // Head, mesosoma, petiole and gaster are separate inked forms on a thin dark waist; far legs and antennae are
-      // thinner and paler so the side view does not tangle. All legs go behind the body.
-      look: { color: P.purple, dark: P.purpleDk },
+      // Head, mesosoma, petiole and gaster are separate inked forms on a thin waist; far legs and antennae are
+      // thinner and paler so the side view does not tangle. All legs go behind the body. Variants (spec.like = 'ant')
+      // scale each form by their segment or head radius against the worker's. Winged specs (flyer) carry two pale wings:
+      // folded along the back while walking, beating by wings.phase in flight (the far one behind the body).
+      // Look options: wings (false: shed, a queen after the nuptial flight), jaws (0..1, mandibles open), eyes (false: none).
+      look: { color: P.purple, dark: P.purpleDk, wing: mixCol(P.cloud, P.water, .25) },
       build(p, L) {
         const top = p.view !== 'side', Q = pieces(p, L), G = [], o = { L }, [th, pe, ga] = p.spine, hd = [p.head.x, p.head.y], S = p.size;
+        const Z = SPECS[p.spec], A = SPECS.ant, sc = i => ({ L, sc: Z.spine[i].r / A.spine[i].r }), kh = Z.head.r / A.head.r;
         for (const l of Object.values(p.limbs)) { const k = l.far ? { L, col: pale(L.color), wy: .7 } : o; G.push({ ...grp([pin(p, Q.femur, l.root, l.mid, k), pin(p, Q.tibia, l.mid, l.end, k)], l.far), z: l.far ? -8 : 2 }); }
         const antenna = (a, back) => () => { const pts = p.appendages[a], w = Math.max(1.2, (back ? .011 : .016) * S), col = back ? pale(L.color) : P.line; stroke(pts, w, col, false); dot(...pts.at(-1), w * 1.1, col); };
         for (const a of ['antennaL', 'antennaR']) G.push({ z: far(p, a) ? 1 : 7, draw: antenna(a, far(p, a)) });
         G.push(grp([pin(p, Q.stalk, pt(th), pt(ga), o), pin(p, Q.stalk, pt(th), hd, { L, wy: .9 })]));
-        const gaster = pin(p, Q.gaster, pt(ga), ga.angle, o), meso = pin(p, Q.mesosoma, pt(th), th.angle, o), head = pin(p, Q.head, hd, p.head.angle, o);
-        G.push(grp([gaster]), grp([pin(p, Q.petiole, pt(pe), pe.angle, o)]), grp([meso]), grp([head]));
-        const ha = turn(p, p.head.angle);
-        G.push(grp(top ? [-1, 1].map(s => pin(p, Q.mandible, at(head, 12.6, 5 * s), turn(p, ha + .35 * s), { L, wy: s })) : [pin(p, Q.mandible, at(head, 12.6, 7.8), turn(p, ha + .6), { L, wy: .8 })]));
-        if (!head.q.art) G.push({ z: 6.5, draw: () => {
+        const gaster = pin(p, Q.gaster, pt(ga), ga.angle, sc(2)), meso = pin(p, Q.mesosoma, pt(th), th.angle, sc(0)), head = pin(p, Q.head, hd, p.head.angle, { L, sc: kh });
+        G.push(grp([gaster]), grp([pin(p, Q.petiole, pt(pe), pe.angle, sc(1))]), grp([meso]), grp([head]));
+        const ha = turn(p, p.head.angle), jaw = L.jaws || 0, mk = { L, sc: (1 + .5 * (kh - 1)) * (Z.jaws || 1) };  // jaws grow slower than the head
+        G.push(grp(top ? [-1, 1].map(s => pin(p, Q.mandible, at(head, 12.6, 5 * s), turn(p, ha + (.35 + .55 * jaw) * s), { ...mk, wy: s })) : [pin(p, Q.mandible, at(head, 12.6, 7.8), turn(p, ha + .6 - .5 * jaw), { ...mk, wy: .8 })]));
+        if (Z.flyer && L.wings !== false) {
+          const w = p.wings, F = frameAt(p, th.x, th.y, th.angle), fl = Math.sin(TAU * w.phase), r0 = Z.spine[0].r * 100, g = Z.spine[2];
+          const back = (g.offset + g.r) * 100 + 4, rise = ((g.h || 0) - (Z.spine[0].h || 0)) * 100 + .85 * g.r * 100;  // folded tip: past the gaster, on its back
+          const wing = (s, dk) => pin(p, Q.wing, top ? at(F, 0, s * r0 * .4) : at(F, -2, -.9 * r0),
+            w.open ? (top ? at(F, -16, s * 55 * (.35 + .65 * Math.abs(Math.cos(TAU * w.phase)))) : at(F, -20, -52 * fl - 4)) : top ? at(F, -back, s * 9) : at(F, -back, -rise), { L, dk, wy: top ? -s : w.open ? 1 : .55 });
+          if (!top && w.open) G.push({ z: 2.5, list: [wing(-1, .2)] });
+          for (const s of top ? [-1, 1] : [1]) G.push({ z: 7, list: [wing(s, 0)] });
+        }
+        if (!head.q.art && L.eyes !== false) G.push({ z: 6.5, draw: () => {
           const w = Math.max(1.5, 1.4 * fwOf(p));  // big white eyes: both from above; in profile the far one toward the jaw
           if (top) for (const s of [-1, 1]) eyeAt(head, 5, 7 * s, 4.4, p.face.blink, w);
           else { eyeAt(head, 11, -6.5, 4.6, p.face.blink, w); eyeAt(head, 4, -5, 5.6, p.face.blink, w); }
@@ -280,6 +295,21 @@
         return G;
       },
     },
+    fly: {
+      // Phorid fly: humped thorax and striped abdomen in one silhouette, small head with one big eye, legs dangling as ink
+      // lines, wings beating by wings.phase like the bird's (the far one behind the body).
+      look: { color: mixCol(P.brown, P.ink, .45), dark: P.line, wing: mixCol(P.cloud, P.water, .25) },
+      build(p, L) {
+        const Q = pieces(p, L), G = [], o = { L }, [th, ab] = p.spine, w = p.wings, F = frameAt(p, th.x, th.y, th.angle), fl = Math.sin(TAU * (w ? w.phase : 0));
+        const wing = dk => pin(p, Q.wing, at(F, -2, -11), w && w.open ? at(F, -14, -34 * fl - 6) : at(F, -30, -10), { L, dk });
+        G.push({ z: 2.5, list: [wing(.25)] });
+        G.push({ z: 3, draw: () => { for (const dx of [7, 0, -7]) stroke([at(F, dx, 8), at(F, dx + 5, 17), at(F, dx - 1, 25)], Math.max(1, .022 * p.size), L.dark, false); } });
+        const head = pin(p, Q.head, [p.head.x, p.head.y], p.head.angle, o);
+        G.push(grp([pin(p, Q.abdomen, pt(ab), ab.angle, o), pin(p, Q.thorax, pt(th), th.angle, o)]), grp([head]), { z: 7, list: [wing(0)] });
+        if (!head.q.art) G.push({ z: 6.5, draw: () => eyeAt(head, 3, -1.5, 5.6, p.face.blink, Math.max(1.2, 1.4 * fwOf(p))) });
+        return G;
+      },
+    },
   };
 
   // Flat crowd form: no outline or face; limbs as thin lines.
@@ -312,18 +342,18 @@
     const e = p.emote, r = headR(p), f = p.view === 'side' ? p.facing : 1, k = Math.min(e.k, ease(e.a));
     if (k <= 0) return;
     if (e.sym === 'sweat') {
-      const s = k * r * .3, x = p.head.x - f * r * .7, y = p.head.y - r * .5 + r * .5 * (1 - e.a) - (decor[p.spec].neck || 0) * p.size / 100;
+      const s = k * r * .3, x = p.head.x - f * r * .7, y = p.head.y - r * .5 + r * .5 * (1 - e.a) - (decor[kind(p.spec)].neck || 0) * p.size / 100;
       Kit.poly([[x - s * .7, y - s * .2], [x, y - s * 1.9], [x + s * .7, y - s * .2]], P.water, { stroke: false }); Kit.ellipse(x, y, s * .72, s * .8, P.water);
     } else {  // emoteAt = [ahead, up, size] in head radii
-      const [ex, ey, es] = decor[p.spec].emoteAt || [1.2, 1.9, 1.6];
-      c.save(); c.translate(p.head.x + f * r * ex, p.head.y - r * ey - (decor[p.spec].neck || 0) * p.size / 100); c.scale(k, k); Kit.text({ note: '♪', zzz: 'z z z' }[e.sym] || e.sym, 0, 0, Math.max(14, r * es), P.ink); c.restore();
+      const D = decor[kind(p.spec)], [ex, ey, es] = D.emoteAt || [1.2, 1.9, 1.6];
+      c.save(); c.translate(p.head.x + f * r * ex, p.head.y - r * ey - (D.neck || 0) * p.size / 100); c.scale(k, k); Kit.text({ note: '♪', zzz: 'z z z' }[e.sym] || e.sym, 0, 0, Math.max(14, r * es), P.ink); c.restore();
     }
   }
 
   // p.smear (smear() in creature.js): the earlier poses of a fast move drawn first, in full colour and ink, so the
   // limbs that moved repeat behind the drawing (2000s TV smear); the parts that stayed hide under it.
   function creature(p, look = {}, ghost = false) {
-    const D = decor[p.spec]; if (!D) throw new Error(`Sem desenho para o ser ${p.spec}`);
+    const D = decor[kind(p.spec)]; if (!D) throw new Error(`Sem desenho para o ser ${p.spec}`);
     if (p.smear && !ghost) for (const q of [...p.smear].reverse()) creature(q, look, true);
     const L = { ...D.look, ...look }, sq = p.sq || 0;
     if (sq) {  // squash (sq > 0) e stretch (sq < 0) a partir do chão sob o corpo, preservando o volume
@@ -492,6 +522,104 @@
       const pts = []; for (let d = 0; d <= path.length; d += 12) { const q = path.at(d); pts.push([q.x, q.y]); }
       const q = path.at(path.length); pts.push([q.x, q.y]);
       stroke(pts, width + 10, mixCol(P.wood, P.ink, .6)); stroke(pts, width, mixCol(P.wood, P.ink, .15));
+    },
+    // Nest chamber dug in soil(): a cavity with its flat floor at y, w wide and h high around x, with the dark rim and the
+    // lit inside of tunnel(). waste (0..1) heaps dark refuse on the floor (the waste chamber).
+    chamber(x, y, w, h, seed = 0, waste = 0) {
+      const pts = []; for (let i = 0; i < 14; i++) { const a = i * TAU / 14, k = .9 + .18 * hash(seed + i * 2.3); pts.push([x + Math.cos(a) * w / 2 * k, Math.min(y + 6, y - h / 2 + Math.sin(a) * h / 2 * k)]); }
+      shape({ smooth: true, poly: pts }); c.lineJoin = 'round'; c.lineWidth = 10; c.strokeStyle = mixCol(P.wood, P.ink, .6); c.stroke(); c.fillStyle = mixCol(P.wood, P.ink, .15); c.fill();
+      if (waste <= 0) return;
+      const hw = .42 * w, top = u => y - waste * .45 * h * (1 - u * u), cols = [mixCol(P.wood, P.ink, .6), mixCol(P.stone, P.ink, .35), mixCol(P.leafDk, P.ink, .55), mixCol(P.cream, P.wood, .5)];
+      const mound = []; for (let i = 0; i <= 12; i++) { const u = i / 6 - 1; mound.push([x + u * hw, i % 12 ? top(u) : y + 4]); }
+      Kit.poly(mound, mixCol(P.wood, P.ink, .45), { stroke: false, smooth: true });
+      for (let i = 0, n = Math.round(waste * w / 5); i < n; i++) { const u = 2 * hash(seed + i * 1.7) - 1, py = lerp(y, top(u), hash(seed + i * 2.9)); dot(x + u * hw, py, 2.5 + 4 * hash(seed + i * 3.3), cols[i % 4]); }
+    },
+    // Roots from (x, y) down into the soil, len px long when grown; grow (0..1) extends them tip first (map t to it). Each
+    // root wanders by noise and forks twice, thinner each time: one pale silhouette with an ink edge.
+    roots(x, y, len, grow = 1, seed = 0) {
+      const lines = [];
+      const root = (px, py, a, L, w, d, k, sd) => {
+        if (k <= 0) return;
+        const n = 10, m = n * Math.min(1, k), pts = [[px, py]], forks = [];
+        for (let i = 1; i <= Math.ceil(m); i++) {
+          const f = Math.min(1, m - i + 1); a += .25 * noise1(sd, i * .4); px += f * Math.cos(a) * L / n; py += f * Math.sin(a) * L / n; pts.push([px, py]);
+          if (!d && (i === 3 || i === 6) && f === 1) forks.push([px, py, a + (i === 3 ? 1 : -1) * (.6 + .4 * hash(sd + i)), (k - i / n) / .55]);
+        }
+        lines.push([pts, w]);
+        for (const [fx, fy, fa, fk] of forks) root(fx, fy, fa, L * .55, w * .6, d + 1, fk, sd * 1.7 + fa);
+      };
+      for (let j = 0; j < 3; j++) root(x + (j - 1) * len * .04, y, PI2 + (j - 1) * .4 + .3 * (hash(seed + j) - .5), len * (.7 + .3 * hash(seed + j + 5)), clamp(len * .03, 4, 14), 0, grow, seed * 3 + j + 1);
+      for (const [pts, w] of lines) stroke(pts, w + 5, P.line);
+      for (const [pts, w] of lines) stroke(pts, w, mixCol(P.wood, P.cream, .45));
+    },
+    // Fungus garden: a pale sponge of bubbles heaped on the floor at (x, y), up to w wide and h high, with pores; grow
+    // (0..1) raises it from the floor, the bubbles breathe slowly with t; parasite (0..1) spreads a dark Escovopsis patch.
+    fungus(x, y, w, h, t, seed = 0, grow = 1, parasite = 0) {
+      if (grow <= 0) return;
+      const n = Math.round(clamp(w * h / 1500, 12, 90)), B = [], base = mixCol(P.cream, P.cloud, .5), tone = mixCol(P.cream, P.wood, .18), pore = mixCol(P.cream, P.wood, .5);
+      for (let i = 0; i < n; i++) {
+        const u = 2 * hash(seed + i * 3.1) - 1, v = hash(seed + i * 5.7) * Math.sqrt(1 - u * u), r = (.07 + .05 * hash(seed + i * 1.9)) * Math.min(w, 1.6 * h) * (1 + .03 * Math.sin(t * 1.3 + i)) * grow;
+        B.push({ e: [x + u * (w / 2 - r), y - (v * (h - r) + .8 * r) * grow, r, .85 * r], fill: i % 4 ? base : tone, i });
+      }
+      B.sort((a, b) => a.e[1] - b.e[1]);  // the lower bubbles in front
+      parts(B, clamp(w * .005, 1.5, 3.5));
+      for (const { e: [bx, by, r], i } of B) { dot(bx + .3 * r * Math.cos(i), by + .25 * r * Math.sin(i * 1.7), .12 * r, pore); if (i % 2) dot(bx - .35 * r, by + .3 * r, .08 * r, pore); }
+      if (parasite <= 0) return;
+      const s = B[Math.floor(hash(seed + 99) * B.length)].e, R = parasite * .22 * Math.min(w, h) * grow, mold = mixCol(P.leafDk, P.ink, .5);
+      for (let i = 0; i < 9; i++) { const a = i * 2.4, d = R * .6 * hash(seed + i * 7.1); dot(s[0] + Math.cos(a) * d, s[1] + Math.sin(a) * d * .8, R * (.35 + .3 * hash(seed + i * 4.3)), mold); }
+      for (let i = 0; i < 5; i++) dot(s[0] + R * .7 * (hash(seed + i) - .5), s[1] + R * .6 * (hash(seed + i + 9) - .5), R * .08, mixCol(mold, P.cloud, .5));
+    },
+    // Egg (about 0.04 BL of the worker) standing on y, r its half width: it rocks on its base by noise; hatch (0..1) cracks
+    // it across, then tips the cap open.
+    egg(x, y, r, t, seed = 0, hatch = 0) {
+      const ry = 1.4 * r, cy = y - ry, w = clamp(r * .16, 1, 3), zy = -.25, u0 = Math.asin(zy);
+      c.save(); c.translate(x, y); c.rotate(.18 * noise1(seed, t * .7)); c.translate(-x, -y);
+      const arc = (a0, a1) => Array.from({ length: 13 }, (_, i) => { const u = a0 + (a1 - a0) * i / 12; return [x + r * Math.cos(u), cy + ry * Math.sin(u)]; });
+      const zig = Array.from({ length: 7 }, (_, i) => [x - r * Math.cos(u0) + 2 * r * Math.cos(u0) * i / 6, cy + ry * (zy + (i & 1 ? -.1 : .1))]);  // left to right
+      if (hatch < .3) {
+        parts([{ e: [x, cy, r, ry], fill: BROOD }], w); dot(x + .35 * r, cy - .45 * ry, .18 * r, P.cloud);
+        if (hatch > 0) stroke(zig.slice(0, 1 + Math.round(6 * hatch / .3)), w, P.line, false);
+      } else {
+        const L = zig[0], k = (hatch - .3) / .7;
+        parts([{ poly: [...arc(u0, Math.PI - u0), ...zig], fill: BROOD }], w);
+        c.save(); c.translate(L[0], L[1] - .3 * ry * k); c.rotate(-1.3 * k); c.translate(-L[0], -L[1]);
+        parts([{ poly: [...arc(Math.PI - u0, TAU + u0), ...zig.slice().reverse()], fill: BROOD }], w); c.restore();
+      }
+      c.restore();
+    },
+    // Larva lying on y, size = its length in px (about 0.3 BL of the worker): a C of five segments opening toward facing,
+    // with a small head at the top end; it curls and stretches by a sine (breathing) and the head nods by noise.
+    larva(x, y, size, t, seed = 0, facing = 1) {
+      const th = 2.5 + .45 * Math.sin(TAU * t / 2.4 + seed), R = size / th, rs = [.15, .2, .22, .2, .16].map(v => v * size);
+      const segs = rs.map((r, i) => { const a = Math.PI - th / 2 + th * i / 4; return [Math.cos(a), Math.sin(a), r]; });
+      const cy = y - Math.max(...segs.map(([, s, r]) => R * s + r)), on = a => [x + facing * R * Math.cos(a), cy + R * Math.sin(a)];
+      const hp = on(Math.PI + th / 2 + .38 + .15 * noise1(seed, t * .8)), lw = clamp(size * .03, 1.2, 4);
+      parts([...segs.map(([cx, sy, r]) => ({ e: [x + facing * R * cx, cy + R * sy, r, r], fill: BROOD })), { e: [...hp, .12 * size, .11 * size], fill: mixCol(BROOD, P.wood, .35) }], lw);
+      for (let i = 0; i < 4; i++) {  // segment rings across the body
+        const a = Math.PI - th / 2 + th * (i + .5) / 4, r = .63 * (rs[i] + rs[i + 1]) / 2, m = on(a), d = [facing * Math.cos(a), Math.sin(a)];
+        stroke([[m[0] - d[0] * r, m[1] - d[1] * r], [m[0] + d[0] * r, m[1] + d[1] * r]], .5 * lw, P.line, false);
+      }
+      dot(hp[0] + facing * .05 * size, hp[1] + .03 * size, .025 * size, P.line);
+    },
+    // Pupa: the worker's pose folded (alive 0: legs under the body), pale and without eyes; still, but it twitches.
+    pupa(x, y, size, t, seed = 0, facing = 1) {
+      const path = makePath([[x - facing * 1e3, y], [x + facing * 1e3, y]]);
+      c.save(); c.translate(x, y); c.rotate(.06 * noise1(seed, t * .6)); c.translate(-x, -y);
+      creature(creaturePose(SPECS.ant, { path, s: 1e3 / size, size, ground: () => y, alive: 0, moving: 0, t, seed }), { color: BROOD, dark: mixCol(BROOD, P.wood, .3), eyes: false });
+      c.restore();
+    },
+    // Minima riding the leaf a carrier holds (p.carry): it stands on the leaf's top edge, still; only its antennae and
+    // mandibles move. k: its size relative to the carrier's.
+    rider(p, t, seed = 0, k = .3) {
+      const C = p.carry; if (!C) return;
+      const a = p.view === 'side' ? (p.facing < 0 ? Math.PI : 0) : C.angle, ca = Math.cos(a), sa = Math.sin(a), size = k * p.size;
+      const x = C.x - ca * .12 * C.w, y = C.y - sa * .12 * C.w, ground = gx => { const u = clamp((gx - C.x) / C.w + .5); return C.y - 2 * C.h * u * (1 - u); };
+      const path = makePath([[x - ca * 1e3, y - sa * 1e3], [x + ca * 1e3, y + sa * 1e3]]);
+      creature(creaturePose(SPECS.minima, { path, s: 1e3 / size, size, view: p.view, ground, moving: 0, t, seed }), { jaws: .5 + .5 * noise1(seed + 9, t * 1.4) });
+    },
+    // A shed wing (queen after the nuptial flight), its base at (x, y), len px long, at angle; flutter() makes it fall.
+    wing(x, y, len, angle = 0, color = decor.ant.look.wing) {
+      const q = PARTS.ant.side.wing; cut([place(q, [x, y], angle, len / q.len, 1, 1, color)], clamp(len * .03, 1.2, 3), clamp(len * .015, .8, 2));
     },
   };
 })();

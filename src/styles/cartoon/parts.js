@@ -135,6 +135,9 @@ var CARTOON_PARTS = (() => {
           spots: [{ d: 'M -2.6 -12.8 C -0.6 -6 -0.6 4 -2.2 11.2 L -5.6 10.6 C -4 4 -4 -6 -5.8 -12.2 Z', fill: 'dark' }, { d: 'M -10.6 -9.8 C -9 -4 -9 3 -10.4 8.6 L -12.8 7 C -11.6 2 -11.6 -3.6 -12.8 -8 Z', fill: 'dark' }] },
         femur: { d: 'M -1.9 0 C -1.9 -2.4 1.9 -2.4 1.9 0 L 1.4 17 C 1.4 18.8 -1.4 18.8 -1.4 17 Z', pivot: [0, 0], len: 17, angle: D, layer: 2, fill: 'color' },
         tibia: { d: 'M -1.4 0 C -1.4 -1.8 1.4 -1.8 1.4 0 L 0.9 18 C 2 19.2 2.8 20.2 3.4 21.4 L 2 22 C 1.4 21 0.8 20.4 -0.4 19.6 L -1 18 Z', pivot: [0, 0], len: 21, angle: D, layer: 2.1, fill: 'color' },
+        // Wing of queens and alates (also from above): a long pale blade from the thorax, with two veins.
+        wing: { d: 'M -2 -3 C 10 -8 34 -9.4 50 -5 C 55.4 -3.4 55.4 3 50 4.2 C 34 7.4 12 6.4 -2 3 C -4 1.6 -4 -1.6 -2 -3 Z', pivot: [0, 0], len: 50, layer: 7, fill: 'wing',
+          lines: ['M 4 -1 C 16 -4 32 -5 44 -3', 'M 8 1.6 C 18 1 28 1.8 36 3'] },
       },
       top: {
         head: { d: 'M -11.9 0 C -11.9 -11.22 -5.1 -14.62 3.4 -14.62 C 11.9 -14.62 17 -8.5 17 0 C 17 8.5 11.9 14.62 3.4 14.62 C -5.1 14.62 -11.9 11.22 -11.9 0 Z', pivot: [0, 0], len: 10, layer: 6, fill: 'color' },
@@ -193,6 +196,18 @@ var CARTOON_PARTS = (() => {
         dorsal: { d: 'M 8 -9 C 14 -22 24 -28 36 -27 C 34 -21 33 -17 34 -12.6 Z', pivot: [0, 0], len: 40, layer: 1.1, fill: 'fin', lines: ['M 18 -13 C 20 -18 23 -22 27 -24.6'] },
         anal: { d: 'M 0 6 L 13.6 8 C 12 9.6 11 12 11 16 C 6 15.6 2 12 0 6 Z', pivot: [0, 0], len: 40, layer: 1.2, fill: 'fin' },
         pectoral: { d: 'M 0 -2.2 C 4 -4.4 9 -4.6 11.4 -1.2 C 11.6 2 6.4 4.2 0 2.2 C -1.6 1 -1.6 -1 0 -2.2 Z', pivot: [0, 0], len: 8, layer: 6, fill: 'fin' },
+      },
+    },
+
+    fly: {
+      // Phorid fly: humped thorax, striped abdomen, small head with one big eye, two beating wings.
+      side: {
+        thorax: { d: 'M 14 2 C 13 9 6 12 -2 12 C -10 12 -14 8 -14 3 C -14 -6 -6 -17 4 -16 C 11 -15 15 -7 14 2 Z', pivot: [0, 0], len: 10, layer: 5, fill: 'color' },
+        abdomen: { d: 'M 9 0 C 9 7 2 11 -8 11 C -18 11 -26 6 -26 1 C -26 -5 -19 -10 -8 -10 C 2 -10 9 -6 9 0 Z', pivot: [0, 0], len: 10, layer: 4, fill: 'color',
+          spots: [{ d: 'M -4 -10 C -2.6 -4 -2.6 4 -4 10.8 L -8 11 C -6.4 4 -6.4 -4 -8 -10 Z', fill: 'dark' }, { d: 'M -14 -8.6 C -12.6 -3 -12.6 3 -14 9.4 L -17.4 8.6 C -16 3 -16 -3 -17.4 -7.8 Z', fill: 'dark' }] },
+        head: { d: 'M 9 0 C 9 6 5 9 0 9 C -5 9 -8 6 -8 0 C -8 -6 -5 -9 0 -9 C 5 -9 9 -6 9 0 Z', pivot: [0, 0], len: 10, layer: 6, fill: 'color' },
+        wing: { d: 'M -2 -4 C 8 -10 26 -11.4 36 -5 C 40 -2 40 3 36 5 C 26 9 8 8 -2 4 C -4 2 -4 -2 -2 -4 Z', pivot: [0, 0], len: 36, layer: 7, fill: 'wing',
+          lines: ['M 4 -2 C 14 -5 24 -5 32 -2'] },
       },
     },
 

@@ -107,3 +107,31 @@ var SPECS = {
     ],
   },
 };
+
+// Variantes da formiga: a especificação da formiga com trocas; like = 'ant' diz ao desenho que peças usar (cada peça em
+// escala pelo raio do seu segmento ou da cabeça, comparado ao da formiga). flyer = tem asas (o.gait = 'fly' voa como a
+// ave; andando, as asas ficam dobradas no dorso; o desenho as tira com look.wings = false). jaws = escala extra das mandíbulas.
+(() => {
+  const A = SPECS.ant, head = (k, h = A.head.h) => ({ offset: A.head.offset - (k - 1) * A.head.r * .7, r: A.head.r * k, h });
+  const antennae = k => A.appendages.map(ap => ({ ...ap, at: ap.at.map(v => v * k) }));  // da cabeça maior, mesmo comprimento
+  const variant = (id, o) => ({ ...A, id, like: 'ant', ...o });
+  Object.assign(SPECS, {
+    // Rainha: tórax de voo e gáster grande (use size ~2× o da operária); voa no voo nupcial e anda sem asas depois.
+    queen: variant('queen', { flyer: { freq: 7, hover: .05 }, spine: [{ offset: 0, r: .11, h: .17 }, { offset: .2, r: .04, h: .17 }, { offset: .44, r: .2, h: .22 }] }),
+    // Alado (macho ou rainha virgem): tórax de voo; o.gait = 'fly' bate as asas pelo caminho.
+    alate: variant('alate', { flyer: { freq: 9, hover: .08 }, spine: [{ offset: 0, r: .1, h: .16 }, A.spine[1], A.spine[2]] }),
+    // Soldado: cabeça 1,8× (mais à frente e mais alta) e mandíbulas grandes.
+    soldier: variant('soldier', { head: head(1.8, .2), jaws: 1.2, appendages: antennae(1.8) }),
+    // Mínima: cabeça um pouco maior; a caroneira da folha (size ~0,3× o da carregadora).
+    minima: variant('minima', { head: head(1.15), appendages: antennae(1.15) }),
+  });
+})();
+
+// Mosca forídea: corcunda, sem pernas na pose; voa sempre (gait 'fly'), com a deriva do pairar (flyer.hover, em BL).
+// Mergulho: o caminho desce e s acelera (ver modelos.js).
+SPECS.fly = {
+  id: 'fly', gait: 'fly', flyer: { freq: 12, hover: .3 }, views: ['side'], stride: 0, lift: 0,
+  spine: [{ offset: 0, r: .15 }, { offset: .24, r: .13 }],  // tórax, abdome
+  head: { offset: -.17, r: .09 },
+  limbs: [], appendages: [],
+};

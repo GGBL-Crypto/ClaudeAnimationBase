@@ -5,7 +5,7 @@ import { natureContext } from './nature-helpers.mjs';
 const ctx = natureContext(['src/nature/noise.js', 'src/nature/path.js', 'src/nature/gait.js', 'src/nature/creature.js', 'src/nature/specs.js']);
 const flat = () => 600, P = ctx.makePath([[0, 600], [4000, 600]]);
 const pose = (id, s, extra = {}) => ctx.creaturePose(ctx.SPECS[id], { path: P, s, size: 120, view: 'side', ground: flat, t: s, seed: 1, ...extra });
-const legged = ['human', 'dog', 'ant', 'spider', 'bird'];
+const legged = ['human', 'dog', 'ant', 'spider', 'bird', 'queen', 'alate', 'soldier', 'minima'];
 
 test('poses are deterministic and order independent', () => { for (const id of Object.keys(ctx.SPECS)) { const a = JSON.stringify(pose(id, 3.3)); pose(id, 40); assert.equal(JSON.stringify(pose(id, 3.3)), a); } });
 test('stance feet touch the ground', () => { for (const id of legged) for (const l of Object.values(pose(id, 2.2).limbs)) if (l.stance) assert.ok(Math.abs(l.end[1] - 600) < .5, id); });
@@ -115,4 +115,18 @@ test('hands take a pose from the gesture (point) or o.hands (fist), open by defa
 test('talk: mouth shapes from a stable seed, several per second, closed outside the line', () => {
   const ms = Array.from({ length: 48 }, (_, i) => ctx.talk(3 + i / 24, 1, 3, 7));
   assert.ok(new Set(ms).size >= 3, ms.join()); assert.equal(ctx.talk(.5, 1, 3, 7), null); assert.equal(ctx.talk(4.2, 1, 3, 7), ctx.talk(4.2, 1, 3, 7));
+});
+test('ant variants: the queen walks on the tripod gait with feet on the ground; alates fly with the bird flight', () => {
+  const q = pose('queen', 1.2, { size: 240 }).limbs; assert.equal(q.L1.stance, q.R2.stance); assert.notEqual(q.L1.stance, q.R1.stance);
+  for (const l of Object.values(q)) if (l.stance) assert.ok(Math.abs(l.end[1] - 600) < .5);
+  assert.equal(pose('queen', 1.2).wings.open, 0);
+  const a = pose('alate', 2, { gait: 'fly' }); assert.equal(a.wings.open, 1); assert.ok(Object.values(a.limbs).every(l => !l.stance));
+  assert.ok(pose('soldier', 2).spine[0].x - pose('soldier', 2).head.x < pose('ant', 2).spine[0].x - pose('ant', 2).head.x, 'cabeça do soldado mais à frente');
+});
+test('the fly hovers without a gait: no feet, wings beating, the body drifts at a fixed s', () => {
+  const ps = [0, .4, .8, 1.2, 1.6].map(t => pose('fly', 2, { t }));
+  assert.equal(Object.keys(ps[0].limbs).length, 0); assert.equal(ps[0].wings.open, 1);
+  const xs = ps.map(p => p.head.x), ys = ps.map(p => p.head.y), range = a => Math.max(...a) - Math.min(...a);
+  assert.ok(range(ys) > 2 && range(xs) > 2 && range(ys) < .7 * 120, `deriva ${range(xs)} ${range(ys)}`);
+  assert.ok(new Set(ps.map(p => p.wings.phase.toFixed(3))).size > 2, 'asas batendo');
 });

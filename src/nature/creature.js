@@ -73,8 +73,10 @@ function creaturePose(spec, o) {
   // Desloca p em BL: dx à frente; dy para baixo na vista lateral, para a direita do ser na vista superior.
   const local = (p, a, dx, dy) => sv ? [p[0] + dir * dx * size, p[1] + dy * size]
     : [p[0] + (Math.cos(a) * dx - Math.sin(a) * dy) * size, p[1] + (Math.sin(a) * dx + Math.cos(a) * dy) * size];
+  // Pairar: no voo, o corpo inteiro deriva até flyer.hover BL em torno do caminho, por ruído (parado no ar, não fica fixo).
+  const hv = flying && spec.flyer.hover ? [noise1(seed + 71, t * .9), noise1(seed + 72, t * 1.3)].map(v => v * spec.flyer.hover * size) : [0, 0];
   // O tronco inclina à frente (mais quanto mais alto o segmento); os ombros (attach 0) giram contra os quadris.
-  const place = (back, h) => { const p = at((sB - back) * size), gy = groundAt(p); return { x: p.x + (lean ? dir * lean * size * (h - low + .1) : 0), y: sv && !air ? gy - h * size : p.y, a: p.angle, gy }; };
+  const place = (back, h) => { const p = at((sB - back) * size), gy = groundAt(p); return { x: p.x + hv[0] + (lean ? dir * lean * size * (h - low + .1) : 0), y: (sv && !air ? gy - h * size : p.y) + hv[1], a: p.angle, gy }; };
   const rootOf = (lb, g) => sv ? local([g.x + dir * lb.side * (lb.attach ? 1 : -1) * twist, g.y], 0, lb.along, -(lb.h || 0)) : local([g.x, g.y], g.a, lb.along, -lb.side * spec.spine[lb.attach].r * .5);
 
   // Coluna; nadadores ondulam numa onda viajante que cresce da cabeça para a cauda. A onda é lateral: inteira na vista

@@ -1,5 +1,5 @@
 // Model sheet: every creature spec walking in place (the ground scrolls), top views, a small crowd and the human's
-// eight expressions. Review aid for NatureArt; one shot.
+// eight expressions (t < 4); then the leafcutter ant pilot elements (t >= 4). Review aid for NatureArt; one shot.
 (() => {
   const P = STYLE.palette, A = () => NatureArt;
   // A creature walking in place at screen x = X: the path slides back by s, so planted feet move with the ground marks.
@@ -63,5 +63,55 @@
       A().creature(w.pose); Kit.text(e, X + 10, 752, 22, P.ink);
     });
   }
-  shots([[0, sheet]]);
+  // Page 2 (t >= 4): the leafcutter ant pilot. Above ground: the cut that vibrates, a carrier with a minima riding its
+  // leaf and a phorid fly hovering then diving at it, a soldier opening its jaws, a winged queen and alates on a spiral.
+  // Below, in soil: roots growing from the tree, the brood chamber (eggs, one hatching, larvae, pupae, the wingless queen
+  // and her shed wings falling), the fungus garden with a growing parasite patch and the waste chamber.
+  function episode(t) {
+    const gy = 330, u = t - 4, labels = [], txt = (s, x, y) => labels.push([s, x, y]);
+    Kit.gradient(); A().cloud(1150, 90, .6, 3);
+    A().ground(() => gy, 0, W);
+    A().soil(0, gy + 14, W, H - gy - 14, 7);
+    A().tree(170, gy, 290, .05 * noise1(1, t * .3), 4);
+    // Cut on a leaf: ripples spread from the bite (the vibration that calls helpers).
+    Kit.line([[430, gy], [438, 215]], P.leafDk, 6);
+    A().leafPiece(470, 200, 110, 46, -.25, P.leaf, .5);
+    for (let i = 0; i < 3; i++) A().ripple(476, 180, frac(u * 1.2 + i / 3));
+    txt('corte · vibração', 450, gy + 40);
+    // Carrier with a minima on the leaf; the phorid hovers, dives at the rider and climbs back (2 s cycle).
+    const car = walker('ant', 760, gy, 150, .8, { t, carry: { w: 1, h: .4 } });
+    A().creature(car.pose); A().rider(car.pose, t, 5);
+    const dive = makePath([[905, 120], [860, 160], [795, 222]]), c2 = frac(u / 2), k = c2 < .6 ? 0 : c2 < .75 ? easeIn((c2 - .6) / .15) : 1 - ease((c2 - .75) / .25);
+    A().creature(creaturePose(SPECS.fly, { path: dive, s: k * dive.length / 60, size: 60, t, seed: 4 }));
+    txt('carregadora + mínima · forídea', 790, gy + 40);
+    A().creature(walker('soldier', 1090, gy, 160, .7, { t, seed: 6 }).pose, { jaws: .5 + .5 * Math.sin(TAU * t * .8) });
+    txt('soldado', 1080, gy + 40);
+    A().creature(walker('queen', 1390, gy, 230, .5, { t, seed: 2 }).pose);
+    txt('rainha alada', 1400, gy + 40);
+    // Alates (males and young queens) climbing a spiral.
+    const spiral = makePath(Array.from({ length: 25 }, (_, i) => { const a = i / 24 * 3 * TAU; return [1720 + 120 * Math.cos(a), 290 - 180 * i / 24 + 25 * Math.sin(a)]; }));
+    for (let j = 0; j < 3; j++) { const sz = [70, 60, 80][j]; A().creature(creaturePose(SPECS.alate, { path: spiral, s: (frac(u * .12 + .27 * j) * spiral.length) / sz, size: sz, t, seed: 10 + j, gait: 'fly' })); }
+    txt('alados', 1720, 40);
+
+    // Nest: tunnels, then the chambers on them, then the roots poking in.
+    for (const pts of [[[640, gy + 4], [620, 420], [520, 500]], [[630, 420], [780, 560], [880, 640]], [[1230, 700], [1380, 740], [1480, 770]]]) A().tunnel(makePath(pts), 34);
+    A().chamber(420, 740, 580, 260, 1);
+    A().chamber(1000, 820, 560, 330, 2);
+    A().chamber(1660, 840, 400, 220, 3, 1);
+    A().roots(170, gy + 14, 340, clamp(u / 3), 5);
+    // Brood: eggs (one hatching), larvae, pupae, and the queen without wings, her wings falling (flutter) to the floor.
+    for (let i = 0; i < 4; i++) A().egg(180 + i * 22 + (i & 1) * 6, 740, 8, t, i, i === 3 ? clamp((u - 1) / 2) : 0);
+    A().larva(300, 740, 50, t, 1, 1); A().larva(360, 740, 46, t, 2, -1);
+    A().pupa(430, 740, 72, t, 3);
+    txt('ovos · larvas · pupa', 320, 775);
+    for (const s of [0, 1]) { const f = flutter(t, 4.2 + .3 * s, [560 + 40 * s, 520], 734, 20 + s); A().wing(f.x, f.y, 70, f.landed ? -.05 * s : f.angle + .3 * s); }
+    A().creature(walker('queen', 590, 740, 190, .4, { t, seed: 8 }).pose, { wings: false });  // over her shed wings
+    txt('rainha sem asas', 590, 775);
+    A().fungus(1000, 815, 440, 250, t, 3, 1, clamp(u / 4));
+    txt('jardim de fungo + parasita', 1000, 850);
+    txt('câmara de lixo', 1660, 870);
+    txt('raízes', 120, 700);
+    for (const [s, x, y] of labels) Kit.text(s, x, y, 22, P.ink);
+  }
+  shots([[0, t => (t < 4 ? sheet : episode)(t)]]);
 })();
