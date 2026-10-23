@@ -27,8 +27,9 @@ Sessão coordenadora: **Opus 5.5, effort medium**. Ela não escreve código de t
 | 8b Direção de arte do cartoon | Opus 5.5 · high | coordenador abre as folhas + usuário |
 | 8c Movimento orgânico | Opus 5.5 · high | coordenador abre as tiras |
 | 8d Arte recortada | Opus 5.5 · high | coordenador abre as folhas + usuário |
-| 8e Estilo TV chapado + peças importadas | Opus 5.5 · high | coordenador abre as folhas + usuário |
+| 8e Estilo TV chapado + elenco original | Opus 5.5 · high | coordenador abre as folhas + usuário |
 | 9 Narração | Sonnet 5.5 · medium | coordenador |
+| 9b Voz Kokoro | Sonnet 5.5 · medium | coordenador ouve um trecho |
 | 10 Gerador de episódios | Sonnet 5.5 · medium | coordenador |
 | 11 Mixagem | Sonnet 5.5 · low | coordenador |
 | 12 Tema, pesquisa e roteiro | Opus 5.5 · high | usuário |
@@ -50,7 +51,7 @@ Regras de economia: o subagente recebe só o texto da sua tarefa, as Global Cons
 - Coordenadas 2D: 1920×1080, origem no canto superior esquerdo, Y para baixo. Ângulos em radianos.
 - Unidade de ser: BL (comprimento de referência da especificação: corpo para animais, altura para humanos). `creaturePose` recebe `size` = BL em pixels.
 - Saída: 1920×1080, 24 fps, H.264, áudio AAC; −14 LUFS integrados, pico −1,5 dBTP.
-- Voz `pt_BR-faber-medium`. Pausas: 0,25 s antes da primeira frase do plano, 0,35 s entre frases, 0,8 s depois do plano, 1,6 s entre capítulos. Plano sem narração: `hold` (padrão 3 s).
+- Voz Kokoro `pm_alex` (Task 9b; faber não serve para uso comercial). Pausas: 0,25 s antes da primeira frase do plano, 0,35 s entre frases, 0,8 s depois do plano, 1,6 s entre capítulos. Plano sem narração: `hold` (padrão 3 s).
 - Limites de plano na grade de quadros: `Math.round(t * fps) / fps`.
 - Legenda: no máximo 42 caracteres por linha e 2 linhas por cue; UTF-8.
 - Desempenho: cartoon ≤ 80 ms por quadro; aquarela ≤ 1,5 s por quadro.
@@ -398,32 +399,35 @@ Regras:
 - [ ] **Step 3:** `npm test`, `npm run test:visual`. Renderizar `modelos.jpg`, `teste-movimento.jpg` e o MP4 do teste; conferir com `ffprobe`.
 - [ ] **Step 4: Commit** `feat: cut-out Path2D parts for cartoon creatures and backgrounds`. **Ponto de aprovação do usuário.**
 
-### Task 8e: Estilo TV chapado e peças importadas de imagem
+### Task 8e: Estilo TV chapado com personagens originais
 
-Adicionado após o 8d (23/10/2026). O usuário achou o visual "horrível" e indicou como referência desenhos de TV dos anos 2000 (`refs/estilo/`, imagens de terceiros, só referência, fora do git). Personagens de terceiros são proibidos: criamos personagens originais nesse idioma visual. As peças passam a vir de folhas geradas pelo usuário numa IA de imagem (Gemini, cota grátis), em `refs/personagens/<nome>/{model,parts,expressions}.png`. A interface `NatureArt.creature(pose, look)` não muda.
+Adicionado após o 8d (23/10/2026). O usuário achou o visual "horrível" e indicou como referência desenhos de TV dos anos 2000 (`refs/estilo/cartoon_1.jpg`, `refs/estilo/cartoon_2.png`: imagens de terceiros, só referência, fora do git). Personagens de terceiros são proibidos (direitos autorais): criamos personagens originais nesse idioma visual. O usuário decidiu não usar IA de imagem: **as peças são autorais, escritas por nós em SVG/Path2D**. A interface `NatureArt.creature(pose, look)` não muda.
 
-**Files:** Modify `src/styles/cartoon/nature.js`, `src/styles/cartoon/parts.js`, `src/styles/cartoon/config.js`, `src/styles/cartoon/GUIDE.md`. Create `scripts/import-parts.py` (ferramenta, roda fora do render) e `assets/characters/<nome>/` (peças prontas: SVG ou PNG recortado, mais `rig.json` com pivô, comprimento e camada de cada peça). Test `tests/cartoon-parts.test.mjs`.
+**Files:** Modify `src/styles/cartoon/nature.js`, `src/styles/cartoon/parts.js`, `src/styles/cartoon/config.js`, `src/styles/cartoon/GUIDE.md`, `src/motion.js` (molas), `src/nature/creature.js` (animação em 2s, se precisar). Create `assets/characters/<nome>/` (peças SVG + `rig.json`), `scripts/compare-ref.mjs`. Modify `docs/CREDITS.md` (aviso MIT do código adaptado). Test `tests/cartoon-parts.test.mjs` e o teste existente de `motion.js`.
 
 Regras de estilo:
 - Cor chapada, sem gradiente, sem textura de papel nos personagens; contorno preto uniforme (cerca de 6 px em 1080p, escalado pelo tamanho); no máximo uma sombra dura opcional.
 - Fundos em cores planas, poucas camadas, contorno igual.
 - Movimento: o rig do 8c continua, com poses mais fortes e exageradas (antecipação, overshoot, `sq`); pés sem deslizar.
 
-Passo A (sem as imagens do usuário):
-- Render chapado com contorno grosso, aplicado às peças atuais do 8d.
-- Importador `scripts/import-parts.py`: lê uma folha PNG de fundo branco, separa as peças por componentes conexos, salva cada peça recortada e, se `vtracer` (MIT) estiver instalado, também o SVG vetorizado; escreve `rig.json` com pivôs a ajustar. Ferramenta Python fora do npm; dependências em venv dentro de `out/tmp/`.
-- `parts.js` aceita peças de `assets/characters/<nome>/` (Path2D do SVG, ou `drawImage` do PNG) presas aos ossos, com variantes de rosto por `expression`.
+Passo A, **feito** (commit a25a9e0): render chapado com contorno grosso; importador `scripts/import-parts.py` (PNG de fundo branco para peças + `rig.json`, vtracer opcional); `parts.js` carrega `assets/characters/<nome>/`.
 
-Passo B (com as imagens):
-- Importar Lia e Bento, ajustar pivôs, folha `modelos` em `--w=320` e 1280, iterar até ler bem.
-- Depois formiga, aranha, ave e peixe, e os fundos.
+Passo B, personagens autorais melhorados:
+1. **Linguagem de forma, não anatomia.** Cada personagem parte de 2 ou 3 formas geométricas grandes (feijão, pera, retângulo arredondado, gota) com proporção exagerada: cabeça humana de 1/3 a 1/2 da altura, membros em "macarrão" (tubo de largura quase constante), mãos-luva de 4 dedos, pés grandes. Olhos grandes brancos com pupila pequena preta; boca e sobrancelhas fazem a expressão. Um detalhe marcante por personagem. Curvas Bézier suaves, poucas peças, silhueta legível só em preto.
+2. **Elenco original** (nomes e paleta fixos; cor-herói reservada, nunca decorativa):
+   - Lia, exploradora: cabeça redonda grande, cabelo castanho curto com franja recortada, chapéu de explorador verde-oliva, camisa mostarda, cachecol vermelho (cor-herói), short verde, botas marrons grandes.
+   - Bento, vira-lata: corpo em feijão creme, mancha marrom num olho, orelhas longas caídas, focinho comprido com nariz preto grande, pernas finas com patas redondas, coleira vermelha com plaquinha dourada.
+   - Formiga (roxa, cabeça grande com olhos), aranha (marrom, corpo em duas bolas), ave (azul, corpo em gota), peixe (laranja e amarelo, corpo em folha), no mesmo idioma, com olhos grandes.
+3. **Folha de modelo primeiro:** Lia e Bento em vista lateral. `scripts/compare-ref.mjs` põe referência e quadro lado a lado na mesma altura, com grade de 10 % e paleta medida em números (proporção da cabeça, espessura do contorno, saturação). Iterar até ler bem em `--w=320` e em 1280. Só então os outros bichos e os fundos.
+4. **Animação em 2s** (como a TV dos anos 2000): pose e câmera mudam a cada 2 quadros, com `B = floor(F / 2)` e `TT = B * 2 / FPS`. Opção por projeto (`PROJECT.onTwos`, padrão `true` no cartoon), sem afetar a aquarela; o teste de pé sem deslizar continua valendo no tempo quantizado.
+5. **Molas em vez de easing** para tudo que tem massa: `springMove(t, t0, a, b, p)` e `springTrack(t, keys, p)` em `src/motion.js`, forma fechada, função pura de `t` (`SPRING.smooth`, `SPRING.snappy`, `SPRING.bouncy`). Usar em câmera, troca de pose, entrada de emotes e `take`.
+6. Código adaptado de `cth9191/animate` (MIT: molas, ideia da comparação com referência) leva o aviso de copyright em `docs/CREDITS.md`. Reescrever no estilo deste repositório.
 
-Licença: imagens geradas pelo usuário no Gemini; registrar origem e data em `docs/CREDITS.md`. Sem marca d'água visível.
-
-- [ ] **Step 1:** Passo A. `npm test` e `npm run test:visual`. Folha `modelos` aberta.
-- [ ] **Step 2:** Passo B, quando as folhas existirem.
-- [ ] **Step 3:** ≤ 80 ms/quadro (render + JPEG); MP4 do teste com `ffprobe`.
-- [ ] **Step 4: Commit** `feat: flat TV cartoon style with imported character parts`. **Ponto de aprovação do usuário.**
+- [x] **Step 1:** Passo A. `npm test` e `npm run test:visual`. Folha `modelos` aberta.
+- [ ] **Step 2:** Passo B itens 1 a 3 (Lia e Bento); folha `modelos` em 320 e 1280 aberta e comparada com `refs/estilo/` e `out/check/8e/`.
+- [ ] **Step 3:** Passo B itens 4 e 5 (2s e molas), com testes (`springMove` chega ao alvo e passa dele no `bouncy`; quadros `2k` e `2k+1` iguais com `onTwos`). Depois os outros bichos e os fundos.
+- [ ] **Step 4:** `npm test`, `npm run test:visual`, no máximo 80 ms/quadro (render + JPEG); `modelos.jpg`, `teste-movimento.jpg` e o MP4 do teste conferido com `ffprobe`.
+- [ ] **Step 5: Commit** `feat: original TV cartoon cast, animation on twos and springs`. **Ponto de aprovação do usuário.**
 
 ---
 
@@ -481,6 +485,21 @@ test('wav round trip and composition place clips at exact samples', () => {
 - [ ] **Step 5:** `python -m pip install piper-tts`; `python -m piper.download_voices --download-dir tools/piper-voices pt_BR-faber-medium`; conferir as opções com `python -m piper --help` (modelo, arquivo de saída, `--length-scale`, texto pelo stdin). Se o pip falhar no Windows, usar o binário de release do Piper com o mesmo `.onnx` (constante `PIPER` em `narrate.mjs`). Registrar a licença da voz (model card) em `episodes/README.md`.
 - [ ] **Step 6:** Implementar `narrate.mjs`. Teste manual com um `episode.json` de 2 planos em `tmp/`: `narration.wav` audível e `timing.json` coerente.
 - [ ] **Step 7: Commit** `feat: sentence-level Piper narration and timeline layout`.
+
+### Task 9b: Voz Kokoro
+
+Adicionado em 23/10/2026. A voz `pt_BR-faber-medium` é derivada da lessac (dados só para pesquisa) e não serve para canal monetizado; `pt_BR-cadu` e `pt_BR-jeff` também derivam da lessac. Kokoro-82M (Apache-2.0) passou (`episodes/README.md`). Voz padrão: `pm_alex` (o usuário pode trocar por `pf_dora` depois de ouvir `out/tmp/vozes/`). Esta Task substitui a voz da Global Constraint.
+
+**Files:** Modify `scripts/narrate.mjs`, `scripts/narration-lib.mjs` (se a taxa estiver fixa), `episodes/README.md`. Create `scripts/kokoro_say.py` (ferramenta externa; venv fora do git em `out/tmp/kokoro-venv`). Test `tests/narration.test.mjs`.
+
+- Um único processo Python por execução lê as frases (JSON por stdin) e escreve um WAV por frase: o modelo carrega uma vez.
+- Cache `out/episodes/<id>/tts/<sha1(voice|lengthScale|text)>.wav` mantido; `speed = 1 / lengthScale`.
+- Taxa de amostragem lida do WAV (24 000 Hz no Kokoro), nunca fixa em 22 050.
+- `episode.json` aceita `voice: "kokoro:pm_alex"`; Piper continua aceito.
+
+- [ ] **Step 1:** Teste: `composeNarration` com 24 000 Hz; cache separado por voz. FAIL, implementar, PASS.
+- [ ] **Step 2:** Episódio de teste em `out/tmp/narr-test/` com Kokoro; `ffprobe` do `narration.wav`; duração igual a `timing.duration`.
+- [ ] **Step 3: Commit** `feat: Kokoro narration voice`.
 
 ### Task 10: Gerador de episódios, legendas e texto de publicação
 
@@ -558,6 +577,16 @@ Se o roteiro pedir um ser que ainda não existe, criar uma especificação nova 
 
 Conteúdo para subagentes que pintam um capítulo cada: API disponível (`Kit`, `NatureArt`, `creaturePose`, `SPECS`, `travel`, `crowd`, `rain`, `stepEvents`, `chain`, `shotsById`); regras (algo acontece em todo plano; câmera com intenção; transição motivada na saída; protagonista com a mesma `seed` e o mesmo `look` em todos os capítulos; estados contínuos como `age` acompanham a história); paleta e luz por capítulo; orçamento ≤ 80 ms por quadro; comandos de revisão; cada subagente edita só `src/episodes/<id>/c<NN>_<capitulo>.js`.
 
+Regras de enquadramento e história (adaptadas de `cth9191/animate`, MIT, para vídeo longo):
+- Algo novo a cada 2 a 4 s: movimento, revelação, corte ou reação. Plano parado só com vida (piscar, respirar, vento, fundo).
+- 3 ou mais detalhes de vida de fundo por quadro que não carregam o enredo (pássaro no fio, fumaça, folha caindo).
+- Mostrar a ideia em vez de rotular: "inverno" é neve sobre o formigueiro fechado, não um texto.
+- Uma constante que o olho segura em todo plano (o protagonista ou o lugar); a cor-herói só no protagonista.
+- Variar a escala: planos gerais, médios e ao menos um close extremo por capítulo.
+- Silêncio (ou queda de 8 a 30 dB) antes da virada do capítulo; a virada fica numa pausa da narração.
+- O fim retoma a imagem de abertura, mudada pela história.
+- Proibido (lê como vídeo genérico de IA): título centralizado sobre gradiente, tudo entrando por fade, partículas genéricas, molduras e rótulos nos cantos.
+
 - [ ] **Step 1:** Escrever. **Commit** `docs: art and motion guide for the pilot`.
 
 ### Task 15: Capítulos (subagentes em paralelo, no máximo 3 por vez)
@@ -580,6 +609,7 @@ Para cada capítulo:
 - [ ] **Step 1:** Tiras de 2 s em cada `chapters[i].start`; transição motivada.
 - [ ] **Step 2:** `node scripts/mix-audio.mjs episodes/<id>` (com `--music=...` se houver faixa livre do usuário).
 - [ ] **Step 3:** `node render.mjs --project=<id> --frames --workers=4`, depois `node render.mjs --project=<id> --encode --audio=out/episodes/<id>/mix.m4a --out=out/episodes/<id>/cartoon/video.mp4`.
+- [ ] **Step 3b:** Checar trechos mortos: nenhum trecho com mais de 4 s em que a imagem quase não muda (diferença média entre quadros a 1 fps), fora de silêncios intencionais; folha de celular (1 quadro por segundo a 360 px) aberta. Ideia de `review.mjs` do `cth9191/animate`, reescrita na revisão do `render.mjs --encode`.
 - [ ] **Step 4:** Conferir H.264 1920×1080, 24 fps, quadros = `round(duration × 24)`, AAC presente, duração do áudio = duração do vídeo (±0,1 s). Abrir `video.mp4.review/decoded-sheet.png`.
 - [ ] **Step 5:** Miniatura: `node render.mjs --project=<id> --loop=thumbnail --stills=0 --out=out/episodes/<id>/thumb`; JPEG 1280×720 < 2 MB via FFmpeg.
 - [ ] **Step 6:** Entregar MP4, SRT, `youtube.md` e miniatura. **Ponto de aprovação do usuário.**
@@ -623,5 +653,8 @@ Para cada capítulo:
 ---
 
 ## Futuro (fora deste plano)
+
+- Transições por morph de forma entre capítulos (a cena fecha num objeto que vira o objeto da próxima), ideia de `kit/morph.js` do `cth9191/animate` (MIT).
+- Trilha musical procedural própria (sintetizador em código, sem licença de terceiros), ideia de `kit/score-*.js` do `cth9191/animate` (MIT).
 
 3D low poly para planos específicos; upload pela API do YouTube; música gerada localmente; vista frontal e 3/4 de humanos.
