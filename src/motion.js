@@ -47,6 +47,27 @@ const spring = (t, t0, k = 6, w = 18) => t < t0 ? 0 : Math.exp(-k * (t - t0)) * 
 const ring = (t, evs, k = 6, w = 18) => evs.reduce((s, e) => s + spring(t, e, k, w), 0);    // one kick per event time
 // Hold each drawing for two frames (12 drawings a second), like hand-drawn animation "on twos". Wrap a shot's t in it.
 const onTwos = t => Math.floor(t * 12 + 1e-6) / 12;
+// The same at any frame rate, on the frame grid: frame F = round(t · fps) shows drawing B = floor(F / 2), drawn at
+// time B · 2 / fps, so frames 2k and 2k + 1 are identical. The cartoon engine applies it unless PROJECT.onTwos is false.
+function twosTime(t, fps = PROJECT.fps) { return Math.floor(Math.round(t * fps) / 2) * 2 / fps; }
+
+// Springs in closed form (no integration, any frame on its own). A preset is {w: natural frequency (rad/s), z: damping
+// ratio}: z < 1 overshoots and rings, z ≥ 1 settles without passing the target. Idea from cth9191/animate (MIT, see
+// docs/CREDITS.md), rewritten here as a damped harmonic oscillator.
+var SPRING = { smooth: { w: 11, z: 1 }, snappy: { w: 22, z: .8 }, bouncy: { w: 15, z: .3 } };
+// Step response, 0 → 1, d seconds after the kick (0 before it).
+function springStep(d, p = SPRING.smooth) {
+  if (d <= 0) return 0;
+  const { w, z } = p;
+  if (z >= 1) return 1 - Math.exp(-w * d) * (1 + w * d);
+  const wd = w * Math.sqrt(1 - z * z);
+  return 1 - Math.exp(-z * w * d) * (Math.cos(wd * d) + z * w / wd * Math.sin(wd * d));
+}
+// A value moving from a to b, released at t0.
+function springMove(t, t0, a, b, p = SPRING.smooth) { return a + (b - a) * springStep(t - t0, p); }
+// A value with several targets, keys = [[t, value], ...] by time: one spring per change, summed, so a new target in the
+// middle of a move stays continuous.
+function springTrack(t, keys, p = SPRING.smooth) { return keys.reduce((v, [t0, b], i) => i ? v + (b - keys[i - 1][1]) * springStep(t - t0, p) : b, 0); }
 // Point on a thrown or jumping arc from p0 to p1, peaking h px above the straight line; k = 0..1 along the flight.
 const arcPt = (p0, p1, h, k) => [lerp(p0[0], p1[0], k), lerp(p0[1], p1[1], k) - h * 4 * k * (1 - k)];
 // A hop that takes off at t0 and lands at t1, h body units high: crouch (anticipation), stretch on takeoff,

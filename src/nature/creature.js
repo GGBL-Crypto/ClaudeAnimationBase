@@ -29,7 +29,8 @@ function blink(t, seed = 0, period = 3.6) {
 
 // Troca de expressão com take, em vez de trocar de uma vez. keys = [[t, expressão, emote?], ...]; emote: '!', '?',
 // 'sweat', 'note', 'zzz'. Na troca os olhos fecham (a expressão muda com eles fechados) e o corpo achata (sq > 0)
-// e solta com backOut (passa a esticar, sq < 0, e assenta). O emote surge com backOut e some depois de 1,6 s.
+// e solta numa mola (SPRING.bouncy: passa a esticar, sq < 0, e assenta). O emote entra numa mola (k passa de 1 e
+// assenta) e some depois de 1,6 s.
 // Devolve {expression, take, sq, blink, emote: null | {sym, k, a}}; take = 0..1 do achatamento.
 function mood(t, keys, seed = 0) {
   let i = 0; while (i + 1 < keys.length && t >= keys[i + 1][0]) i++;
@@ -37,10 +38,10 @@ function mood(t, keys, seed = 0) {
   let take = 0, eyes = 0;
   if (key !== null) {
     const d = t - key;
-    take = d < 0 ? ease(seg(d, -.12, 0)) : 1 - backOut(seg(d, 0, .45));
+    take = d < 0 ? ease(seg(d, -.12, 0)) : 1 - springStep(d, SPRING.bouncy);
     eyes = 1 - seg(Math.abs(d), .05, .12);
   }
-  const age = t - t0, emote = sym && age >= 0 && age < 1.6 ? { sym, k: seg(age, .05, .35), a: 1 - seg(age, 1.3, 1.6) } : null;
+  const age = t - t0, emote = sym && age >= 0 && age < 1.6 ? { sym, k: springStep(age - .05, SPRING.bouncy), a: 1 - seg(age, 1.3, 1.6) } : null;
   return { expression, take: Math.max(0, take), sq: .12 * take, blink: Math.max(eyes, blink(t, seed)), emote };
 }
 

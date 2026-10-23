@@ -6,6 +6,8 @@ Configuração independente em `config.js`: `palette` (céu, chão, personagem, 
 
 Use silhuetas limpas, cores planas, curvas deliberadas, contornos pretos de espessura consistente e nenhuma sombra além da de contato. Não acrescente pigmento, fervura ou pixelização. O personagem do teste tem quatro pernas, duas pequenas hastes de braços e olhos bem espaçados. Preserve esse modelo entre planos.
 
+Animação em 2s, como a TV dos anos 2000: o motor desenha o quadro F no tempo `twosTime(t)` (B = floor(F / 2), TT = B · 2 / fps), então os quadros 2k e 2k + 1 são iguais; `onTwos: false` no projeto desliga. A aquarela não muda. Tudo o que tem massa anda em molas de `motion.js` (`springMove`, `springTrack`, `SPRING.smooth/snappy/bouncy`): câmera que assenta, take da troca de expressão, entrada dos emotes.
+
 Movimento é calculado no tempo contínuo. Antecipe mudanças de expressão com fechamento dos olhos; aceno e asas têm frequências diferentes. Contatos usam a mesma transformação de squash do personagem. Desenhe planos completos e restaure estado do contexto após cada transformação.
 
 `animationEngine.context` expõe o contexto nativo para novas cenas. `VisitArt` é apenas a porta artística da história de demonstração: acrescente os objetos que uma nova história realmente precisa. Não tente traduzir chamadas de p5.brush para cartoon implicitamente.

@@ -2,7 +2,10 @@
 
 ## cth9191/animate (MIT)
 
-`scripts/compare-ref.mjs` adapta a ideia de `tools/compare.mjs` de https://github.com/cth9191/animate (referência e quadro lado a lado na mesma altura, grade de 10 %, aparência medida em números). O código foi reescrito para este repositório.
+Adaptado de https://github.com/cth9191/animate, com o código reescrito para este repositório:
+
+- `scripts/compare-ref.mjs`: a ideia de `tools/compare.mjs` (referência e quadro lado a lado na mesma altura, grade de 10 %, aparência medida em números).
+- `src/motion.js` (`SPRING`, `springStep`, `springMove`, `springTrack`): a ideia de `kit/core.js` (molas em forma fechada com predefinições e uma mola por troca de alvo, somadas).
 
 ```
 MIT License

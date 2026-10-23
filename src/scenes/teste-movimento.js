@@ -231,7 +231,7 @@
     [0, t => park(t, humanS(t) * HS - 800, 560, 1.25, [[335, 560, 1.25], [[150, 190, 1], [1450, 160, 2], [2500, 200, 3], [3600, 170, 4], [4700, 190, 5]]])],
     // Held shots drift: a slow eased push-in or pan, so the camera is never fully still.
     [5, (t, lt) => { const k = easeIn(seg(lt, 4.45, 5)), d = ease(seg(lt, 0, 4.45)); park(t, lerp(1800 + 25 * d, ANTS_AT[0], k), lerp(650, ANTS_AT[1], k), lerp(1.45 + .06 * d, 4, k), [[1800, 650, 1.45], [[40, 560, 1], [230, 360, 2], [1880, 480, 3]]]); }],
-    [10, (t, lt) => macro(t, lerp(1.35, 1, easeOut(seg(lt, 0, .7))) + .04 * ease(seg(lt, .7, 5)))],
+    [10, (t, lt) => macro(t, springMove(lt, 0, 1.35, 1, SPRING.snappy) + .04 * ease(seg(lt, .7, 5)))],  // lands wide, the zoom springs in
     [15, (t, lt) => park(t, 2230 + 40 * ease(lt / 5), 578, 1.3 + .04 * ease(lt / 5), [[2250, 578, 1.3], [[-50, 460, 4], [1990, 540, 5]]])],
     [20, (t, lt) => lt < 2.5 ? park(t, 2150, 565, 1.15 + .04 * ease(lt / 2.5), [[2150, 565, 1.15], [[-20, 480, 7], [1900, 540, 8], [1750, 320, 9]]]) : macro(t, 1 + .03 * ease(seg(lt, 2.5, 5)))],
     [25, lake],

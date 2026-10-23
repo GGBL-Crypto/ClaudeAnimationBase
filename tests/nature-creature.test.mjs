@@ -51,11 +51,26 @@ test('the human pelvis dips twice per gait cycle, lowest near each contact, and 
 test('stopped creatures still breathe: the chest moves over 4 s', () => {
   for (const id of ['human', 'dog']) { const ys = []; for (let t = 0; t <= 4; t += .25) ys.push(pose(id, 2, { t, moving: 0 }).spine[0].y); assert.ok(Math.max(...ys) - Math.min(...ys) > .5, id); }
 });
-test('mood changes expression with a take: blink, squash released by backOut and an emote', () => {
+test('mood changes expression with a take: blink, squash released by a spring and an emote that springs in', () => {
   const K = [[0, 'neutral'], [2, 'scared', '!']], m = t => ctx.mood(t, K, 1);
   assert.equal(m(1.5).expression, 'neutral'); assert.equal(m(2.01).expression, 'scared');
   assert.ok(m(2).blink > .9 && m(1.95).sq > 0, 'fecha os olhos e achata');
-  assert.ok(Math.min(...[2.2, 2.25, 2.3, 2.35].map(t => m(t).sq)) < 0 && m(3).sq === 0, 'solta com backOut e assenta');
-  assert.equal(m(1.5).emote, null); assert.equal(m(2.5).emote.sym, '!'); assert.equal(m(2.5).emote.k, 1); assert.equal(m(4).emote, null);
+  assert.ok(Math.min(...[2.2, 2.25, 2.3, 2.35].map(t => m(t).sq)) < 0 && Math.abs(m(3).sq) < .005, 'solta numa mola e assenta');
+  assert.equal(m(1.5).emote, null); assert.equal(m(2.5).emote.sym, '!');
+  assert.ok(Math.max(...[2.15, 2.2, 2.25, 2.3].map(t => m(t).emote.k)) > 1.2 && Math.abs(m(3).emote.k - 1) < .03, 'emote passa de 1 e assenta'); assert.equal(m(4).emote, null);
   let n = 0; for (let t = 0; t < 20; t += 1 / 24) n += ctx.blink(t, 5) > .5; assert.ok(n >= 4, `piscadas ${n}`);
+});
+
+test('on twos the planted feet still do not slide: a stance foot keeps its x across quantized frames', () => {
+  for (const id of ['human', 'dog']) {
+    const last = {};
+    for (let F = 0; F < 96; F++) {
+      const TT = ctx.twosTime(F / 24, 24), p = ctx.creaturePose(ctx.SPECS[id], { path: P, s: 1 + .9 * TT, size: 120, view: 'side', ground: flat, t: TT, seed: 1 });
+      for (const [name, l] of Object.entries(p.limbs)) {
+        if (!l.foot) continue;
+        if (l.stance && last[name]) assert.ok(Math.abs(l.end[0] - last[name][0]) < .5, `${id} ${name} quadro ${F}`);
+        last[name] = l.stance ? l.end : null;
+      }
+    }
+  }
 });

@@ -289,14 +289,15 @@
     c.fill(); c.restore();
   }
 
-  // Emote perto da cabeça ('!', '?', 'sweat', 'note', 'zzz'): surge com backOut e encolhe ao sumir (k = min(k, a)).
+  // Emote perto da cabeça ('!', '?', 'sweat', 'note', 'zzz'): entra numa mola (e.k passa de 1 e assenta) e encolhe ao
+  // sumir (e.a).
   function emote(p) {
-    const e = p.emote, r = headR(p), f = p.view === 'side' ? p.facing : 1, k = Math.min(e.k, e.a);
+    const e = p.emote, r = headR(p), f = p.view === 'side' ? p.facing : 1, k = Math.min(e.k, ease(e.a));
     if (k <= 0) return;
     if (e.sym === 'sweat') {
-      const s = backOut(k) * r * .3, x = p.head.x - f * r * .2, y = p.head.y - r * .5 + r * .5 * (1 - e.a);
+      const s = k * r * .3, x = p.head.x - f * r * .2, y = p.head.y - r * .5 + r * .5 * (1 - e.a);
       Kit.poly([[x - s * .7, y - s * .2], [x, y - s * 1.9], [x + s * .7, y - s * .2]], P.water, { stroke: false }); Kit.ellipse(x, y, s * .72, s * .8, P.water);
-    } else Kit.text({ note: '♪', zzz: 'z z z' }[e.sym] || e.sym, p.head.x + f * r * 1.2, p.head.y - r * (decor[p.spec].emoteUp || 1.9), Math.max(14, r * 1.6), P.ink, { k });
+    } else { c.save(); c.translate(p.head.x + f * r * 1.2, p.head.y - r * (decor[p.spec].emoteUp || 1.9)); c.scale(k, k); Kit.text({ note: '♪', zzz: 'z z z' }[e.sym] || e.sym, 0, 0, Math.max(14, r * 1.6), P.ink); c.restore(); }
   }
 
   function creature(p, look = {}) {
