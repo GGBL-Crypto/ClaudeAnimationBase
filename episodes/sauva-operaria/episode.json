@@ -1,0 +1,387 @@
+{
+  "id": "sauva-operaria",
+  "title": "A vida de uma formiga operária: do ovo ao fim",
+  "story": "A vida de uma operária de saúva-limão (Atta sexdens), do ovo ao último dia: a revoada, o ninho, o jardim de fungo, a trilha, a mosca que caça operárias e o fim que alimenta as árvores.",
+  "style": "cartoon",
+  "compatibleStyles": [
+    "cartoon",
+    "watercolor"
+  ],
+  "fps": 30,
+  "voice": "kokoro:pm_alex",
+  "intro": 1,
+  "outro": 2,
+  "pronunciations": {
+    "Atta sexdens": "Ata séquisdens",
+    "Escovopsis": "Escovópsis"
+  },
+  "chapters": [
+    {
+      "id": "c1",
+      "title": "A revoada",
+      "shots": [
+        {
+          "id": "c1s01",
+          "narration": "Existe uma mosca que põe um ovo dentro da cabeça desta formiga. Debaixo deste chão, milhões de irmãs dela carregam folhas. Mas não para comer: as folhas alimentam um fungo.",
+          "visual": "Gramado ao vento. Trilha de formigas (multidão no caminho) carregando pedaços de folha da esquerda para a direita; uma mosca minúscula paira sobre uma carregadora e some. A câmera desce rente ao capim e atravessa o chão para um corte de solo com túneis."
+        },
+        {
+          "id": "c1s02",
+          "narration": "Esta é a história dela, do ovo até o último dia. Ela é uma saúva-limão, a cortadeira Atta sexdens. Numa variedade dessa espécie, a cabeça esmagada da operária tem cheiro forte de limão.",
+          "visual": "Na trilha, uma operária para, vira para a câmera e varre o ar com as antenas. Texto: \"Saúva-limão (Atta sexdens)\"."
+        },
+        {
+          "id": "c1s03",
+          "narration": "Tudo começa no céu, entre o fim de outubro e meados de dezembro. É a revoada: formigas aladas saem do ninho para acasalar.",
+          "visual": "Fim de tarde sobre o monte de terra do ninho. Formigas aladas sobem em espiral para o céu com nuvens; a câmera inclina para cima."
+        },
+        {
+          "id": "c1s04",
+          "narration": "Lá no alto, uma futura rainha acasala. Ela guarda mais de trezentos milhões de espermatozoides, para usar a vida toda.",
+          "visual": "Céu aberto: rainha alada maior cruza o quadro entre machos menores que a seguem e se afastam."
+        },
+        {
+          "id": "c1s05",
+          "narration": "Mas a aposta é cruel. Só uma em cada quarenta rainhas consegue fundar uma colônia.",
+          "visual": "Rainhas pousam no chão; um pássaro salta e bica perto delas, e elas se espalham assustadas. Texto: \"1 em 40\"."
+        },
+        {
+          "id": "c1s06",
+          "narration": "A futura mãe da nossa operária pousa, perde as asas e cava um túnel na terra. Ela leva consigo um pedacinho do jardim de fungo onde nasceu.",
+          "visual": "Close lateral da rainha: as asas caem e rolam na poeira. Ela anda até um ponto e começa a cavar; poeira sobe a cada passada."
+        },
+        {
+          "id": "c1s07",
+          "narration": "Lá embaixo, numa câmara, ela cospe o fungo e põe os primeiros ovos. Sozinha, ela cuida do fungo e das crias.",
+          "visual": "Corte do solo: túnel curto que termina numa câmara. A rainha, parada, ao lado de um tufo claro de fungo e de alguns ovos; ela toca os ovos com as antenas."
+        },
+        {
+          "id": "c1s08",
+          "narration": "O ar da câmara fica pesado. Em ninhos criados por pesquisadores, depois de quarenta e dois dias, um quinto do ar já era gás carbônico.",
+          "visual": "A câmara escurece aos poucos; texto \"CO2 ~20%\". A rainha quase não se move."
+        },
+        {
+          "id": "c1s09",
+          "narration": "As primeiras operárias nascem nove a dez semanas depois da fundação. A partir daí, a rainha deixa de fazer tudo sozinha.",
+          "visual": "Três operárias pequenas aparecem e começam a andar em volta da rainha e do fungo. Íris fecha.",
+          "transition": "íris"
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "A cidade",
+      "shots": [
+        {
+          "id": "c2s01",
+          "narration": "Seis anos depois, aquele buraco virou uma cidade. Um ninho dessa idade já passou de mil novecentas e vinte câmaras.",
+          "visual": "Íris abre num corte de solo largo: dezenas de túneis ligando câmaras; formigas pequenas andando dentro dos túneis. Zoom out lento.",
+          "transition": "íris"
+        },
+        {
+          "id": "c2s02",
+          "narration": "Em duzentas e quarenta e oito delas cresce o fungo. Uma colônia madura pode ter de cinco a oito milhões de formigas, a até seis metros de profundidade.",
+          "visual": "Algumas câmaras se enchem de massa clara de fungo. Uma régua de texto na lateral marca \"6 m\"."
+        },
+        {
+          "id": "c2s02b",
+          "narration": "No centro de tudo está a rainha. Ela é a maior formiga do ninho, muitas vezes com mais de dois centímetros e meio.",
+          "visual": "Câmara real: a rainha enorme ao lado de operárias minúsculas; a câmera passa por ela devagar."
+        },
+        {
+          "id": "c2s03",
+          "narration": "Esse fungo é a base de tudo. As pontas inchadas dele são quase todo o alimento das formigas e das crias.",
+          "visual": "Close de uma câmara de fungo: operárias tocam o fungo com as antenas (modo tap) e levam bolinhas claras na boca."
+        },
+        {
+          "id": "c2s04",
+          "narration": "As folhas cortadas lá fora servem de base para essa horta. As operárias também bebem seiva das plantas.",
+          "visual": "Uma operária entra na câmara com um pedaço de folha e o deposita sobre o fungo."
+        },
+        {
+          "id": "c2s05",
+          "narration": "Numa colônia madura de outra saúva, a rainha põe mais de vinte e cinco mil ovos por dia. Num desses ovos começa a vida da nossa operária.",
+          "visual": "Câmara real: a rainha grande, imóvel, operárias pequenas em volta; um ovo aparece ao lado dela e a câmera dá zoom nele."
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "Do ovo à operária",
+      "shots": [
+        {
+          "id": "c3s01",
+          "narration": "Três a quatro semanas depois de posto, o ovo eclode. Sai uma larva: é a nossa operária, que passa os dias sendo alimentada.",
+          "visual": "Close do ovo, que balança e vira larva. Operárias jardineiras se aproximam e tocam a larva com as antenas."
+        },
+        {
+          "id": "c3s02",
+          "narration": "Quem cuida dela são as jardineiras, as menores operárias da colônia. Elas alimentam as larvas com secreções e com ovos que servem só de comida.",
+          "visual": "Jardineiras pequenas vão e voltam entre o fungo e a larva, cada uma com algo claro na boca."
+        },
+        {
+          "id": "c3s03",
+          "narration": "Depois de mais três a quatro semanas, a larva vira pupa. Mais três a quatro semanas, e dali sai uma formiga adulta.",
+          "visual": "Avanço rápido: larva cresce, para e fica pálida como pupa; texto com contagem de semanas no canto."
+        },
+        {
+          "id": "c3s04",
+          "narration": "Ela nasce como uma operária média, com a cabeça de pouco mais de dois milímetros de largura. São os primeiros passos dela.",
+          "visual": "A pupa se desfaz e a operária fica de pé; dá os primeiros passos devagar, ainda tremendo as antenas."
+        },
+        {
+          "id": "c3s04b",
+          "narration": "Nos primeiros dias de vida adulta, os dentes das mandíbulas dela ainda estão acumulando zinco. Ela vai precisar deles.",
+          "visual": "Close da cabeça: as mandíbulas abrem e fecham devagar; um brilho percorre os dentes."
+        },
+        {
+          "id": "c3s05",
+          "narration": "Nas mesmas câmaras vivem irmãs muito diferentes. As jardineiras têm a cabeça com cerca de um milímetro. As soldadas passam de três milímetros.",
+          "visual": "Fila lado a lado, de perfil: jardineira pequena, a nossa operária média e uma soldada grande de cabeça larga, que abre as mandíbulas. Texto com os tamanhos."
+        },
+        {
+          "id": "c3s06",
+          "narration": "As soldadas são as maiores operárias e têm mandíbulas muito afiadas. Lá fora, o mundo é perigoso.",
+          "visual": "A soldada dá um passo à frente; a operária média recua com um susto."
+        },
+        {
+          "id": "c3s07",
+          "narration": "A nossa operária não escolhe a profissão. Ao longo da vida, é a idade que vai mudando o trabalho que ela faz.",
+          "visual": "A operária anda por um túnel que se divide em três; ela hesita, antenas varrendo, e entra num deles."
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "title": "Os primeiros trabalhos",
+      "shots": [
+        {
+          "id": "c4s01",
+          "narration": "Pesquisadores acompanharam operárias de saúva-limão como ela, do nascimento até a morte. Nas duas primeiras semanas, ela trabalha com o lixo mais do que em qualquer outra fase.",
+          "visual": "Corte do solo: a operária carrega uma bolinha escura por um túnel até uma câmara cheia de restos."
+        },
+        {
+          "id": "c4s02",
+          "narration": "O lixo da cidade fica em câmaras debaixo da terra. Ali vão parar formigas mortas, fungo velho e restos de plantas.",
+          "visual": "Dentro da câmara de lixo: montes de restos escuros; a operária solta a bolinha e sai rápido."
+        },
+        {
+          "id": "c4s02b",
+          "narration": "Num ninho de outra saúva, no cerrado, essas câmaras de lixo estavam a três ou quatro metros de profundidade.",
+          "visual": "Zoom out do corte do solo: a câmara de lixo bem funda, abaixo das câmaras de fungo. Texto \"3 a 4 m\"."
+        },
+        {
+          "id": "c4s03",
+          "narration": "Cuidar do jardim de fungo também é tarefa das jovens. Ela só se afasta desse trabalho a partir da nona semana de vida.",
+          "visual": "Câmara de fungo: a operária, entre jardineiras, toca e alisa o fungo com as antenas."
+        },
+        {
+          "id": "c4s03b",
+          "narration": "Tanto as operárias médias quanto as pequenas passam por esse jardim na juventude. É um trabalho no escuro, longe do céu.",
+          "visual": "Câmara de fungo vista de longe: operárias de dois tamanhos trabalham lado a lado; a luz é baixa e quente."
+        },
+        {
+          "id": "c4s04",
+          "narration": "Mas o jardim tem um inimigo: o Escovopsis, um fungo parasita que ataca a horta das formigas.",
+          "visual": "Uma mancha escura cresce numa borda do fungo claro. A operária para e se assusta."
+        },
+        {
+          "id": "c4s05",
+          "narration": "As formigas têm aliadas invisíveis. Bactérias ajudam a combater o parasita.",
+          "visual": "Várias operárias cercam a mancha; ela encolhe aos poucos até sumir."
+        }
+      ]
+    },
+    {
+      "id": "c5",
+      "title": "A trilha",
+      "shots": [
+        {
+          "id": "c5s01",
+          "narration": "Aos poucos, ela começa a sair do ninho. Por volta da quarta semana de vida, buscar folhas vira o trabalho dela.",
+          "visual": "Túnel que sobe até a luz: a operária sai do ninho para a superfície, entre o capim."
+        },
+        {
+          "id": "c5s01b",
+          "narration": "Pela primeira vez, ela vê a luz do dia. E aqui fora há predadores: aves, tatus e até outras formigas.",
+          "visual": "Superfície: a operária para na saída do ninho; ao fundo, um pássaro pousa e salta pelo capim. Ela se encolhe e segue."
+        },
+        {
+          "id": "c5s02",
+          "narration": "As trilhas podem chegar a sessenta metros do ninho. Ela segue o vai e vem das irmãs.",
+          "visual": "Plano aberto e baixo: trilha longa curvando entre o capim, multidão de formigas indo e voltando, metade com folhas."
+        },
+        {
+          "id": "c5s03",
+          "narration": "Ao cortar, ela vibra o próprio corpo. Esse chiado viaja pela folha e atrai irmãs para o mesmo lugar.",
+          "visual": "Close: a operária numa folha no chão, corpo vibrando; ondinhas saem do ponto de corte e outras formigas chegam."
+        },
+        {
+          "id": "c5s04",
+          "narration": "Experimentos mostraram que a vibração deixa o corte mais suave. Mas, para os pesquisadores, a função principal é chamar as companheiras.",
+          "visual": "Ela recorta um pedaço da folha e o ergue; volta para a trilha carregando."
+        },
+        {
+          "id": "c5s04b",
+          "narration": "Ela corta, pausa e corta de novo. E nem sempre esse trabalho acontece de dia.",
+          "visual": "Ela corta com esforço, pausa, e retoma; o céu escurece aos poucos."
+        },
+        {
+          "id": "c5s04c",
+          "narration": "Numa colônia de outra saúva, no Panamá, quase não havia colheita de dia na estação seca. A trilha trabalhava à noite.",
+          "visual": "Noite: a trilha iluminada pela lua, carregadoras passando em silhueta."
+        },
+        {
+          "id": "c5s05",
+          "narration": "Ela ergue o pedaço acima da cabeça e entra na fila de volta. É a primeira folha de muitas.",
+          "visual": "Plano lateral: ela entra na fila de carregadoras; a câmera acompanha de lado."
+        }
+      ]
+    },
+    {
+      "id": "c6",
+      "title": "O ataque",
+      "shots": [
+        {
+          "id": "c6s01",
+          "narration": "Mas na trilha alguém está de olho nela. É uma mosquinha que caça saúvas.",
+          "visual": "Trilha vista de lado. Uma mosca pequena entra voando e paira sobre as carregadoras. Texto: \"Neodohrniphora elongata\". Música tensa."
+        },
+        {
+          "id": "c6s02",
+          "narration": "A mosca persegue as operárias pela trilha. Ataca as que têm a cabeça com mais de um milímetro e meio, mas prefere as maiores. Cada ataque dura cerca de um segundo.",
+          "visual": "A mosca mergulha várias vezes sobre a operária média; ela acelera e se assusta."
+        },
+        {
+          "id": "c6s03",
+          "narration": "Nesse segundo, a mosca põe um ovo dentro da cabeça da formiga atacada. A larva da mosca cresce ali dentro.",
+          "visual": "Câmera lenta: a mosca toca a cabeça de outra formiga grande, logo atrás, e decola. Texto: \"1 segundo\"."
+        },
+        {
+          "id": "c6s04",
+          "narration": "No fim, a larva vira pupa entre as mandíbulas da formiga morta.",
+          "visual": "Corte seco para o chão: uma formiga caída, imóvel, de lado. Silêncio."
+        },
+        {
+          "id": "c6s05",
+          "narration": "Na natureza, só duas a quatro em cada cem coletoras são parasitadas. Mas basta uma mosca na trilha para haver menos coletoras, e as que ficam são menores.",
+          "visual": "A trilha esvazia: as formigas grandes recuam para o ninho, e pedaços de folha ficam largados no caminho."
+        },
+        {
+          "id": "c6s06",
+          "narration": "A nossa operária tem uma guarda-costas. Uma irmã bem pequena viaja de carona em cima da folha dela.",
+          "visual": "Close da folha que a nossa operária carrega: uma formiga minúscula em cima dela, de antenas erguidas."
+        },
+        {
+          "id": "c6s07",
+          "narration": "Num estudo no Panamá, com outra saúva, as caronas reduziram o tempo das moscas sobre as folhas e a chance de elas pousarem.",
+          "visual": "A mosca desce, a caroneira abre as mandíbulas, e a mosca desvia e vai embora."
+        },
+        {
+          "id": "c6s07b",
+          "narration": "As formigas até ajustam o número de caronas à quantidade de moscas, ao longo do dia e das estações.",
+          "visual": "A trilha ao entardecer: mais caroneiras sobre as folhas; a luz muda do dia para a noite."
+        },
+        {
+          "id": "c6s07c",
+          "narration": "Mas ainda há mistério. Na Costa Rica, mais de noventa por cento das caronas de outra saúva aconteceram à noite, quando essas moscas, em geral, não voam.",
+          "visual": "Noite: a trilha continua, caroneiras em cima das folhas, céu escuro sem moscas. Texto \"?\"."
+        },
+        {
+          "id": "c6s07d",
+          "narration": "Para os pesquisadores, a melhor explicação é que as caronas também preparam a folha antes de ela entrar no ninho.",
+          "visual": "Close de uma caroneira de cabeça baixa, que mexe as antenas sobre a folha."
+        },
+        {
+          "id": "c6s08",
+          "narration": "Hoje, a mosca vai embora. A nossa operária segue em frente.",
+          "visual": "A operária volta ao ritmo da trilha e some entre as irmãs."
+        }
+      ]
+    },
+    {
+      "id": "c7",
+      "title": "Dentes gastos",
+      "shots": [
+        {
+          "id": "c7s01",
+          "narration": "As semanas passam, e o trabalho cobra o seu preço. A mandíbula de uma cortadeira nova tem um fio afiado como uma navalha.",
+          "visual": "Close de perfil da cabeça da operária, mandíbulas abrindo e fechando; brilho no fio."
+        },
+        {
+          "id": "c7s02",
+          "narration": "Com o uso, esse fio cega. Com as mandíbulas gastas, cortar a mesma folha chegou a exigir duas vezes e meia mais força.",
+          "visual": "A mesma operária tenta cortar uma folha e quase não avança; pausa, e gota de suor."
+        },
+        {
+          "id": "c7s02b",
+          "narration": "Os pesquisadores fizeram a conta: se todas tivessem mandíbulas novas, a colônia gastaria quarenta e quatro por cento menos energia e tempo cortando.",
+          "visual": "Texto \"-44%\" ao lado de uma fileira de cortadoras; metade delas corta devagar."
+        },
+        {
+          "id": "c7s03",
+          "narration": "Numa outra saúva, as coletoras de mandíbulas mais gastas quase só carregavam. Deixavam o corte para as irmãs.",
+          "visual": "Uma irmã mais nova corta e solta o pedaço; a nossa operária pega e carrega."
+        },
+        {
+          "id": "c7s04",
+          "narration": "Trabalhar lá fora também encurta a vida. Em outra saúva, as operárias de fora do ninho morreram antes das que ficavam dentro.",
+          "visual": "Chuva começa na trilha. A operária anda mais devagar que as outras."
+        },
+        {
+          "id": "c7s04b",
+          "narration": "Os pesquisadores sugerem um motivo: com as mais velhas do lado de fora, cai o risco de levar doenças para dentro do ninho.",
+          "visual": "Corte: lá em cima, operárias velhas na chuva; lá embaixo, o ninho seco com jardineiras jovens."
+        },
+        {
+          "id": "c7s05",
+          "narration": "Nas últimas três semanas de vida, ela sai cada vez menos em busca de folhas.",
+          "visual": "Entrada do ninho: ela fica parada na boca do túnel, enquanto as outras passam por ela."
+        }
+      ]
+    },
+    {
+      "id": "c8",
+      "title": "O fim",
+      "shots": [
+        {
+          "id": "c8s01",
+          "narration": "Um dia, ela não levanta mais. Foi uma vida curta: ovo, larva, pupa e trabalho, sem descanso de verdade.",
+          "visual": "Câmara do ninho, luz baixa: a operária deitada, pernas encolhidas. As antenas param.",
+          "transition": "íris"
+        },
+        {
+          "id": "c8s02",
+          "narration": "O corpo dela acaba nas câmaras de lixo, junto com fungo velho e restos de plantas.",
+          "visual": "Duas irmãs puxam o corpo por um túnel até a câmara de lixo."
+        },
+        {
+          "id": "c8s03",
+          "narration": "Mas a história não termina ali. No cerrado, perto de Brasília, árvores a até onze metros de um ninho de saúva absorveram nutrientes vindos dele.",
+          "visual": "Corte do solo: raízes de uma árvore descem até a câmara de lixo. A câmera sobe pela raiz e pelo tronco até a copa."
+        },
+        {
+          "id": "c8s03b",
+          "narration": "As formigas cortam qualquer raiz que invade os túneis e o jardim de fungo. Mesmo assim, o que estava no ninho chegou às árvores.",
+          "visual": "Uma raiz entra numa câmara de fungo e operárias a cortam; outra raiz, na câmara de lixo, se ramifica livre."
+        },
+        {
+          "id": "c8s04",
+          "narration": "O que foi formiga volta a ser folha. E as folhas, um dia, voltam para a trilha.",
+          "visual": "Uma folha se solta da copa e cai rodopiando sobre a trilha; uma operária a pega e a leva."
+        },
+        {
+          "id": "c8s05",
+          "narration": "Lá embaixo, a rainha continua pondo ovos. Ela pode viver de dez a quinze anos, e a colônia vive quase o mesmo tanto.",
+          "visual": "Câmara real: a rainha, e um ovo novo ao lado dela."
+        },
+        {
+          "id": "c8s06",
+          "narration": "Milhões de irmãs, cada uma com uma vida curta e cheia de trabalho. Juntas, elas são a cidade. Na próxima revoada, novas rainhas vão subir ao céu, e tudo começa de novo.",
+          "visual": "Zoom out do corte do solo até o gramado ao entardecer, com a trilha ainda em movimento. Íris fecha.",
+          "transition": "íris"
+        }
+      ]
+    }
+  ]
+}
