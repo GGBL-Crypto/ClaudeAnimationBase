@@ -28,6 +28,7 @@ Sessão coordenadora: **Opus 5.5, effort medium**. Ela não escreve código de t
 | 8c Movimento orgânico | Opus 5.5 · high | coordenador abre as tiras |
 | 8d Arte recortada | Opus 5.5 · high | coordenador abre as folhas + usuário |
 | 8e Estilo TV chapado + elenco original | Opus 5.5 · high | coordenador abre as folhas + usuário |
+| 8f Movimento dinâmico, fps, polimento | Opus 5.5 · high | coordenador abre tiras e folhas + usuário |
 | 9 Narração | Sonnet 5.5 · medium | coordenador |
 | 9b Voz Kokoro | Sonnet 5.5 · medium | coordenador ouve um trecho |
 | 10 Gerador de episódios | Sonnet 5.5 · medium | coordenador |
@@ -428,6 +429,39 @@ Passo B, personagens autorais melhorados:
 - [ ] **Step 3:** Passo B itens 4 e 5 (2s e molas), com testes (`springMove` chega ao alvo e passa dele no `bouncy`; quadros `2k` e `2k+1` iguais com `onTwos`). Depois os outros bichos e os fundos.
 - [ ] **Step 4:** `npm test`, `npm run test:visual`, no máximo 80 ms/quadro (render + JPEG); `modelos.jpg`, `teste-movimento.jpg` e o MP4 do teste conferido com `ffprobe`.
 - [ ] **Step 5: Commit** `feat: original TV cartoon cast, animation on twos and springs`. **Ponto de aprovação do usuário.**
+
+### Task 8f: Movimento mais dinâmico, teste de fps e polimento visual
+
+Adicionado após a aprovação do 8e (23/10/2026). O usuário gostou do resultado, mas acha o movimento "travado/robótico" e quer testar 24 contra 30 fps. Provável causa principal: a animação em 2s do 8e. Com ela, a pose muda só 12 vezes por segundo, e um ciclo de caminhada procedural com poucas poses-chave fica parecendo engrenagem. Mudanças aditivas: os testes existentes continuam passando, e o pé continua sem deslizar.
+
+**Files:** Modify `src/nature/creature.js`, `src/nature/gait.js`, `src/nature/specs.js`, `src/motion.js`, `src/styles/cartoon/nature.js`, `src/styles/cartoon/parts.js`, `assets/characters/*`, `src/scenes/teste-movimento.js`, `src/config.js` (projetos de teste de fps). Test: os arquivos de teste existentes de `nature-*` e `motion`.
+
+**A. Teste de fps e cadência.** O mesmo filme `teste-movimento` em 4 variantes:
+- A: 24 fps em 2s (o atual);
+- B: 24 fps em 1s (`onTwos: false`);
+- C: 30 fps em 1s;
+- D: 30 fps, com os personagens em 1s e os apêndices em mola.
+
+Gerar também um MP4 de comparação em grade 2×2, rotulado e sincronizado (`ffmpeg xstack`, 30 s), em `out/check/8f/fps-grid.mp4`. Se o usuário escolher 30 fps, a Global Constraint de fps muda para 30 em todo o plano. O render precisa aceitar `fps` por projeto sem nada fixo em 24; confira timeline, narração e `toSrt`.
+
+**B. Movimento.**
+1. **Ciclo com poses-chave fortes:** a caminhada passa visivelmente por contato, recuo (corpo mais baixo), passagem e alto. O balanço vertical e a inclinação ficam cerca de 2× os do 8c. Os braços balançam em arco, não em linha reta. A cabeça segue a pelve com atraso.
+2. **Sobreposição por mola** (`springTrack`) em cachecol, chapéu, orelhas, cauda, cabelo e antenas. Eles chegam atrasados e passam do ponto quando o corpo para, vira ou reage.
+3. **Antecipação e retenção:** toda ação (parar, virar, apontar, assustar) começa com uma contra-pose curta e termina numa pose retida (moving hold), que respira mas não fica congelada. Nada de movimento contínuo e uniforme o tempo todo.
+4. **Arcos e variação:** as mãos, a cabeça e o focinho percorrem arcos. Os tempos variam entre personagens, que nunca andam em sincronia.
+5. **Smear em ações rápidas:** em gestos rápidos (susto, virada brusca, voo da ave), um quadro alongado ou com repetição do membro, como na TV dos anos 2000.
+
+**C. Visual.**
+1. **Proporções:** as pernas do Bento sobem até ~3/4 do comprimento do 8d, para ele não lembrar um dachshund. Os membros da Lia ficam em "macarrão", com espessura visível e constante.
+2. **Mais expressão:** bocas com 3–4 formas para falar e reagir, e mãos-luva com 3 poses (aberta, apontando, punho).
+3. **Fundos:** mais elementos de cenário, variados por semente (pedras, flores, cerca, toco, cogumelos). Profundidade com 2 tons por camada, e os personagens sempre com o maior contraste do quadro.
+4. **Composição:** o protagonista fica nos terços do quadro, com espaço para onde ele olha ou anda.
+
+- [ ] **Step 1:** Parte A. Variantes renderizadas e grade conferida com `ffprobe` (30 s, contagem de quadros correta por variante). Anotar ms/quadro em 30 fps.
+- [ ] **Step 2:** Parte B, com testes. A pelve desce no recuo do ciclo. O apêndice com mola passa do ponto quando o corpo para. O pé de apoio não desliza em 24 nem em 30 fps. Tiras de 2 s da caminhada, da parada e do susto, abertas e comparadas com `out/check/8e-b/`.
+- [ ] **Step 3:** Parte C. Folha `modelos` em 320 e 1280 aberta e comparada com `refs/estilo/` e `out/check/8e-b/`.
+- [ ] **Step 4:** Rerenderizar as 4 variantes e a grade com B e C aplicados. `npm test`, `npm run test:visual`, no máximo 80 ms/quadro.
+- [ ] **Step 5: Commit** `feat: dynamic cartoon motion, fps test and visual polish`. **Ponto de aprovação do usuário:** escolher a variante de fps e aprovar movimento e visual.
 
 ---
 
