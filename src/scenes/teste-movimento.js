@@ -25,6 +25,19 @@
     return p;
   }
   const rainK = t => ease(seg(t, 20.2, 20.8));
+  // Background layer at depth f (0 sky, 1 the action, > 1 foreground): its camera moves f times as much as cam.
+  // draw(a, b, bottom) gets the visible x range and the bottom edge in layer coordinates.
+  function layer(cx, cy, zoom, f, draw) {
+    const lx = lerp(960, cx, f), ly = lerp(540, cy, f), lz = lerp(1, zoom, f);
+    Kit.cam(lx, ly, lz); draw(lx - W / 2 / lz - 200, lx + W / 2 / lz + 200, ly + H / 2 / lz); Kit.camEnd();
+  }
+  // Dark foreground tufts framing the shot: spots [screen x, height px, seed] as seen from the reference camera, rooted
+  // below the bottom edge on a layer at depth 1.4, so a move or zoom of the camera slides them with parallax.
+  const FG = 1.4;
+  function framePlants(t, cam, ref, spots) {
+    const [rx, ry, rz] = ref.map((v, i) => lerp([960, 540, 1][i], v, FG)), bottom = ry + H / 2 / rz + 30;
+    layer(...cam, FG, () => { for (const [sx, h, sd] of spots) A().tuft(rx + (sx - 960) / rz, bottom, h / rz, t, sd); });
+  }
   const feet = p => Object.values(p.limbs).filter(l => l.foot).map(l => l.end);
   // Splash ring plus two droplets on arcs, scaled by s.
   function splash(x, y, k, s) {
@@ -52,7 +65,7 @@
   // ---------- park world ----------
   const gy = x => 840 + 18 * Math.sin(x * .0045 + 1) + 9 * Math.sin(x * .013);  // irregular ground
   const LANE = makePath([[-1000, 840], [6000, 840]]);  // straight lane; creaturePose puts the feet on gy
-  const HS = 340, DS = 200, BS = 110, ANTS_AT = [2150, gy(2150)];
+  const HS = 340, DS = 200, BS = 160, ANTS_AT = [2150, gy(2150)];
   // Human stops at 1754 px with frac(s / stride) = .8: right foot planted, left at mid swing beside it; lift scales with
   // moving, so at rest the left foot is on the ground too and the feet stand together under the body.
   const HV = [[0, .85], [5, .85], [6.2, 0], [21.3, 0], [21.9, 1.1]], HSTOP = 10.8 * .75, HS0 = HSTOP - run(6.2, HV).s;
@@ -94,11 +107,17 @@
   }
   const TRAIL = makePath([[2450, 0], [1900, 0]]), TREES = [[900, 520, 1], [1450, 430, 2], [3200, 600, 3]];
 
-  function park(t, cx, cy, zoom) {
-    const rk = rainK(t), x0 = cx - W / 2 / zoom - 80, x1 = cx + W / 2 / zoom + 80, top = cy - H / 2 / zoom - 40;
-    Kit.gradient(mixCol(P.skyTop, P.stone, .75 * rk), mixCol(P.skyLow, P.stone, .6 * rk));
+  function park(t, cx, cy, zoom, fg) {
+    const rk = rainK(t), x0 = cx - W / 2 / zoom - 80, x1 = cx + W / 2 / zoom + 80, top = cy - H / 2 / zoom - 40, air = mixCol(P.skyLow, P.stone, .6 * rk);
+    A().sky(rk);
     const c = animationEngine.context; c.save(); c.globalAlpha = 1 - .7 * rk;  // clouds dissolve into the rain sky
-    A().cloud(320 + 7 * t, 130, .8, 1); A().cloud(1450 + 5 * t, 90, .6, 2); c.restore();
+    layer(cx, cy, zoom, .08, () => { A().cloud(320 + 7 * t, 130, .8, 1); A().cloud(1450 + 5 * t, 90, .6, 2); A().cloud(2500 + 4 * t, 170, .7, 3); }); c.restore();
+    layer(cx, cy, zoom, .25, (a, b) => A().ground(x => 600 + 50 * Math.sin(x * .002 + 1) + 22 * Math.sin(x * .0057), a, b, mixCol(P.foliage, air, .62)));
+    layer(cx, cy, zoom, .55, (a, b) => {
+      const hill = x => 720 + 26 * Math.sin(x * .0035 + 2) + 12 * Math.sin(x * .011);
+      for (let k = Math.floor(a / 120); k * 120 < b; k++) if (hash(k + 70) < .7) { const x = k * 120 + 60 * hash(k + 71); A().tree(x, hill(x) + 10, 110 + 90 * hash(k + 72), .04 * wind(t, x), k + 30, .45 + .3 * rk); }
+      A().ground(hill, a, b, mixCol(P.leafDk, air, .4));
+    });
     Kit.cam(cx, cy, zoom);
     for (const [x, h, sd] of TREES) A().tree(x, gy(x) + 12, h, .05 * wind(t, x) + rk * .12 * noise1(sd, t * 2.5), sd);
     A().ground(gy, x0, x1);
@@ -114,6 +133,8 @@
     blades(1);
     showers(t, x0, x1, top, 90, 11, 8, (x, id) => gy(x) + 10 + 150 * hash(id + 9), 1);
     Kit.camEnd();
+    framePlants(t, [cx, cy, zoom], ...fg);
+    A().grade(rk);
   }
 
   // ---------- macro world (ant scale) ----------
@@ -143,10 +164,14 @@
   }
 
   function macro(t, zoom = 1) {
-    const rk = rainK(t);
-    Kit.gradient(mixCol(P.skyTop, P.stone, .75 * rk), mixCol(P.skyLow, P.stone, .6 * rk));
+    const rk = rainK(t), air = mixCol(P.skyLow, P.stone, .6 * rk);
+    A().sky(rk, 1500, 140);
+    layer(960, 540, zoom, .35, (a, b) => {  // far hazy blades on a far bank
+      for (let i = Math.floor(a / 70); i * 70 < b; i++) { const x = i * 70 + 40 * hash(i + 200); A().blade(x, 600, 200 + 260 * hash(i + 201), .1 * wind(t, x, 7) + rk * .2 * noise1(i + 202, t * 3), mixCol(P.grass, air, .6)); }
+      A().ground(x => 590 + 12 * Math.sin(x * .004), a, b, mixCol(P.grassDk, air, .55));
+    });
+    layer(960, 540, zoom, .7, () => { for (let i = 0; i < 15; i++) { const x = i * 150 + 60 * hash(i + 3); A().blade(x, gm(x) + 20, 300 + 400 * hash(i), .12 * wind(t, x, 5) + rk * .3 * noise1(i, t * 3), mixCol(P.grassDk, air, .25)); } });
     Kit.cam(960, 540, zoom);
-    for (let i = 0; i < 15; i++) { const x = i * 150 + 60 * hash(i + 3); A().blade(x, gm(x) + 20, 300 + 400 * hash(i), .12 * wind(t, x, 5) + rk * .3 * noise1(i, t * 3), P.grassDk); }
     A().ground(gm, -200, W + 200);
     A().rock(1520, gm(1520) + 70, 75, 2); A().rock(430, gm(430) + 45, 45, 5);
     for (const a of crowd(MTRAIL, t + ANT_T, 8, 5, ANT)) {
@@ -156,7 +181,6 @@
     A().creature(creaturePose(SPECS.human, { path: GPATH, s: HSTOP, size: GIANT, ground: gm, t, seed: 1, moving: 0 }));
     const sp = run(t, [[10.3, 2.2]]);
     A().creature(creaturePose(SPECS.spider, { path: SPATH, s: sp.s, size: SS, ground: x => gm(x) + 150, t, seed: 4, moving: sp.moving }));
-    for (let i = 0; i < 7; i++) { const x = i * 300 + 120 * hash(i + 40); A().blade(x, gm(x) + 300, 200 + 150 * hash(i + 41), .1 * wind(t, x, 6) + rk * .3 * noise1(i + 50, t * 3), P.grass); }
     showers(t, -100, W + 100, -150, 22, 21, 14, (x, id) => gm(x) + 20 + 260 * hash(id + 9), 2.5);
     for (const [te, hx] of HERO) {
       const y = gm(hx) + 30;
@@ -164,13 +188,17 @@
       else if (t >= te) splash(hx, y, seg(t, te, te + .45), 3.5);
     }
     Kit.camEnd();
+    layer(960, 540, zoom, 1.3, () => { for (let i = 0; i < 7; i++) { const x = i * 300 + 120 * hash(i + 40); A().blade(x, gm(x) + 420, 260 + 200 * hash(i + 41), .1 * wind(t, x, 6) + rk * .3 * noise1(i + 50, t * 3), mixCol(P.leafDk, P.ink, .5)); } });
+    A().grade(rk);
   }
 
   // ---------- lake ----------
   const FS = 300, FPATH = makePath([[-500, 650], [200, 600], [800, 690], [1400, 610], [2000, 660], [2600, 630]]);
   function lake(t, lt) {
-    Kit.gradient(mixCol(P.skyTop, P.stone, .75), mixCol(P.skyLow, P.stone, .6));
-    const bank = x => 300 + 14 * Math.sin(x * .006);
+    const air = mixCol(P.skyLow, P.stone, .6), bank = x => 300 + 14 * Math.sin(x * .006);
+    A().sky(1);
+    A().ground(x => 215 + 30 * Math.sin(x * .003 + 1) + 12 * Math.sin(x * .009), 0, W, mixCol(P.foliage, air, .62));
+    for (let k = 0; k < 22; k++) if (hash(k + 400) < .75) { const x = k * 95 + 50 * hash(k + 401); A().tree(x, bank(x) + 8, 120 + 70 * hash(k + 402), .06 * wind(t, x) + .08 * noise1(k, t * 2.5), k + 60, .55); }
     A().ground(bank, 0, W);
     for (let k = 0; k < 110; k++) { const x = k * 18 + 9 * hash(k + 300); A().blade(x, bank(x) + 3, 16 + 14 * hash(k + 301), .35 * wind(t, x) + .4 * noise1(k, t * 4), k & 1 ? P.grass : P.grassDk); }
     A().water(0, 345, W, t);
@@ -181,15 +209,18 @@
     const f = run(t, [[25, 1.2]], 1.9), fish = creaturePose(SPECS.fish, { path: FPATH, s: f.s, size: FS, t, seed: 6, moving: f.moving });
     A().creature(fish);
     showers(t, 0, W, -40, 45, 31, 6, () => 348, 1.6);
+    for (const [x, h, sd] of [[-40, 520, 1], [140, 380, 2], [1800, 480, 3], [1960, 600, 4]]) A().tuft(x, H + 30, h, t, sd, mixCol(P.leafDk, P.ink, .55));
+    A().grade(.7);
     Kit.iris(fish.head.x, fish.head.y, 2300 * (1 - ease(seg(lt, 3.6, 4.8))));
   }
 
   shots([
-    [0, t => park(t, 960, 540, 1)],
-    [5, (t, lt) => { const k = easeIn(seg(lt, 4.45, 5)); park(t, lerp(1800, ANTS_AT[0], k), lerp(650, ANTS_AT[1], k), lerp(1.45, 4, k)); }],
+    // Shot 1 tracks the pair (LANE starts at x = -1000); low tufts slide past under their feet.
+    [0, t => park(t, humanS(t) * HS - 800, 560, 1.25, [[335, 560, 1.25], [[150, 190, 1], [1450, 160, 2], [2500, 200, 3], [3600, 170, 4], [4700, 190, 5]]])],
+    [5, (t, lt) => { const k = easeIn(seg(lt, 4.45, 5)); park(t, lerp(1800, ANTS_AT[0], k), lerp(650, ANTS_AT[1], k), lerp(1.45, 4, k), [[1800, 650, 1.45], [[40, 560, 1], [230, 360, 2], [1880, 480, 3]]]); }],
     [10, (t, lt) => macro(t, lerp(1.35, 1, easeOut(seg(lt, 0, .7))))],
-    [15, t => park(t, 2350, 544, 1.15)],
-    [20, (t, lt) => lt < 2.5 ? park(t, 2300, 540, 1) : macro(t)],
+    [15, t => park(t, 2250, 578, 1.3, [[2250, 578, 1.3], [[-50, 460, 4], [1990, 540, 5]]])],
+    [20, (t, lt) => lt < 2.5 ? park(t, 2150, 565, 1.15, [[2150, 565, 1.15], [[-20, 480, 7], [1900, 540, 8], [1750, 320, 9]]]) : macro(t)],
     [25, lake],
   ]);
 })();

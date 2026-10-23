@@ -15,3 +15,11 @@ Validação: ausência de bibliotecas p5 na página, curvas sem serrilhado indev
 ## Kit
 
 `kit.js` (carregado depois de `engine.js`) expõe `window.Kit` com primitivas gerais para cenas de natureza e criaturas: `cam`/`camEnd` (câmera com save/restore), `poly`, `ellipse`, `line` (opção `smooth`), `gradient`, `text` (`k` 0–1 com `backOut`), `wipe`, `iris`, `flash`, `vignette`. Todas são funções puras dos argumentos e usam `STYLE.palette` e `STYLE.outline.weight`. `VisitArt` não usa o Kit.
+
+## Direção de arte
+
+- Vetor plano em dois tons com luz lateral quente vinda do alto à esquerda: cada forma de `NatureArt` tem borda iluminada, cor base e faixa de sombra (`parts`), e cada ser projeta sombra de contato.
+- Contorno externo mais grosso que as linhas internas; o traço é o tom escuro do próprio preenchimento, nunca preto.
+- Profundidade em camadas com paralaxe (céu, morros distantes claros e dessaturados, linha de árvores, ação, tufos escuros no primeiro plano emoldurando).
+- `NatureArt.sky(chuva)` dá o brilho do sol; `NatureArt.grade(chuva)` esfria e escurece a chuva e aplica o grão de papel, gerado uma vez e reutilizado.
+- Ser principal com pelo menos 1/3 da altura do quadro nos planos principais.
