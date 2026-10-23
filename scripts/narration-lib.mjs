@@ -1,4 +1,5 @@
 // Narração: divisão em frases, linha do tempo e WAV PCM 16 bits. Funções puras.
+import { createHash } from 'node:crypto';
 export const splitSentences = text => text.trim().split(/(?<=[.!?…])\s+/).filter(Boolean);
 
 export function layoutTimeline(ep, durations) {
@@ -61,3 +62,5 @@ export function composeNarration(timing, clips, sampleRate) {
   });
   return out;
 }
+
+export const ttsCacheKey = (voice, lengthScale, text) => createHash('sha1').update(`${voice}|${lengthScale}|${text}`).digest('hex');

@@ -21,9 +21,11 @@ Ressalvas do Kokoro: o card afirma a política geral de dados, mas não lista a 
 
 Recomendação: trocar para Kokoro (pm_alex ou pf_dora para ouvir). WAVs de teste (24 000 Hz, mono, 16 bits, ~12,7 s): `out/tmp/vozes/kokoro-pf_dora.wav`, `kokoro-pm_alex.wav`, `kokoro-pm_santa.wav`.
 
-### Kokoro via subprocesso (proposta, não implementada)
+### Kokoro via subprocesso (implementado na Task 9b)
 
 - Instalação: venv fora do git (`python -m venv out/tmp/kokoro-venv; out/tmp/kokoro-venv/Scripts/python.exe -m pip install kokoro soundfile`). Pesos baixados do Hugging Face no primeiro uso.
 - Comando: `out/tmp/kokoro-venv/Scripts/python.exe <script> <voz> <saida.wav>` (script de ~6 linhas: `KPipeline(lang_code='p')`, concatena os trechos, `sf.write(saida, audio, 24000, subtype='PCM_16')`).
 - Entrada: texto UTF-8 pela stdin (`spawnSync(..., {input: text})`, como o Piper). Saída: WAV mono, 16 bits, 24 000 Hz (`readWav` já lê taxa qualquer; `composeNarration` precisa receber 24000 em vez de 22050).
 - Cache: igual, `sha1(voice|lengthScale|text)`; `lengthScale` vira `speed = 1/lengthScale` no `KPipeline(..., speed=)`. Uma chamada por frase paga o carregamento do modelo a cada vez (alguns s); melhor um processo que lê várias frases.
+
+Uso (Task 9b): `"voice": "kokoro:pm_alex"` no `episode.json` (padrão se omitido); sem o prefixo `kokoro:` continua Piper. `scripts/narrate.mjs` chama `scripts/kokoro_say.py` uma vez por execução (frases em JSON pela stdin, um WAV por frase no cache, `speed = 1 / lengthScale`). A taxa vem do cabeçalho do WAV (24 000 Hz).
