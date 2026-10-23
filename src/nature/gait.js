@@ -12,13 +12,14 @@ function limbCycle(s, offset, stride, duty) {
   const c = s / stride + offset, k = Math.floor(c), f = c - k, stance = f < duty;
   return { k, f, stance, u: stance ? f / duty : (f - duty) / (1 - duty) };
 }
-// Pé preso à âncora do apoio k; no balanço viaja até a âncora k + 1 e sobe o.lift.
+// Pé preso à âncora do apoio k; no balanço viaja até a âncora k + 1 e sobe o.lift. Parado (moving → 0), o pé do balanço
+// desce sob a raiz (plant(s)) e conta como apoio: o ser fica de pé sobre todos os pés.
 function footAt(s, offset, o) {
   const { k, stance, u } = limbCycle(s, offset, o.stride, o.duty);
   const aK = k => (k - offset) * o.stride + o.duty * o.stride / 2, a = o.plant(aK(k));
   if (stance) return { pos: a, stance, lift: 0 };
-  const b = o.plant(aK(k + 1)), e = ease(u);
-  return { pos: [lerp(a[0], b[0], e), lerp(a[1], b[1], e)], stance, lift: o.lift * Math.sin(Math.PI * u) * o.moving };
+  const b = o.plant(aK(k + 1)), e = ease(u), m = o.moving ?? 1, w = (1 - m) * Math.sin(Math.PI * u), r = w ? o.plant(s) : a;
+  return { pos: [lerp(lerp(a[0], b[0], e), r[0], w), lerp(lerp(a[1], b[1], e), r[1], w)], stance: !m, lift: o.lift * Math.sin(Math.PI * u) * m };
 }
 // IK de dois ossos pela lei dos cossenos; bend (1 | -1) escolhe o lado do joelho.
 function ik2(root, end, l1, l2, bend) {

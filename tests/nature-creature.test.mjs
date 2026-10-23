@@ -33,3 +33,9 @@ test('fish waves laterally from above; from the side the body barely moves and t
   assert.ok(topTail > 2 * sideTail, `superior ${topTail}`);
   assert.ok(range(side.map(p => p.appendages.caudal.at(-1)[1])) > .05 * 120, 'nadadeira caudal');
 });
+test('stopped dog stands on all four paws, each near its shoulder or hip', () => {
+  for (const s of [1.13, 1.47, 2.05, 2.81]) for (const [name, l] of Object.entries(pose('dog', s, { moving: 0 }).limbs)) {
+    assert.ok(l.stance && Math.abs(l.end[1] - 600) < .5, `${s} ${name} apoio`);
+    assert.ok(Math.abs(l.end[0] - l.root[0]) < .22 * 120, `${s} ${name} sob o corpo`);
+  }
+});
