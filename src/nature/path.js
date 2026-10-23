@@ -26,8 +26,10 @@ function makePath(points) {
 // Sem o, cada trecho é suavizado por kf. Com o = {start, stop, vary = .08, seed = 0}: trechos com velocidade constante;
 // partindo do repouso (primeira chave ou após uma pausa) a velocidade sobe com ease em `start` s, e ao parar desce em
 // `stop` s, sem mudar as chaves. A velocidade oscila por noise1 até ±vary. Devolve também lean (antecipação antes da
-// partida e assentamento com overshoot após a parada, em unidades da inclinação de marcha) e drag (inércia atrasada e
-// amortecida: > 0 quando o corpo freia, para cauda, orelhas e cabelo).
+// partida e assentamento com overshoot após a parada, em unidades da inclinação de marcha) e drag (sobreposição para
+// cauda, orelhas, cabelo e chapéu: uma mola frouxa segue a velocidade; drag = 2 · (mola − velocidade) fica > 0 quando o
+// corpo freia, passa do ponto depois da parada e assenta em alguns segundos).
+const LAG = { w: 5, z: .15 };  // mola frouxa do drag: ~.8 Hz, passa bem do ponto
 function travel(t, keys, o) {
   const h = 1 / 48;
   if (!o) { const s = kf(t, keys), speed = (kf(t + h, keys) - kf(t - h, keys)) / (2 * h); return { s, speed, moving: clamp(Math.abs(speed) / .3) }; }
@@ -55,10 +57,9 @@ function travel(t, keys, o) {
     if (still(i - 1)) lean += .8 * ease(seg(t, a - .35, a)) * (1 - ease(seg(t, a, a + start)));  // inclina antes do 1º passo
     if (still(i + 1)) lean += 1.2 * spring(t, b - .1, 5, 10);  // o tronco passa do ponto e volta
   }
-  // Mola subamortecida excitada pela desaceleração: soma das variações de velocidade no último segundo.
-  for (let j = 0, D = .08, v0 = speed; j < 12; j++) {
-    const v1 = (S(t - j * D) - S(t - (j + 1) * D)) / D, g = 3 * Math.exp(-4 * j * D) * Math.sin(8 * j * D + .4);
-    drag += (v1 - v0) * g; v0 = v1;
-  }
+  // springTrack sobre a velocidade amostrada a cada .1 s nos últimos 4 s, numa grade absoluta (igual em qualquer quadro).
+  const v = u => (S(u + h) - S(u - h)) / (2 * h), k = Math.floor(t * 10), track = [];
+  for (let j = k - 40; j <= k; j++) track.push([j / 10, v(j / 10)]);
+  drag = 2 * (springTrack(t, track, LAG) - speed);
   return { s, speed, moving: clamp(Math.abs(speed) / .3), lean, drag };
 }

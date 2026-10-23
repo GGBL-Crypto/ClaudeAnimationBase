@@ -28,3 +28,12 @@ test('twosTime: quadros 2k e 2k+1 iguais, 2k+1 e 2k+2 diferentes, na grade de qu
     assert.equal(twosTime((2 * k + 1) / fps, fps), 2 * k / fps);
   }
 });
+
+test('anticipate: recua antes da ação, passa do alvo e assenta em 1', () => {
+  const { anticipate } = ctx;
+  assert.equal(anticipate(.99, 1), 0);
+  assert.ok(Math.min(...[1.02, 1.05, 1.08, 1.1].map(t => anticipate(t, 1))) < -.1, 'contra-pose');
+  assert.ok(Math.max(...Array.from({ length: 60 }, (_, i) => anticipate(1.12 + i / 120, 1))) > 1, 'passa do alvo');
+  assert.ok(Math.abs(anticipate(2.5, 1) - 1) < 1e-3, 'assenta');
+  for (const t of [1, 1.12]) assert.ok(Math.abs(anticipate(t - 1e-6, 1) - anticipate(t + 1e-6, 1)) < 1e-3, `contínuo em ${t}`);
+});

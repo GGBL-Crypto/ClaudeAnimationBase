@@ -18,8 +18,10 @@ function chain(base, angle0, lengths, t, seed, o = {}) {
 // bob = descida do corpo em cada contato (2 por ciclo); lean = inclinação do tronco em marcha (cresce com a altura do
 // segmento); twist = contra-rotação ombros × quadris; nod/flex = aceno da cabeça e flexão da coluna no ritmo das patas;
 // breath = subida do peito (período 3–4 s, sempre ativo); idle = micro-ajustes da cabeça; stab = fração do balanço
-// que a cabeça compensa; follow = rad por BL/s² de o.drag nos apêndices (atraso e overshoot ao frear).
-var ORGANIC = { vary: .05, bob: .012, lean: .08, twist: .015, nod: 0, flex: 0, breath: .006, idle: .03, stab: .5, follow: .3 };
+// que a cabeça compensa; follow = rad por unidade de o.drag nos apêndices (atraso e overshoot ao frear); rec = atraso do
+// ponto mais baixo depois do contato (recuo, em ciclos); lag = atraso da cabeça em relação à pelve (ciclos); arc =
+// vaivém da cabeça à frente e atrás (BL), que com o balanço vertical faz um arco.
+var ORGANIC = { vary: .05, bob: .024, lean: .16, twist: .015, nod: 0, flex: 0, breath: .006, idle: .03, stab: .5, follow: .5, rec: .075, lag: .07, arc: .012 };
 
 // Piscar periódico por semente: uma piscada de .14 s em ponto sorteado de cada janela de `period` s. 1 = fechado.
 function blink(t, seed = 0, period = 3.6) {
@@ -60,7 +62,8 @@ function creaturePose(spec, o) {
   // Vida orgânica: fase da marcha gp (ciclos, com a variação por passada), beat = 1 em cada contato (2 por ciclo).
   const org = { ...ORGANIC, ...spec.organic }, walk = sv && !air, m = moving * ageK * life;
   const foot0 = spec.limbs.find(lb => lb.foot), gp = gait && foot0 ? gaitPhase(s, spec.stride, org.vary, seed + 501) + gait.offsets[foot0.key || foot0.name] : 0;
-  const beat = (1 + Math.cos(2 * TAU * gp)) / 2, low = Math.min(...spec.spine.map(g => g.h || 0));
+  // Poses-chave da passada (2 por ciclo): contato, recuo (o mais baixo, rec depois), passagem e alto; a cabeça segue lag depois.
+  const step = d => (1 + Math.cos(2 * TAU * (gp - d))) / 2, beat = step(org.rec), beatH = step(org.rec + org.lag), low = Math.min(...spec.spine.map(g => g.h || 0));
   const lean = walk ? org.lean * (moving + (o.lean || 0)) * life : 0, twist = walk && gait ? org.twist * size * m * Math.cos(TAU * gp) : 0;
   const breath = sv ? org.breath * size * life * Math.sin(TAU * t / (3 + hash(seed * 3.7 + 1))) : 0;
   // path.at limita d a [0, length]; aqui o caminho continua reto pela tangente das pontas, senão o corpo se amassa nelas.
@@ -108,12 +111,13 @@ function creaturePose(spec, o) {
   }
   // Peso: o corpo desce mais em cada contato (bob), a coluna flexiona, o peito respira; a cabeça compensa parte do
   // balanço (stab), acena no ritmo das patas (nod) e faz micro-ajustes que param entre um e outro (idle).
-  const bob = walk && legs.length ? org.bob * size * m * beat : 0, wave = org.flex * size * m * Math.sin(2 * TAU * gp);
+  const bob = walk && legs.length ? org.bob * size * m * beat : 0, bobH = walk && legs.length ? org.bob * size * m * beatH : 0, wave = org.flex * size * m * Math.sin(2 * TAU * gp);
   // Morte: o corpo deita no chão (segmentos altos caem para trás, como um humano de costas).
   const settle = (q, h, r, dy) => ({ ...q, x: sv ? q.x - dir * (h - low) * size * dead : q.x, y: sv ? lerp(q.y + dy, q.gy - r * size, dead) : q.y });
   const body = segs.map((q, i) => settle(q, spec.spine[i].h || 0, spec.spine[i].r, shift + bob + (i && i < n - 1 ? wave : 0) - (i ? 0 : breath)));
-  const head = settle(place(spec.head.offset, spec.head.h || 0), spec.head.h || 0, spec.head.r, shift + bob - org.stab * (drop + bob) + org.nod * size * m * beat - .6 * breath);
+  const head = settle(place(spec.head.offset, spec.head.h || 0), spec.head.h || 0, spec.head.r, shift + bobH - org.stab * (drop + bobH) + org.nod * size * m * beatH - .6 * breath);
   head.y -= .05 * size * flinch * life;
+  if (walk && legs.length) head.x += dir * org.arc * size * m * Math.sin(2 * TAU * (gp - org.rec - org.lag));
   const micro = org.idle * life * noise1(seed * 7 + 3, Math.floor(t * .8) + ease(frac(t * .8) * 4));
   const tilt = -.35 * flinch + .7 * dead + micro, headAngle = sv ? (dir > 0 ? tilt : Math.PI - tilt) : head.a + micro;  // tilt < 0 ergue
   const spine = body.map((q, i) => {
@@ -132,7 +136,8 @@ function creaturePose(spec, o) {
       let [dx, dy] = lb.rest;
       if (lb.swing && steps[lb.swing]) {
         const leg = steps[lb.swing].pos, r = roots[lb.swing], phi = -1.2 * Math.atan2((leg[0] - r[0]) * dir, leg[1] - r[1]) * moving * ageK;
-        [dx, dy] = [dx * Math.cos(phi) + dy * Math.sin(phi), dy * Math.cos(phi) - dx * Math.sin(phi)];
+        const reach = 1 - .25 * Math.max(0, Math.sin(phi));  // à frente o cotovelo dobra e a mão sobe: arco, não pêndulo reto
+        [dx, dy] = [reach * (dx * Math.cos(phi) + dy * Math.sin(phi)), reach * (dy * Math.cos(phi) - dx * Math.sin(phi))];
       }
       target = sv ? local(root, 0, dx, dy) : local(root, a, dx, -lb.side * dy);
     }
@@ -141,6 +146,7 @@ function creaturePose(spec, o) {
     if (g && g.limb === lb.name) target = [lerp(target[0], g.target[0], g.k), lerp(target[1], g.target[1], g.k)];
     const k = ik2(root, target, lb.l1 * size, lb.l2 * size, sv ? lb.bend * dir : lb.bend * lb.side);
     limbs[lb.name] = { root, mid: k.mid, end: k.end, stance: !!(st && st.stance) && !dead, far: sv && lb.side * dir < 0, foot: !!lb.foot };
+    if (!lb.foot) limbs[lb.name].hand = (g && g.limb === lb.name && g.k > .5 && g.hand) || o.hands?.[lb.name] || 'open';  // open | point | fist
   }
 
   // Apêndices em quadro local (voltado para a direita na lateral, girado pelo rumo na superior); `motion` é um objeto
@@ -151,7 +157,7 @@ function creaturePose(spec, o) {
     const base = sv ? local([anc.x, anc.y], 0, ap.at[0], ap.at[1]) : local([anc.x, anc.y], anc.angle, ap.at[0], 0);
     let a0 = sv ? (dir > 0 ? anc.angle : Math.PI - anc.angle) + ap.angle : Math.cos(ap.angle) < 0 ? Math.PI + side * .5 : -side * .5;
     if (sv) a0 -= org.follow * (o.drag || 0) * life * Math.sin(a0);  // inércia: ao frear, a ponta segue para a frente
-    if (sv) a0 += .5 * flinch * Math.atan2(Math.sin(-Math.PI / 2 - a0), Math.cos(-Math.PI / 2 - a0));  // susto ergue
+    if (sv) a0 += (.5 * flinch - 2 * (o.sq || 0)) * Math.atan2(Math.sin(-Math.PI / 2 - a0), Math.cos(-Math.PI / 2 - a0));  // susto e esticão erguem, achatar baixa
     const m = ap.motion, k = life * ageK, sd = seed * 13 + i + 1, len = ap.lengths.map(l => l * size);
     let pts;
     if (typeof m === 'function') {
@@ -170,6 +176,21 @@ function creaturePose(spec, o) {
   }
   return {
     spec: spec.id, size, view, facing: dir, spine, limbs, appendages, head: { x: head.x, y: head.y, angle: headAngle },
-    face: { expression: o.expression || 'neutral', blink: o.blink ?? blink(t, seed) }, sq: o.sq || 0, emote: o.emote || null, ...(spec.flyer && { wings: { phase: flying ? frac(t * spec.flyer.freq) : 0, open: flying ? 1 : 0 } }), carry,
+    face: { expression: o.expression || 'neutral', blink: o.blink ?? blink(t, seed), mouth: o.mouth || null }, sq: o.sq || 0, lag: sv ? org.follow * (o.drag || 0) * life : 0, emote: o.emote || null, ...(spec.flyer && { wings: { phase: flying ? frac(t * spec.flyer.freq) : 0, open: flying ? 1 : 0 } }), carry,
   };
+}
+
+// Smear de ação rápida (TV dos anos 2000): se a cabeça ou a ponta de um membro andou mais de min BL desde t − dt,
+// p.smear = as poses em t − dt / 2 e t − dt, desenhadas por baixo como membros repetidos. poseAt(t) → pose.
+function smear(poseAt, t, dt = 1 / 12, min = .25) {
+  const p = poseAt(t), q = poseAt(t - dt), pts = x => [[x.head.x, x.head.y], ...Object.values(x.limbs).map(l => l.end)], b = pts(q);
+  if (Math.max(...pts(p).map((v, i) => Math.hypot(v[0] - b[i][0], v[1] - b[i][1]))) > min * p.size) p.smear = [poseAt(t - dt / 2), q];
+  return p;
+}
+// Fala entre t0 e t1: uma forma de boca por sílaba (~6 por segundo, por semente), fechando ('m') de vez em quando;
+// null fora da fala (a boca da expressão). Formas: m fechada, e pequena, a aberta, o redonda.
+function talk(t, seed, t0, t1) {
+  if (t < t0 || t >= t1) return null;
+  const i = Math.floor((t - t0) * 6);
+  return ['m', 'e', 'a', 'o', 'a', 'e'][Math.floor(hash(seed * 7.3 + i) * 6)];
 }

@@ -55,7 +55,8 @@
 
     // Model band on a plain ground: Lia and Bento standing in profile, then Lia's eight expressions.
     const c = animationEngine.context; c.fillStyle = P.skyLow; c.fillRect(0, 730, W, H - 730); Kit.line([[0, 730], [W, 730]], P.ink, 6);
-    A().creature(walker('human', 120, 1060, 215, 0, { t, moving: 0, seed: 3 }).pose); Kit.text('Lia', 22, 1050, 22, P.ink);
+    // Lia shows the other glove poses (pointing, fist; the expressions keep the open hand) and a talking mouth (a, then o).
+    A().creature(walker('human', 120, 1060, 215, 0, { t, moving: 0, seed: 3, hands: { armL: 'point', armR: 'fist' }, mouth: t < 2 ? 'a' : 'o' }).pose); Kit.text('Lia', 22, 1050, 22, P.ink);
     A().creature(walker('dog', 560, 1060, 330, 0, { t, moving: 0, seed: 3 }).pose); Kit.text('Bento', 560, 752, 24, P.ink);
     EXPRESSIONS.forEach((e, i) => {
       const X = 868 + i * 140, w = walker('human', X, 1062, 200, 0, { t, moving: 0, expression: e, seed: 3 });

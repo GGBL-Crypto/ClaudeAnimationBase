@@ -126,7 +126,8 @@
         if (E.brow) { c.lineWidth = w * 1.3 / k; c.stroke(path(E.brow)); }
         c.restore();
       }
-      if (E.mouth.fill) { c.fillStyle = mixCol(P.line, P.blush, .3); c.fill(path(E.mouth.d)); c.lineWidth = w * .8; c.stroke(path(E.mouth.d)); } else { c.lineWidth = w; c.stroke(path(E.mouth.d)); }
+      const M = F.mouths[p.face.mouth] || E.mouth;  // a talking or reacting shape replaces the expression's mouth
+      if (M.fill) { c.fillStyle = mixCol(P.line, P.blush, .3); c.fill(path(M.d)); c.lineWidth = w * .8; c.stroke(path(M.d)); } else { c.lineWidth = w; c.stroke(path(M.d)); }
     });
   }
   // Round white eye with a small pupil looking forward at local (x, y) of a frame (units), inked w px; blink closes it
@@ -144,6 +145,7 @@
   // order. The side view draws the far limbs 10 layers back, so each side keeps a fixed layer order. Pieces come from
   // pieces(p, L) (an imported character replaces them by name); an imported head brings its own face, so the drawn
   // eyes and mouth are skipped.
+  const HANDS = { open: 'hand', point: 'handPoint', fist: 'handFist' };  // limb.hand → glove piece
   const decor = {
     human: {
       look: { color: P.mustard, skin: P.skin, hair: P.hair, shirt: P.mustard, pants: P.shorts, shoe: P.boot, sole: P.bootDk, scarf: P.hero, hat: P.olive, hatBand: P.oliveDk },
@@ -153,14 +155,15 @@
         for (const [name, l] of Object.entries(p.limbs)) {
           const k = { L, dk: l.far ? .28 : 0 };
           if (name.startsWith('leg')) { G.push(grp([pin(p, Q.shoe, l.end, rock(p, l), k)], l.far), grp([pin(p, Q.thigh, l.root, l.mid, k), pin(p, Q.shin, l.mid, l.end, k)], l.far)); }
-          else G.push(grp([pin(p, Q.upperArm, l.root, l.mid, k), pin(p, Q.forearm, l.mid, l.end, k)], l.far), grp([pin(p, Q.hand, l.end, ang(l.mid, l.end), k)], l.far));  // the hand alone, over the head
+          else G.push(grp([pin(p, Q.upperArm, l.root, l.mid, k), pin(p, Q.forearm, l.mid, l.end, k)], l.far), grp([pin(p, Q[HANDS[l.hand]] || Q.hand, l.end, ang(l.mid, l.end), k)], l.far));  // the hand alone, over the head
         }
         const torso = pin(p, Q.torso, pt(pe), pt(ch), o), hd = [p.head.x, p.head.y];
         const head = pin(p, Q.head, hd, p.head.angle, o), hair = pin(p, Q.hair, hd, p.head.angle, o);
         G.push(grp([pin(p, Q.pelvis, pt(pe), pt(ch), o), torso]), grp([pin(p, Q.scarf, pt(pe), pt(ch), o)]), grp([head]));  // the big head hides the neck and covers the shoulders and arm roots
         // Scarf tail: from the back of the neck, trailing with the hair chain but hanging lower.
         if (h) G.push(grp([pin(p, Q.scarfTail, at(torso, -7, -30), turn(p, turn(p, ang(h[0], h[3])) - .35), o)]));
-        G.push(grp([pin(p, Q.ear, at(head, -2, -3.2), p.head.angle, o)]), grp([hair]), grp([pin(p, Q.hat, hd, p.head.angle, o)]));
+        // The hat rides the same spring as the hair (p.lag): it tips forward when she stops and rocks back.
+        G.push(grp([pin(p, Q.ear, at(head, -2, -3.2), p.head.angle, o)]), grp([hair]), grp([pin(p, Q.hat, hd, p.head.angle + p.facing * .35 * (p.lag || 0), o)]));
         if (!head.q.art) G.push({ z: 9.5, draw: () => humanFace(p, L, head) });
         return G;
       },
@@ -311,20 +314,23 @@
     }
   }
 
-  function creature(p, look = {}) {
+  // p.smear (smear() in creature.js): the earlier poses of a fast move drawn first, in full colour and ink, so the
+  // limbs that moved repeat behind the drawing (2000s TV smear); the parts that stayed hide under it.
+  function creature(p, look = {}, ghost = false) {
     const D = decor[p.spec]; if (!D) throw new Error(`Sem desenho para o ser ${p.spec}`);
+    if (p.smear && !ghost) for (const q of [...p.smear].reverse()) creature(q, look, true);
     const L = { ...D.look, ...look }, sq = p.sq || 0;
     if (sq) {  // squash (sq > 0) e stretch (sq < 0) a partir do chão sob o corpo, preservando o volume
       const fs = Object.values(p.limbs).filter(l => l.foot), x = (p.spine[0].x + p.spine.at(-1).x) / 2, y = fs.length ? Math.max(...fs.map(l => l.end[1])) : p.spine[0].y;
       c.save(); c.translate(x, y); c.scale(1 + .5 * sq, 1 - sq); c.translate(-x, -y);
     }
     try {
-      contact(p);
+      if (!ghost) contact(p);
       if (p.size < 28) simple(p, D, L);
       else { const w = lw(p), fw = fwOf(p); for (const g of D.build(p, L).sort((a, b) => a.z - b.z)) if (g.draw) g.draw(); else cut(g.list, w, fw); }
       if (p.carry) NatureArt.leafPiece(p.carry.x, p.carry.y, p.carry.w, p.carry.h, p.carry.angle, P.leaf);
     } finally { if (sq) c.restore(); }
-    if (p.emote) emote(p);
+    if (p.emote && !ghost) emote(p);
   }
 
   // Scenery silhouettes from parts.js as pieces (pivot at the root, 100 units = full size), built once per path.
@@ -348,12 +354,12 @@
       if (color) {
         // Clumps of bushes along the rim (authored silhouettes), seeded by the layer's own profile so they stay put as
         // the camera moves; drawn first, so the hill hides their lower half.
-        const B = PARTS.scenery.bush, sd = Math.round(profile(0));
+        const B = PARTS.scenery.bush, sd = Math.round(profile(0)), tone = mixCol(color, P.ink, .14);  // the layer's second tone
         c.save();
         for (let k = Math.floor(x0 / 150) - 1; k * 150 < x1 + 150; k++) {
           if (hash(k * 1.3 + sd) > .6) continue;
           const s = .5 + .6 * hash(k * 2.1 + sd), bx = k * 150 + 70 * hash(k + sd * .7), q = scene(B[Math.floor(hash(k * 3.7 + sd) * B.length)]);
-          inside(place(q, [bx, profile(bx) + 5 * s], 0, s, hash(k + sd + .5) < .5 ? -1 : 1, 1, color), u => { const p = path(q.d); c.fillStyle = color; c.fill(p); c.lineWidth = 3 * u; c.strokeStyle = P.line; c.stroke(p); });
+          inside(place(q, [bx, profile(bx) + 5 * s], 0, s, hash(k + sd + .5) < .5 ? -1 : 1, 1, tone), u => { const p = path(q.d); c.fillStyle = tone; c.fill(p); c.lineWidth = 3 * u; c.strokeStyle = P.line; c.stroke(p); });
         }
         c.restore();
         c.beginPath(); c.moveTo(x0, H * 4);
@@ -361,6 +367,41 @@
         c.lineTo(x1, H * 4); c.closePath(); c.fillStyle = color; c.fill(); edgeLine(0, P.line, 3); return;
       }
       c.fillStyle = P.ground; c.fill(); edgeLine(0, P.groundDk, STYLE.outline.weight);  // no black here: the grass blades over it would dash it
+    },
+    // Ground props along profile between x0 and x1, about one per 130 · s px and fixed by seed as the camera moves:
+    // stones, flowers, a fence run, stumps and mushrooms (kinds: letters of 'sfwtm'). Two flat tones each (base and its
+    // shaded side), a thinner outline than the characters and haze (0..1) toward the sky on far layers, so the characters
+    // keep the strongest contrast in the frame.
+    props(profile, x0, x1, seed = 0, s = 1, haze = 0, kinds = 'sfwtm') {
+      const hz = col => mixCol(col, P.skyLow, haze), sh = col => hz(mixCol(col, P.ink, .25)), w = haze > .3 ? 1 : clamp(1.6 * s, 1, 2.5), step = 130 * s;
+      const ink = mixCol(P.line, P.skyLow, .6 * haze);
+      const draw = (list, lw = w) => { c.lineWidth = 2 * lw; c.lineJoin = 'round'; c.strokeStyle = ink; if (lw) for (const p of list) { shape(p); c.stroke(); } for (const p of list) { shape(p); c.fillStyle = p.fill; c.fill(); } };
+      for (let k = Math.floor(x0 / step) - 1; k * step < x1 + step; k++) {
+        if (hash(k * 1.7 + seed) > .5) continue;
+        const kind = kinds[Math.floor(hash(k * 2.9 + seed) * kinds.length)], x = k * step + .6 * step * hash(k + seed * .3), y = profile(x) + 3 * s, r = hash(k * 4.1 + seed), f = r < .5 ? -1 : 1;
+        if (kind === 's') {  // stone: shaded body, lit top
+          const a = (12 + 14 * r) * s;
+          draw([{ smooth: true, poly: [[x - a, y], [x - .8 * a, y - .7 * a], [x + .1 * a, y - .9 * a], [x + a, y - .4 * a], [x + 1.1 * a, y]], fill: sh(P.stone) }]);
+          draw([{ smooth: true, poly: [[x - .7 * a, y - .25 * a], [x - .6 * a, y - .65 * a], [x + .1 * a, y - .78 * a], [x + .55 * a, y - .45 * a]], fill: hz(P.stone) }], 0);
+        } else if (kind === 'f') for (let i = 0; i < 3; i++) {  // three flowers: five petals around a darker heart
+          const fx = x + (i - 1) * 9 * s + 4 * s * hash(k + i), fh = (16 + 12 * hash(k * 3 + i)) * s, col = [P.cloud, P.wing, P.light][Math.floor(hash(k + i * 5 + seed) * 3)], hx = fx + f * 2 * s, hy = y - fh;
+          stroke([[fx, y], [hx, hy]], Math.max(1.5, 2 * s), hz(P.leafDk), false);
+          draw([0, 1, 2, 3, 4].map(j => ({ e: [hx + Math.cos(j * 1.257) * 4 * s, hy + Math.sin(j * 1.257) * 4 * s, 3.4 * s, 3.4 * s], fill: hz(col) })), Math.min(w, 1.2));
+          dot(hx, hy, 2.4 * s, sh(P.mustard));
+        } else if (kind === 'w') {  // a fence run: two posts and two shaded rails
+          const len = 70 * s, ph = 34 * s, xa = x - len / 2, xb = x + len / 2, ya = profile(xa) + 3 * s, yb = profile(xb) + 3 * s;
+          draw([.75, .4].map(v => ({ poly: [[xa, ya - v * ph], [xb, yb - v * ph], [xb, yb - (v - .15) * ph], [xa, ya - (v - .15) * ph]], fill: sh(P.wood) })));
+          for (const [px, py] of [[xa, ya], [xb, yb]]) draw([{ poly: [[px - 3.5 * s, py], [px - 3.5 * s, py - ph], [px, py - ph - 4 * s], [px + 3.5 * s, py - ph], [px + 3.5 * s, py]], fill: hz(P.wood) }]);
+        } else if (kind === 't') {  // stump with a lighter cut top
+          const a = (14 + 8 * r) * s, h = (18 + 10 * hash(k + 7)) * s;
+          draw([{ poly: [[x - a * 1.2, y], [x - a, y - h], [x + a, y - h], [x + a * 1.2, y]], fill: sh(P.wood) }, { e: [x, y - h, a, a * .32], fill: hz(mixCol(P.wood, P.cloud, .45)) }]);
+        } else if (kind === 'm') for (let i = 0; i < 2; i++) {  // two mushrooms: pale stem, orange cap with its shaded rim
+          const mx = x + i * 14 * s * f, mh = (12 + 8 * hash(k + i)) * s * (1 - .3 * i), cw = (9 + 4 * r) * s * (1 - .3 * i);
+          draw([{ poly: [[mx - .3 * cw, y], [mx - .25 * cw, y - mh], [mx + .25 * cw, y - mh], [mx + .3 * cw, y]], fill: hz(P.cloud) }, { smooth: true, poly: [[mx - cw, y - mh], [mx, y - mh - 1.1 * cw], [mx + cw, y - mh], [mx, y - mh + .3 * cw]], fill: hz(P.orange) }]);
+          draw([{ e: [mx, y - mh + .02 * cw, .85 * cw, .16 * cw], fill: sh(P.orange) }], 0);
+          dot(mx - .3 * cw, y - mh - .5 * cw, .14 * cw, hz(P.cloud)); dot(mx + .35 * cw, y - mh - .35 * cw, .1 * cw, hz(P.cloud));
+        }
+      }
     },
     // Flat sky in screen space; rain (0..1) greys it. (sx, sy), the old sun glow, are kept for the callers and unused.
     sky(rain = 0, sx = 330, sy = 160) {

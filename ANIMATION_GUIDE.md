@@ -37,7 +37,7 @@ Não há uma regra universal proibindo 3D, texto, preto, branco ou formas geomé
 
 ## Matemática compartilhada
 
-`src/motion.js` preserva as funções originais: `clamp`, `lerp`, `seg`, `kf`, `ease/easeIn/easeOut/backOut/elasticOut`, `hash`, `wob`, `spring`, `ring`, `jump`, `take`, `stroll`, `arcPt`, `onTwos`, `pulse`, `beatN` e `mixCol`. O desenho é responsabilidade do motor. As opções de pose retornadas pelos helpers são dados; outros personagens podem interpretá-las por adaptadores.
+`src/motion.js` preserva as funções originais: `clamp`, `lerp`, `seg`, `kf`, `ease/easeIn/easeOut/backOut/elasticOut`, `hash`, `wob`, `spring`, `ring`, `jump`, `take`, `stroll`, `arcPt`, `onTwos`, `pulse`, `beatN` e `mixCol`, mais as molas em forma fechada (`springMove`, `springTrack`) e `anticipate` (contra-pose, passa do alvo e assenta). O desenho é responsabilidade do motor. As opções de pose retornadas pelos helpers são dados; outros personagens podem interpretá-las por adaptadores.
 
 Os motores 2D usam coordenadas 1920×1080, origem no canto superior esquerdo e Y para baixo. O motor 3D usa unidades de mundo e Y para cima; não reinterpretar helpers 2D como movimentos 3D. Para renderizações fora de ordem, compute movimentos a partir de `t`. Sem `Math.random()`, relógio de parede ou integração de física acumulada. No motor aquarela, sementes estáveis por elemento impedem reboil acidental.
 

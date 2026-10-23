@@ -68,6 +68,13 @@ function springMove(t, t0, a, b, p = SPRING.smooth) { return a + (b - a) * sprin
 // A value with several targets, keys = [[t, value], ...] by time: one spring per change, summed, so a new target in the
 // middle of a move stays continuous.
 function springTrack(t, keys, p = SPRING.smooth) { return keys.reduce((v, [t0, b], i) => i ? v + (b - keys[i - 1][1]) * springStep(t - t0, p) : b, 0); }
+// An action (0 → 1) cued at t0: a short counter-move to −amt over pre s (anticipation), then a spring from there that
+// passes 1 and settles (arrival). 0 before t0. Ease a pose toward its target with it: lerp(rest, target, anticipate(...)).
+function anticipate(t, t0, pre = .12, amt = .2, p = SPRING.snappy) {
+  if (t <= t0) return 0;
+  if (t < t0 + pre) return -amt * Math.sin(Math.PI / 2 * (t - t0) / pre);
+  return -amt + (1 + amt) * springStep(t - t0 - pre, p);
+}
 // Point on a thrown or jumping arc from p0 to p1, peaking h px above the straight line; k = 0..1 along the flight.
 const arcPt = (p0, p1, h, k) => [lerp(p0[0], p1[0], k), lerp(p0[1], p1[1], k) - h * 4 * k * (1 - k)];
 // A hop that takes off at t0 and lands at t1, h body units high: crouch (anticipation), stretch on takeoff,

@@ -61,16 +61,58 @@ test('mood changes expression with a take: blink, squash released by a spring an
   let n = 0; for (let t = 0; t < 20; t += 1 / 24) n += ctx.blink(t, 5) > .5; assert.ok(n >= 4, `piscadas ${n}`);
 });
 
-test('on twos the planted feet still do not slide: a stance foot keeps its x across quantized frames', () => {
-  for (const id of ['human', 'dog']) {
+test('planted feet do not slide at 24 and 30 fps, on ones and on twos: a stance foot keeps its x', () => {
+  for (const [fps, twos] of [[24, true], [24, false], [30, true], [30, false]]) for (const id of ['human', 'dog']) {
     const last = {};
-    for (let F = 0; F < 96; F++) {
-      const TT = ctx.twosTime(F / 24, 24), p = ctx.creaturePose(ctx.SPECS[id], { path: P, s: 1 + .9 * TT, size: 120, view: 'side', ground: flat, t: TT, seed: 1 });
+    for (let F = 0; F < 4 * fps; F++) {
+      const TT = twos ? ctx.twosTime(F / fps, fps) : F / fps, p = ctx.creaturePose(ctx.SPECS[id], { path: P, s: 1 + .9 * TT, size: 120, view: 'side', ground: flat, t: TT, seed: 1 });
       for (const [name, l] of Object.entries(p.limbs)) {
         if (!l.foot) continue;
-        if (l.stance && last[name]) assert.ok(Math.abs(l.end[0] - last[name][0]) < .5, `${id} ${name} quadro ${F}`);
+        if (l.stance && last[name]) assert.ok(Math.abs(l.end[0] - last[name][0]) < .5, `${id} ${name} ${fps} fps ${twos ? '2s' : '1s'} quadro ${F}`);
         last[name] = l.stance ? l.end : null;
       }
     }
   }
+});
+
+test('walk key poses: the pelvis is lowest in the recoil just after contact, highest after passing, and the head lags it', () => {
+  const H = { ...ctx.SPECS.human, organic: { vary: 0 } }, at = c => ctx.creaturePose(H, { path: P, s: 2.25 + .75 * c, size: 120, view: 'side', ground: flat, t: 0, seed: 1 });
+  const y = c => at(c).spine[1].y;  // c in cycles after the left contact (s = 2.25)
+  assert.ok(y(.07) > y(0) + .05 && y(.07) > y(.25) + .3, `recuo ${y(0)} ${y(.07)} ${y(.25)}`);
+  assert.ok(y(.33) < y(.25) && y(.33) < y(0), `alto ${y(.25)} ${y(.33)}`);
+  const N = 48, ys = [], hs = []; for (let i = 0; i < N; i++) { const p = at(i / N); ys.push(p.spine[1].y); hs.push(p.head.y); }
+  assert.ok(hs.indexOf(Math.min(...hs)) % 24 > ys.indexOf(Math.min(...ys)) % 24, 'a cabeça chega ao alto depois da pelve');
+  const xs = Array.from({ length: N }, (_, i) => at(i / N).head.x - at(i / N).spine[1].x);
+  assert.ok(Math.max(...xs) - Math.min(...xs) > .005 * 120, 'a cabeça faz um arco, não só sobe e desce');
+});
+test('arms swing in an arc: the hand rises and the elbow bends on the forward swing', () => {
+  const H = { ...ctx.SPECS.human, organic: { vary: 0 } }, ends = [];
+  for (let i = 0; i < 48; i++) { const a = ctx.creaturePose(H, { path: P, s: 2.25 + .75 * i / 48, size: 120, view: 'side', ground: flat, t: 0, seed: 1 }).limbs.armL; ends.push([a.end[0] - a.root[0], a.end[1] - a.root[1]]); }
+  const front = ends.reduce((a, b) => b[0] > a[0] ? b : a), back = ends.reduce((a, b) => b[0] < a[0] ? b : a);
+  assert.ok(front[1] < back[1] - 2, `mão da frente mais alta ${front} ${back}`);
+  assert.ok(Math.hypot(...front) < Math.hypot(...back) - 2, 'cotovelo dobra à frente');
+});
+test('spring overlap: appendages lag behind a stop, then swing past rest and settle', () => {
+  const keys = [[0, 0], [3, 3]], o = { start: .5, stop: .6, seed: 1 }, d = t => ctx.travel(t, keys, o).drag;
+  const ts = Array.from({ length: 200 }, (_, i) => 2 + i / 50), ds = ts.map(d), hi = Math.max(...ds), after = ds.filter((_, i) => ts[i] > 3);
+  assert.ok(hi > .3, `atraso ${hi}`);
+  assert.ok(Math.min(...after) < -.4 * hi, `passa do ponto ${Math.min(...after)}`);
+  assert.ok(Math.abs(d(9)) < .02, 'assenta');
+  const tip = drag => pose('dog', 3, { moving: 0, drag }).appendages.tail.at(-1)[0];
+  assert.ok(tip(1) > tip(0) + 1 && tip(-1) < tip(0) - 1, 'a cauda segue o drag para os dois lados');
+});
+test('smear: a fast move draws the earlier poses under it; a slow one does not', () => {
+  const walkAt = v => t => pose('human', 1 + v * t, { t });
+  assert.equal(ctx.smear(walkAt(1), 1).smear, undefined);
+  const fast = ctx.smear(walkAt(12), 1);
+  assert.equal(fast.smear.length, 2); assert.ok(fast.smear[1].head.x < fast.smear[0].head.x && fast.smear[0].head.x < fast.head.x);
+});
+test('hands take a pose from the gesture (point) or o.hands (fist), open by default; o.mouth reaches the face', () => {
+  const p = pose('human', 2, { moving: 0, gesture: { limb: 'armL', target: [400, 500], k: 1, hand: 'point' }, hands: { armR: 'fist' }, mouth: 'a' });
+  assert.equal(p.limbs.armL.hand, 'point'); assert.equal(p.limbs.armR.hand, 'fist'); assert.equal(p.face.mouth, 'a');
+  assert.equal(pose('human', 2).limbs.armL.hand, 'open');
+});
+test('talk: mouth shapes from a stable seed, several per second, closed outside the line', () => {
+  const ms = Array.from({ length: 48 }, (_, i) => ctx.talk(3 + i / 24, 1, 3, 7));
+  assert.ok(new Set(ms).size >= 3, ms.join()); assert.equal(ctx.talk(.5, 1, 3, 7), null); assert.equal(ctx.talk(4.2, 1, 3, 7), ctx.talk(4.2, 1, 3, 7));
 });

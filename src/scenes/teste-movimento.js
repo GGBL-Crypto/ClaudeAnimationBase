@@ -78,36 +78,29 @@
   const DMOOD = [[0, 'neutral'], [6.3, 'neutral', '?'], [18.5, 'neutral', '!']];
   // Acting on top of the gait: mood (take, blink, emote); sq adds a damped squash (spring) where the body comes to rest.
   const act = (md, sq) => ({ expression: md.expression, blink: md.blink, emote: md.emote, sq: md.sq + sq });
-  // PROJECT.springAppendages (fps test D): the appendages follow the body speed through a loose spring (springTrack
-  // over the speed sampled every .1 s for the last 4 s, on an absolute grid so it is the same in any frame); drag =
-  // spring − speed lags behind a stop, then swings past it and rings for a few seconds, instead of travel's drag.
-  const LOOSE = { w: 5, z: .15 };
-  function dragOf(t, keys, o, m) {
-    if (!PROJECT.springAppendages) return m.drag;
-    const k = Math.floor(t * 10), track = [];
-    for (let j = k - 40; j <= k; j++) track.push([j / 10, travel(j / 10, keys, o).speed]);
-    return 2 * (springTrack(t, track, LOOSE) - m.speed);
-  }
 
+  // Every action starts with a counter-move and lands past its pose (anticipate), then holds with a slow drift (moving
+  // hold): the pointing hand and the look never freeze. She talks to Bento while pointing; the scare opens her mouth.
   function human(t) {
     const m = travel(t, HK, HO);
-    const o = { path: LANE, s: m.s, size: HS, ground: gy, t, seed: 1, moving: m.moving, lean: m.lean, drag: dragOf(t, HK, HO, m), ...act(mood(t, HMOOD, 1), .05 * spring(t, 6.2, 6, 14)) };
-    const point = ease(seg(t, 6.9, 7.3)) * (t < 10), cover = ease(seg(t, 20.95, 21.25)), look = ease(seg(t, 6.2, 6.5)) * (t < 10);
+    const mouth = t >= 20.95 && t < 21.5 ? 'a' : talk(t, 1, 7.5, 8.9);
+    const o = { path: LANE, s: m.s, size: HS, ground: gy, t, seed: 1, moving: m.moving, lean: m.lean, drag: m.drag, mouth, ...act(mood(t, HMOOD, 1), .05 * spring(t, 6.2, 6, 14)) };
+    const point = anticipate(t, 6.9, .14, .1) * (t < 10), cover = anticipate(t, 20.95, .08, .25), look = anticipate(t, 6.2, .1, .25) * (t < 10);
     let p = creaturePose(SPECS.human, o);
-    if (point) p = creaturePose(SPECS.human, { ...o, gesture: { limb: 'armL', target: [ANTS_AT[0], ANTS_AT[1] + 8 * Math.sin(t * 5)], k: point } });
-    if (cover) {  // near arm by gesture, far arm by its own IK: both hands over the head
+    if (point) p = creaturePose(SPECS.human, { ...o, gesture: { limb: 'armL', target: [ANTS_AT[0] + 10 * noise1(41, t * .9), ANTS_AT[1] + 8 + 12 * noise1(42, t * .7)], k: point, hand: 'point' } });
+    if (cover) {  // near arm by gesture, far arm by its own IK: both hands up against the rain in front of the brim (her arms are too short for the big head: hands inside it hide)
       const top = (dx, dy) => [p.head.x + dx * HS, p.head.y + dy * HS], lb = SPECS.human.limbs[3], r = p.limbs.armR;
-      p = creaturePose(SPECS.human, { ...o, gesture: { limb: 'armL', target: top(.03, -.07), k: cover } });
-      const end = r.end.map((v, i) => lerp(v, top(-.03, -.06)[i], cover)), q = ik2(r.root, end, lb.l1 * HS, lb.l2 * HS, lb.bend * p.facing);
+      p = creaturePose(SPECS.human, { ...o, gesture: { limb: 'armL', target: top(.27, -.13), k: cover } });
+      const end = r.end.map((v, i) => lerp(v, top(.21, -.11)[i], cover)), q = ik2(r.root, end, lb.l1 * HS, lb.l2 * HS, lb.bend * p.facing);
       p.limbs.armR = { ...p.limbs.armR, mid: q.mid, end: q.end };
     }
     return nod(p, .01 * look, .012 * (look + cover), .32 * look + .2 * cover);
   }
   function dog(t) {
     const m = travel(t, DK, DO), sq = .08 * (spring(t, 6, 6, 14) + spring(t, 19, 6, 14));
-    const p = creaturePose(SPECS.dog, { path: LANE, s: m.s, size: DS, ground: gy, t, seed: 2, moving: m.moving, lean: m.lean, drag: dragOf(t, DK, DO, m), ...act(mood(t, DMOOD, 2), sq) });
-    const sniff = ease(seg(t, 6, 6.4)) * (1 - ease(seg(t, 16.5, 16.8))), up = ease(seg(t, 18.55, 18.9)) * (1 - ease(seg(t, 20.6, 21)));
-    return nod(p, .05 * sniff, (.24 + .015 * Math.sin(t * TAU * 3.5)) * sniff - .04 * up, .6 * sniff - .35 * up);
+    const p = creaturePose(SPECS.dog, { path: LANE, s: m.s, size: DS, ground: gy, t, seed: 2, moving: m.moving, lean: m.lean, drag: m.drag, ...act(mood(t, DMOOD, 2), sq) });
+    const sniff = anticipate(t, 6, .1, .2) * (1 - ease(seg(t, 16.5, 16.8))), up = anticipate(t, 18.55, .08, .3) * (1 - ease(seg(t, 20.6, 21)));
+    return nod(p, .05 * sniff, (.26 + .015 * Math.sin(t * TAU * 3.5)) * sniff - .04 * up, .6 * sniff - .35 * up);
   }
   const dogS = t => travel(t, DK, DO).s, humanS = t => travel(t, HK, HO).s;
 
@@ -122,7 +115,7 @@
     if (t < 16.2) return creaturePose(SPECS.bird, { ...o, path: B_IN, s: easeOut(seg(t, 15, 16.2)) * B_IN.length / BS, gait: 'fly' });
     if (t >= 18.45) { const k = seg(t, 18.45, 19.6); return creaturePose(SPECS.bird, { ...o, path: B_OUT, s: (.25 * k + .75 * k * k) * B_OUT.length / BS, gait: 'fly' }); }
     const m = run(t, [[16.55, 0], [16.65, BV], [17.45, BV], [17.55, 0]]), peck = Math.max(0, Math.sin(2 * TAU * seg(t, 17.7, 18.1)));
-    return nod(creaturePose(SPECS.bird, { ...o, path: B_GROUND, s: m.s, moving: m.moving, flinch: ease(seg(t, 18.2, 18.3)) }), .05 * peck, .1 * peck, .8 * peck);
+    return nod(creaturePose(SPECS.bird, { ...o, path: B_GROUND, s: m.s, moving: m.moving, flinch: anticipate(t, 18.2, .05, .3, SPRING.bouncy) }), .05 * peck, .1 * peck, .8 * peck);
   }
   const TRAIL = makePath([[2450, 0], [1900, 0]]), TREES = [[900, 520, 1], [1450, 430, 2], [3200, 600, 3]];
 
@@ -136,11 +129,15 @@
       const hill = x => 720 + 26 * Math.sin(x * .0035 + 2) + 12 * Math.sin(x * .011);
       for (let k = Math.floor(a / 120); k * 120 < b; k++) if (hash(k + 70) < .7) { const x = k * 120 + 60 * hash(k + 71); A().tree(x, hill(x) + 10, 110 + 90 * hash(k + 72), .04 * wind(t, x), k + 30, .25 + .3 * rk); }
       A().ground(hill, a, b, mixCol(P.leafDk, air, .2));
+      A().props(hill, a, b, 5, .6, .35, 'swt');
     }, hand(t));
     Kit.cam(cx, cy, zoom, 0, hand(t));
     for (const [x, h, sd] of TREES) A().tree(x, gy(x) + 12, h, .05 * wind(t, x) + rk * .12 * noise1(sd, t * 2.5), sd);
     A().ground(gy, x0, x1);
-    const hp = human(t), dp = dog(t), bp = bird(t), push = [...feet(hp), ...feet(dp)];
+    A().props(gy, x0, x1, 3);
+    // Fast actions smear (repeated limbs on the frame): her scare, his jump up, the bird's flinch and takeoff.
+    const hp = t > 20.9 && t < 21.35 ? smear(human, t) : human(t), dp = t > 18.5 && t < 18.85 ? smear(dog, t) : dog(t);
+    const bp = t > 18.15 && t < 18.9 ? smear(bird, t) : bird(t), push = [...feet(hp), ...feet(dp)];
     const blades = odd => { for (let k = Math.floor(x0 / 18); k * 18 < x1; k++) if ((k & 1) === odd) {
       const x = k * 18 + 9 * hash(k), y = gy(x) + 3;
       A().blade(x, y, 16 + 16 * hash(k + 7), bladeBend(t, x, y, push, 45, 3) + rk * .5 * noise1(k, t * 4), odd ? P.grass : P.grassDk);
@@ -192,7 +189,7 @@
     layer(960, 540, zoom, .7, () => { for (let i = 0; i < 15; i++) { const x = i * 150 + 60 * hash(i + 3); A().blade(x, gm(x) + 20, 300 + 400 * hash(i), .12 * wind(t, x, 5) + rk * .3 * noise1(i, t * 3), mixCol(P.grassDk, air, .25)); } }, hand(t));
     Kit.cam(960, 540, zoom, 0, hand(t));
     A().ground(gm, -200, W + 200);
-    A().rock(1520, gm(1520) + 70, 75, 2); A().rock(430, gm(430) + 45, 45, 5);
+    A().rock(1520, gm(1520) + 70, 75, 2); A().rock(430, gm(430) + 45, 45, 5); A().props(x => gm(x) + 12, -200, W + 200, 8, 2.4, 0, 'mfs');
     for (const a of crowd(MTRAIL, t + ANT_T, 8, 5, ANT)) {
       const sz = AS * a.size, r = antReaction(MTRAIL.at(a.s).x, t);
       A().creature(creaturePose(SPECS.ant, { path: MTRAIL, s: (a.s + r.ds) / sz, size: sz, ground: gm, t, seed: a.seed, flinch: r.fl, carry: a.carry ? { w: 1.1, h: .7 } : null }));
@@ -221,6 +218,7 @@
     A().ground(x => 215 + 30 * Math.sin(x * .003 + 1) + 12 * Math.sin(x * .009), 0, W, mixCol(P.foliage, air, .4));
     for (let k = 0; k < 22; k++) if (hash(k + 400) < .75) { const x = k * 95 + 50 * hash(k + 401); A().tree(x, bank(x) + 8, 120 + 70 * hash(k + 402), .06 * wind(t, x) + .08 * noise1(k, t * 2.5), k + 60, .55); }
     A().ground(bank, 0, W);
+    A().props(bank, 0, W, 6, .7, .2, 'sft');
     for (let k = 0; k < 110; k++) { const x = k * 18 + 9 * hash(k + 300); A().blade(x, bank(x) + 3, 16 + 14 * hash(k + 301), .35 * wind(t, x) + .4 * noise1(k, t * 4), k & 1 ? P.grass : P.grassDk); }
     A().water(0, 345, W, t);
     const floor = x => 1000 + 25 * Math.sin(x * .005);
@@ -237,10 +235,12 @@
   }
 
   shots([
-    // Shot 1 tracks the pair (LANE starts at x = -1000); low tufts slide past under their feet.
-    [0, t => park(t, humanS(t) * HS - 800, 560, 1.25, [[335, 560, 1.25], [[150, 190, 1], [1450, 160, 2], [2500, 200, 3], [3600, 170, 4], [4700, 190, 5]]])],
+    // Shot 1 tracks the pair (LANE starts at x = -1000) with Lia on the left third and the space ahead of her open;
+    // low tufts slide past under their feet.
+    [0, t => park(t, humanS(t) * HS - 744, 560, 1.25, [[335, 560, 1.25], [[150, 190, 1], [1450, 160, 2], [2500, 200, 3], [3600, 170, 4], [4700, 190, 5]]])],
     // Held shots drift: a slow eased push-in or pan, so the camera is never fully still.
-    [5, (t, lt) => { const k = easeIn(seg(lt, 4.45, 5)), d = ease(seg(lt, 0, 4.45)); park(t, lerp(1800 + 25 * d, ANTS_AT[0], k), lerp(650, ANTS_AT[1], k), lerp(1.45 + .06 * d, 4, k), [[1800, 650, 1.45], [[40, 560, 1], [230, 360, 2], [1880, 480, 3]]]); }],
+    // Lia stops on the left third, the ants and Bento in the space she looks into.
+    [5, (t, lt) => { const k = easeIn(seg(lt, 4.45, 5)), d = ease(seg(lt, 0, 4.45)); park(t, lerp(1975 + 25 * d, ANTS_AT[0], k), lerp(650, ANTS_AT[1], k), lerp(1.45 + .06 * d, 4, k), [[1975, 650, 1.45], [[40, 560, 1], [230, 360, 2], [1880, 480, 3]]]); }],
     [10, (t, lt) => macro(t, springMove(lt, 0, 1.35, 1, SPRING.snappy) + .04 * ease(seg(lt, .7, 5)))],  // lands wide, the zoom springs in
     [15, (t, lt) => park(t, 2230 + 40 * ease(lt / 5), 578, 1.3 + .04 * ease(lt / 5), [[2250, 578, 1.3], [[-50, 460, 4], [1990, 540, 5]]])],
     [20, (t, lt) => lt < 2.5 ? park(t, 2150, 565, 1.15 + .04 * ease(lt / 2.5), [[2150, 565, 1.15], [[-20, 480, 7], [1900, 540, 8], [1750, 320, 9]]]) : macro(t, 1 + .03 * ease(seg(lt, 2.5, 5)))],

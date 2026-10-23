@@ -89,3 +89,17 @@ test('compare-ref: proporção da cabeça, espessura do contorno e saturação d
   assert.ok(Math.abs(measure(t, h, w, 'x').head - m.head) < .02);
   assert.throws(() => measure(new Uint8ClampedArray(16).fill(255), 2, 2), /Nenhuma figura/);
 });
+
+test('Lia: três poses de mão-luva e quatro bocas para falar e reagir', () => {
+  const S = PARTS.human.side, M = PARTS.human.face.mouths;
+  for (const n of ['hand', 'handPoint', 'handFist']) assert.ok(S[n] && S[n].len > 0, n);
+  assert.deepEqual(Object.keys(M).sort(), ['a', 'e', 'm', 'o']);
+  for (const m of Object.values(M)) { assert.match(m.d, /^M[-\d.\sMLCQZ]+$/); if (m.fill) assert.ok(area(subpaths(m.d)[0]) > 0, m.d); }
+});
+test('Lia: pernas e antebraços em macarrão, de largura constante', () => {
+  const width = q => { const xs = subpaths(q.d)[0].map(p => Math.abs(p[0])); return Math.max(...xs); };
+  for (const n of ['thigh', 'shin', 'forearm']) {
+    const pts = subpaths(PARTS.human.side[n].d)[0].filter(([, y]) => y >= 0 && y <= 16), xs = pts.map(([x]) => Math.abs(x));
+    assert.ok(Math.max(...xs) - Math.min(...xs) < .01 && width(PARTS.human.side[n]) >= 2.5, n);
+  }
+});
