@@ -9,6 +9,15 @@
   const pale = col => mixCol(col, P.skyLow, .4);
   const BROOD = mixCol(P.cream, P.cloud, .4);  // eggs, larvae and pupae
   const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+  // Rich look: outlines in the object's own colour family (never black), light from the top left.
+  const inkOf = col => mixCol(col, '#1A0E12', .62), lightOf = col => mixCol(col, P.sun, .45), shadeOf = col => mixCol(col, P.shade, .38);
+  // Radial light, base, shadow fill for a form centred (x, y) with half sizes rx, ry, in the current space.
+  function vol(x, y, rx, ry, col) {
+    const r = Math.max(rx, ry), g = c.createRadialGradient(x - .35 * rx, y - .4 * ry, .05 * r, x, y, 1.15 * r);
+    g.addColorStop(0, lightOf(col)); g.addColorStop(.55, col); g.addColorStop(1, shadeOf(col)); return g;
+  }
+  // Specular glint on the lit top of a round form (polished chitin), r its smaller half size.
+  const glint = (x, y, r, a = .25) => { c.beginPath(); c.ellipse(x - .3 * r, y - .45 * r, .42 * r, .2 * r, -.3, 0, TAU); c.fillStyle = `rgba(255,255,255,${a})`; c.fill(); };
 
   // Ellipses {e} and polygons {poly} (smooth: curves through midpoints) as one inked silhouette (rocks, clouds):
   // outlines first, then the flat fills.
@@ -18,17 +27,18 @@
     else if (p.smooth) { const q = p.poly, n = q.length, m = i => [(q[i % n][0] + q[(i + 1) % n][0]) / 2, (q[i % n][1] + q[(i + 1) % n][1]) / 2]; c.moveTo(...m(n - 1)); for (let i = 0; i < n; i++) c.quadraticCurveTo(q[i][0], q[i][1], ...m(i)); c.closePath(); }
     else { c.moveTo(...p.poly[0]); p.poly.forEach(([x, y]) => c.lineTo(x, y)); c.closePath(); }
   }
+  const extent = p => { if (p.e) return p.e; const xs = p.poly.map(q => q[0]), ys = p.poly.map(q => q[1]), x0 = Math.min(...xs), y0 = Math.min(...ys); return [(x0 + Math.max(...xs)) / 2, (y0 + Math.max(...ys)) / 2, (Math.max(...xs) - x0) / 2, (Math.max(...ys) - y0) / 2]; };
   function parts(list, lw) {
-    c.lineWidth = 2 * lw; c.lineJoin = 'round'; c.strokeStyle = P.line;
-    if (lw > 0) for (const p of list) { shape(p); c.stroke(); }
-    for (const p of list) { shape(p); c.fillStyle = p.fill; c.fill(); }
+    c.lineWidth = 2 * lw; c.lineJoin = 'round';
+    if (lw > 0) for (const p of list) { shape(p); c.strokeStyle = inkOf(p.fill); c.stroke(); }
+    for (const p of list) { const [x, y, rx, ry] = extent(p); shape(p); c.fillStyle = vol(x, y, rx, ry, p.fill); c.fill(); }
   }
   const stroke = (pts, w, col = P.ink, smooth = true) => Kit.line(pts, col, w, { smooth });
   const dot = (x, y, r, col) => { c.beginPath(); c.ellipse(x, y, r, r, 0, 0, TAU); c.fillStyle = col; c.fill(); };
 
   // ---------- cut-out pieces ----------
   // Path2D per path string and the box of each part (centre and half extents, in its units), both built once.
-  const PATHS = new Map(), BOXES = new Map();
+  const PATHS = new Map(), BOXES = new Map(), SOIL = new Map();  // SOIL: soil() patterns by (height, seed), never by time
   const path = d => { let p = PATHS.get(d); if (!p) PATHS.set(d, p = new Path2D(d)); return p; };
   function box(q) {
     let b = BOXES.get(q.d); if (b) return b;
@@ -81,14 +91,42 @@
   // Placed pieces as one flat inked silhouette: every black outline first (lw px outside the shape), then the flat
   // fills, then markings and inner lines, so overlapping joints show no seam. Imported pieces bring their own ink.
   // fw: inner line width in px (0: none); ink: outline and inner line colour.
-  function cut(list, lw, fw = 0, ink = P.line) {
-    c.lineJoin = 'round'; c.lineCap = 'round'; c.strokeStyle = ink;
-    if (lw > 0) for (const s of list) if (!s.q.art) inside(s, u => { c.lineWidth = 2 * lw * u; c.stroke(path(s.q.d)); });
-    for (const s of list) inside(s, () => { if (s.q.art) art(s); else { c.fillStyle = s.fill; c.fill(path(s.q.d)); } });
-    for (const s of list) if (s.spots || fw && s.q.lines) inside(s, u => {
-      for (const [p, col] of s.spots || []) { c.fillStyle = col; c.fill(p); }
-      if (fw && s.q.lines) { c.lineWidth = fw * u; for (const d of s.q.lines) c.stroke(path(d)); }
+  // Rich look: each piece lit in its own frame (round forms: radial light toward the top left of the screen, with a
+  // glint when ink is not given, i.e. on creatures; long ones: linear across their thickness), outlines and inner lines
+  // in the piece's colour family (ink overrides it). Glass pieces (wings): translucent fill, thin outline and veins.
+  function litFill(s) {
+    const b = box(s.q), [A, B, C, E] = s.m, det = A * E - B * C, col = s.fill;
+    const loc = (dx, dy) => { const x = (E * dx - C * dy) / det, y = (-B * dx + A * dy) / det, n = Math.hypot(x, y) || 1; return [x / n, y / n]; };
+    const [lx, ly] = loc(-.6, -.8), r = Math.max(b.hw, b.hh);
+    let g;
+    if (Math.min(b.hw, b.hh) / r < .45) {
+      const th = Math.min(b.hw, b.hh), sx = b.hw < b.hh ? Math.sign(lx || 1) * th : 0, sy = b.hw < b.hh ? 0 : Math.sign(ly || 1) * th;
+      g = c.createLinearGradient(b.cx + sx, b.cy + sy, b.cx - sx, b.cy - sy);
+    } else g = c.createRadialGradient(b.cx + .4 * r * lx, b.cy + .4 * r * ly, .05 * r, b.cx, b.cy, 1.15 * r);
+    g.addColorStop(0, lightOf(col)); g.addColorStop(.5, col); g.addColorStop(1, shadeOf(col)); return g;
+  }
+  function glass(s, lw) {
+    inside(s, u => {
+      const b = box(s.q), g = c.createLinearGradient(b.cx - b.hw, 0, b.cx + b.hw, 0), p = path(s.q.d);
+      g.addColorStop(0, rgba(lightOf(s.fill), .72)); g.addColorStop(.6, rgba(s.fill, .42)); g.addColorStop(1, rgba(P.cloud, .22));
+      c.fillStyle = g; c.fill(p); c.strokeStyle = rgba(inkOf(s.fill), .7); c.lineWidth = Math.max(1, .5 * lw) * u; c.stroke(p);
+      c.lineWidth = Math.max(.7, .25 * lw) * u; c.strokeStyle = rgba(inkOf(s.fill), .45); for (const d of s.q.lines || []) c.stroke(path(d));
     });
+  }
+  function cut(list, lw, fw = 0, ink) {
+    c.lineJoin = 'round'; c.lineCap = 'round';
+    const solid = list.filter(s => !s.q.glass);
+    if (lw > 0) for (const s of solid) if (!s.q.art) inside(s, u => { c.strokeStyle = ink || inkOf(s.fill); c.lineWidth = 2 * lw * u; c.stroke(path(s.q.d)); });
+    for (const s of solid) inside(s, () => { if (s.q.art) art(s); else { c.fillStyle = litFill(s); c.fill(path(s.q.d)); } });
+    for (const s of solid) if (s.spots || fw && s.q.lines) inside(s, u => {
+      for (const [p, col] of s.spots || []) { c.fillStyle = col; c.fill(p); }
+      if (fw && s.q.lines) { c.strokeStyle = ink || inkOf(s.fill); c.lineWidth = fw * u; for (const d of s.q.lines) c.stroke(path(d)); }
+    });
+    if (!ink) for (const s of solid) {
+      const b = box(s.q), rm = Math.min(b.hw, b.hh) * s.k;
+      if (!s.q.art && rm > 3 && Math.min(b.hw, b.hh) / Math.max(b.hw, b.hh) >= .45) glint(...at(s, b.cx, b.cy), rm);
+    }
+    for (const s of list) if (s.q.glass) glass(s, lw);
   }
   // Group of pieces at the layer of its first piece (far side of a side view: 10 layers back).
   const grp = (list, back = false) => ({ z: list[0].q.layer - (back ? 10 : 0), list });
@@ -137,10 +175,14 @@
   // to a line.
   function eyeAt(s, x, y, r, blink, w) {
     inside(s, u => {
-      c.lineWidth = Math.max(1.5, w) * u; c.strokeStyle = P.line; c.lineCap = 'round';
+      c.lineWidth = Math.max(1.5, w) * u; c.strokeStyle = inkOf(s.fill); c.lineCap = 'round';
       if (blink > .5) { c.beginPath(); c.moveTo(x - r, y); c.lineTo(x + r, y); c.stroke(); return; }
-      c.beginPath(); c.ellipse(x, y, r, r * 1.15, 0, 0, TAU); c.fillStyle = P.eye; c.fill(); c.stroke();
+      // Socket shade, sclera with a soft cream gradient, pupil and two catchlights.
+      c.beginPath(); c.ellipse(x, y + .12 * r, r * 1.12, r * 1.27, 0, 0, TAU); c.fillStyle = shadeOf(s.fill); c.fill();
+      const g = c.createRadialGradient(x - .3 * r, y - .35 * r, .05 * r, x, y, 1.2 * r); g.addColorStop(0, '#FFFFFF'); g.addColorStop(1, mixCol(P.eye, P.shade, .18));
+      c.beginPath(); c.ellipse(x, y, r, r * 1.15, 0, 0, TAU); c.fillStyle = g; c.fill(); c.stroke();
       c.beginPath(); c.ellipse(x + .38 * r, y + .1 * r, .3 * r, .36 * r, 0, 0, TAU); c.fillStyle = P.line; c.fill();
+      dot(x + .28 * r, y - .06 * r, .12 * r, '#FFFFFF'); dot(x + .5 * r, y + .28 * r, .05 * r, rgba(P.cloud, .8));
     });
   }
 
@@ -215,12 +257,13 @@
       build(p, L) {
         const top = p.view !== 'side', Q = pieces(p, L), G = [], o = { L }, [th, pe, ga] = p.spine, hd = [p.head.x, p.head.y], S = p.size;
         const Z = SPECS[p.spec], A = SPECS.ant, sc = i => ({ L, sc: Z.spine[i].r / A.spine[i].r }), kh = Z.head.r / A.head.r;
-        for (const l of Object.values(p.limbs)) { const k = l.far ? { L, col: pale(L.color), wy: .7 } : o; G.push({ ...grp([pin(p, Q.femur, l.root, l.mid, k), pin(p, Q.tibia, l.mid, l.end, k)], l.far), z: l.far ? -8 : 2 }); }
-        const antenna = (a, back) => () => { const pts = p.appendages[a], w = Math.max(1.2, (back ? .011 : .016) * S), col = back ? pale(L.color) : P.line; stroke(pts, w, col, false); dot(...pts.at(-1), w * 1.1, col); };
+        // Three segments: femur, tibia and tarsus (the last third of the pose's shin, bent toward the ground).
+        for (const l of Object.values(p.limbs)) { const k = l.far ? { L, col: pale(L.color), wy: .7 } : o, ts = [lerp(l.mid[0], l.end[0], .66), lerp(l.mid[1], l.end[1], .66) - .012 * S]; G.push({ ...grp([pin(p, Q.femur, l.root, l.mid, k), pin(p, Q.tibia, l.mid, ts, k), pin(p, Q.tarsus, ts, l.end, k)], l.far), z: l.far ? -8 : 2 }); }
+        const antenna = (a, back) => () => { const pts = p.appendages[a], w = Math.max(1.2, (back ? .011 : .016) * S), col = back ? pale(L.color) : inkOf(L.color); stroke(pts, w, col, false); dot(...pts.at(-1), w * 1.1, col); };
         for (const a of ['antennaL', 'antennaR']) G.push({ z: far(p, a) ? 1 : 7, draw: antenna(a, far(p, a)) });
         G.push(grp([pin(p, Q.stalk, pt(th), pt(ga), o), pin(p, Q.stalk, pt(th), hd, { L, wy: .9 })]));
         const gaster = pin(p, Q.gaster, pt(ga), ga.angle, sc(2)), meso = pin(p, Q.mesosoma, pt(th), th.angle, sc(0)), head = pin(p, Q.head, hd, p.head.angle, { L, sc: kh });
-        G.push(grp([gaster]), grp([pin(p, Q.petiole, pt(pe), pe.angle, sc(1))]), grp([meso]), grp([head]));
+        G.push(grp([gaster]), grp([pin(p, Q.petiole, pt(pe), pe.angle, sc(1))]), grp([meso, ...(top ? [] : [pin(p, Q.spines, pt(th), th.angle, sc(0))])]), grp([head]));
         const ha = turn(p, p.head.angle), jaw = L.jaws || 0, mk = { L, sc: (1 + .5 * (kh - 1)) * (Z.jaws || 1) };  // jaws grow slower than the head
         G.push(grp(top ? [-1, 1].map(s => pin(p, Q.mandible, at(head, 12.6, 5 * s), turn(p, ha + (.35 + .55 * jaw) * s), { ...mk, wy: s })) : [pin(p, Q.mandible, at(head, 12.6, 7.8), turn(p, ha + .6 - .5 * jaw), { ...mk, wy: .8 })]));
         if (Z.flyer && L.wings !== false) {
@@ -329,7 +372,8 @@
     c.save(); c.fillStyle = rgba(P.shade, .3); c.beginPath();
     if (p.view === 'side') {
       const xs = [...p.spine.map(g => g.x), p.head.x, ...feet.map(l => l.end[0])], y = Math.max(...feet.map(l => l.end[1]));
-      const x0 = Math.min(...xs), x1 = Math.max(...xs), ry = clamp(.022 * S, 2, 14);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs), ry = clamp(.022 * S, 2, 14), g = c.createRadialGradient((x0 + x1) / 2, y, 0, (x0 + x1) / 2, y, (x1 - x0) / 2 + .05 * S);
+      g.addColorStop(0, rgba(P.shade, .5)); g.addColorStop(.7, rgba(P.shade, .25)); g.addColorStop(1, rgba(P.shade, 0)); c.fillStyle = g;  // soft occlusion
       c.ellipse((x0 + x1) / 2 + .02 * S, y + ry * .3, (x1 - x0) / 2 + .03 * S, ry, 0, 0, TAU);
       for (const l of feet) if (l.stance) { c.moveTo(l.end[0] + .035 * S, l.end[1]); c.ellipse(l.end[0], l.end[1] + ry * .2, .035 * S, ry * .6, 0, 0, TAU); }
     } else for (const g of p.spine) { c.moveTo(g.x + .05 * S + g.r * 1.3, g.y + .07 * S); c.ellipse(g.x + .05 * S, g.y + .07 * S, g.r * 1.3, g.r, g.angle, 0, TAU); }
@@ -346,7 +390,7 @@
       Kit.poly([[x - s * .7, y - s * .2], [x, y - s * 1.9], [x + s * .7, y - s * .2]], P.water, { stroke: false }); Kit.ellipse(x, y, s * .72, s * .8, P.water);
     } else {  // emoteAt = [ahead, up, size] in head radii
       const D = decor[kind(p.spec)], [ex, ey, es] = D.emoteAt || [1.2, 1.9, 1.6];
-      c.save(); c.translate(p.head.x + f * r * ex, p.head.y - r * ey - (D.neck || 0) * p.size / 100); c.scale(k, k); Kit.text({ note: '♪', zzz: 'z z z' }[e.sym] || e.sym, 0, 0, Math.max(14, r * es), P.ink); c.restore();
+      c.save(); c.translate(p.head.x + f * r * ex, p.head.y - r * ey - (D.neck || 0) * p.size / 100); c.scale(k, k); Kit.text({ note: '♪', zzz: 'z z z' }[e.sym] || e.sym, 0, 0, Math.max(14, r * es), P.ink, { plain: true }); c.restore();
     }
   }
 
@@ -384,9 +428,12 @@
     // distant layer (hills) with a thin black edge.
     ground(profile, x0 = 0, x1 = W, color = null) {
       const edgeLine = (dy, col, w) => { c.beginPath(); for (let x = x0; x <= x1 + 15; x += 16) c.lineTo(Math.min(x, x1), profile(Math.min(x, x1)) + dy); c.strokeStyle = col; c.lineWidth = w; c.stroke(); };
+      let top = Infinity;
       c.beginPath(); c.moveTo(x0, H * 4);
-      for (let x = x0; x <= x1 + 15; x += 16) c.lineTo(Math.min(x, x1), profile(Math.min(x, x1)));
+      for (let x = x0; x <= x1 + 15; x += 16) { const y = profile(Math.min(x, x1)); top = Math.min(top, y); c.lineTo(Math.min(x, x1), y); }
       c.lineTo(x1, H * 4); c.closePath();
+      // Lit rim fading down into the base colour (aerial perspective on hills: paler toward the sky at the top).
+      const fade = (col, lit, depth) => { const g = c.createLinearGradient(0, top, 0, top + depth); g.addColorStop(0, lit); g.addColorStop(.25, col); g.addColorStop(1, shadeOf(col)); return g; };
       if (color) {
         // Clumps of bushes along the rim (authored silhouettes), seeded by the layer's own profile so they stay put as
         // the camera moves; drawn first, so the hill hides their lower half.
@@ -395,14 +442,15 @@
         for (let k = Math.floor(x0 / 150) - 1; k * 150 < x1 + 150; k++) {
           if (hash(k * 1.3 + sd) > .6) continue;
           const s = .5 + .6 * hash(k * 2.1 + sd), bx = k * 150 + 70 * hash(k + sd * .7), q = scene(B[Math.floor(hash(k * 3.7 + sd) * B.length)]);
-          inside(place(q, [bx, profile(bx) + 5 * s], 0, s, hash(k + sd + .5) < .5 ? -1 : 1, 1, tone), u => { const p = path(q.d); c.fillStyle = tone; c.fill(p); c.lineWidth = 3 * u; c.strokeStyle = P.line; c.stroke(p); });
+          const s2 = place(q, [bx, profile(bx) + 5 * s], 0, s, hash(k + sd + .5) < .5 ? -1 : 1, 1, tone);
+          inside(s2, u => { const p = path(q.d); c.fillStyle = litFill(s2); c.fill(p); c.lineWidth = 3 * u; c.strokeStyle = inkOf(tone); c.stroke(p); });
         }
         c.restore();
         c.beginPath(); c.moveTo(x0, H * 4);
         for (let x = x0; x <= x1 + 15; x += 16) c.lineTo(Math.min(x, x1), profile(Math.min(x, x1)));
-        c.lineTo(x1, H * 4); c.closePath(); c.fillStyle = color; c.fill(); edgeLine(0, P.line, 3); return;
+        c.lineTo(x1, H * 4); c.closePath(); c.fillStyle = fade(color, mixCol(color, P.skyLow, .35), 500); c.fill(); edgeLine(0, inkOf(color), 2.5); return;
       }
-      c.fillStyle = P.ground; c.fill(); edgeLine(0, P.groundDk, STYLE.outline.weight);  // no black here: the grass blades over it would dash it
+      c.fillStyle = fade(P.ground, lightOf(P.ground), 420); c.fill(); edgeLine(0, P.groundDk, STYLE.outline.weight);  // no black here: the grass blades over it would dash it
     },
     // Ground props along profile between x0 and x1, about one per 130 · s px and fixed by seed as the camera moves:
     // stones, flowers, a fence run, stumps and mushrooms (kinds: letters of 'sfwtm'). Two flat tones each (base and its
@@ -410,8 +458,8 @@
     // keep the strongest contrast in the frame.
     props(profile, x0, x1, seed = 0, s = 1, haze = 0, kinds = 'sfwtm') {
       const hz = col => mixCol(col, P.skyLow, haze), sh = col => hz(mixCol(col, P.ink, .25)), w = haze > .3 ? 1 : clamp(1.6 * s, 1, 2.5), step = 130 * s;
-      const ink = mixCol(P.line, P.skyLow, .6 * haze);
-      const draw = (list, lw = w) => { c.lineWidth = 2 * lw; c.lineJoin = 'round'; c.strokeStyle = ink; if (lw) for (const p of list) { shape(p); c.stroke(); } for (const p of list) { shape(p); c.fillStyle = p.fill; c.fill(); } };
+      const ink = col => mixCol(inkOf(col), P.skyLow, .6 * haze);
+      const draw = (list, lw = w) => { c.lineWidth = 2 * lw; c.lineJoin = 'round'; if (lw) for (const p of list) { shape(p); c.strokeStyle = ink(p.fill); c.stroke(); } for (const p of list) { shape(p); c.fillStyle = p.fill; c.fill(); } };
       for (let k = Math.floor(x0 / step) - 1; k * step < x1 + step; k++) {
         if (hash(k * 1.7 + seed) > .5) continue;
         const kind = kinds[Math.floor(hash(k * 2.9 + seed) * kinds.length)], x = k * step + .6 * step * hash(k + seed * .3), y = profile(x) + 3 * s, r = hash(k * 4.1 + seed), f = r < .5 ? -1 : 1;
@@ -457,9 +505,12 @@
       c.save(); c.resetTransform(); c.globalCompositeOperation = 'multiply'; c.fillStyle = mixCol('#FFFFFF', '#8A9CBC', rain); c.fillRect(0, 0, W, H); c.restore();
     },
     // Grass blade rooted at (x, y), height h, leaning by bend radians (bladeBend).
+    // Dark root to lit tip (drawOrganicGrassLayer), a thin outline in the blade's family on tall blades.
     blade(x, y, h, bend, color = P.grass) {
       const tx = x + Math.sin(bend) * h, ty = y - Math.cos(bend) * h, mx = x + Math.sin(bend * .5) * h * .55, my = y - Math.cos(bend * .5) * h * .55, b = Math.max(1.5, h * .07);
-      c.beginPath(); c.moveTo(x - b, y); c.quadraticCurveTo(mx - b * .6, my, tx, ty); c.quadraticCurveTo(mx + b * .6, my, x + b, y); c.closePath(); c.fillStyle = color; c.fill();
+      const g = c.createLinearGradient(x, y, tx, ty); g.addColorStop(0, shadeOf(color)); g.addColorStop(.45, color); g.addColorStop(1, lightOf(color));
+      c.beginPath(); c.moveTo(x - b, y); c.quadraticCurveTo(mx - b * .6, my, tx, ty); c.quadraticCurveTo(mx + b * .6, my, x + b, y); c.closePath(); c.fillStyle = g; c.fill();
+      if (h > 60) { c.strokeStyle = inkOf(color); c.lineWidth = Math.max(1, h * .006); c.lineJoin = 'round'; c.stroke(); }
     },
     // Rock resting on y (flat base), radius r; the outline varies by seed.
     rock(x, y, r, seed = 0) {
@@ -473,12 +524,20 @@
       const S = PARTS.scenery, kind = ['round', 'tall', 'pine'][Math.floor(hash(seed * 5 + 1) * 3)], pick = (l, i) => l[Math.floor(hash(seed * 7 + i) * l.length)];
       const hz = col => mixCol(col, P.skyLow, haze), ink = mixCol(P.line, P.skyLow, .6 * haze), wgt = haze > .3 ? 2 : clamp(h * .02, 2, STYLE.outline.weight), f = hash(seed * 3 + 2) < .5 ? -1 : 1, u = h / 100;
       const crown = place(scene(pick(S[kind], 2)), [x, y], f * .5 * bend, u, f, 1, hz(kind === 'pine' ? P.leafDk : P.leaf));
-      cut([place(scene(kind === 'pine' ? S.pineTrunk : pick(S.trunk, 1)), [x, y], f * .35 * bend, u, f, 1, hz(P.wood))], wgt, 0, ink);
-      cut([crown], wgt, 0, ink);
+      const sg = c.createRadialGradient(x, y, 0, x, y, .45 * h); sg.addColorStop(0, rgba(P.shade, .3 * (1 - haze))); sg.addColorStop(1, rgba(P.shade, 0));
+      c.beginPath(); c.ellipse(x, y + .01 * h, .45 * h, .07 * h, 0, 0, TAU); c.fillStyle = sg; c.fill();  // cast shadow on the grass
+      const trunk = place(scene(kind === 'pine' ? S.pineTrunk : pick(S.trunk, 1)), [x, y], f * .35 * bend, u, f, 1, hz(P.wood));
+      cut([trunk], wgt, 0, mixCol(inkOf(P.wood), P.skyLow, .6 * haze));
+      cut([crown], wgt, 0, mixCol(inkOf(crown.fill), P.skyLow, .6 * haze));
       if (kind !== 'pine') inside(crown, k => {  // leaf clusters: short ink arcs on three masses
-        const b = box(crown.q); c.beginPath();
+        const b = box(crown.q);
+        for (const [dx, dy] of [[-.42, -.25], [.36, .05], [-.05, .42]]) {  // lit top of each leaf mass
+          const r = .4 * Math.min(b.hw, b.hh), cx = b.cx + dx * b.hw - .3 * r, cy = b.cy + dy * b.hh - .3 * r, g = c.createRadialGradient(cx, cy, 0, cx, cy, r);
+          g.addColorStop(0, rgba(lightOf(crown.fill), .55)); g.addColorStop(1, rgba(lightOf(crown.fill), 0)); c.fillStyle = g; c.fillRect(cx - r, cy - r, 2 * r, 2 * r);
+        }
+        c.beginPath();
         for (const [dx, dy] of [[-.42, -.25], [.36, .05], [-.05, .42]]) { const r = .24 * Math.min(b.hw, b.hh), cx = b.cx + dx * b.hw, cy = b.cy + dy * b.hh; c.moveTo(cx + Math.cos(.2) * r, cy + Math.sin(.2) * r); c.arc(cx, cy, r, .2, 1.7); }
-        c.strokeStyle = ink; c.lineWidth = .6 * wgt * k; c.lineCap = 'round'; c.stroke();
+        c.strokeStyle = mixCol(inkOf(crown.fill), P.skyLow, .6 * haze); c.lineWidth = .6 * wgt * k; c.lineCap = 'round'; c.stroke();
       });
     },
     // Leaf centred at (x, y), w long and h wide, rotated by angle; cut (0..1) bites a half circle out of one edge.
@@ -486,8 +545,12 @@
       c.save(); c.translate(x, y); c.rotate(angle);
       if (cut > 0) { c.beginPath(); c.rect(-w, -h * 2, w * 2, h * 4); c.arc(w * .1, -h * .5, cut * h * .9, 0, TAU, true); c.clip('evenodd'); }
       c.beginPath(); c.moveTo(-w / 2, 0); c.quadraticCurveTo(0, -h, w / 2, 0); c.quadraticCurveTo(0, h, -w / 2, 0); c.closePath();
-      c.fillStyle = color; c.fill(); c.strokeStyle = P.line; c.lineWidth = clamp(h * .12, 1.5, 4); c.lineJoin = 'round'; c.stroke();
-      c.beginPath(); c.moveTo(-w * .45, 0); c.lineTo(w * .4, 0); c.strokeStyle = dark(color); c.lineWidth = Math.max(1, h * .06); c.stroke(); c.restore();
+      const g = c.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2); g.addColorStop(0, lightOf(color)); g.addColorStop(.5, color); g.addColorStop(1, shadeOf(color));
+      c.fillStyle = g; c.fill(); c.strokeStyle = inkOf(color); c.lineWidth = clamp(h * .12, 1.5, 4); c.lineJoin = 'round'; c.stroke();
+      // Light midrib with side veins.
+      c.beginPath(); c.moveTo(-w * .45, 0); c.quadraticCurveTo(0, -h * .08, w * .4, 0);
+      for (let i = 1; i < 5; i++) { const vx = -w * .4 + i * w * .17; c.moveTo(vx, -h * .04); c.lineTo(vx + w * .08, -h * .42); c.moveTo(vx, h * .02); c.lineTo(vx + w * .08, h * .38); }
+      c.strokeStyle = rgba(mixCol(color, P.cloud, .5), .8); c.lineWidth = Math.max(1, h * .045); c.lineCap = 'round'; c.stroke(); c.restore();
     },
     // Rain drop with its round end at (x, y).
     drop(x, y, r) {
@@ -511,23 +574,57 @@
       for (let i = 0; i < Math.ceil((x1 - x0) / 220); i++) { const hx = x0 + ((i * 220 + 30 * t) % (x1 - x0)), hy = y + 30 + 60 * hash(i + 3); stroke([[hx, hy], [hx + 50, hy]], 4, mixCol(P.water, P.cloud, .4)); }
     },
     // Puffy cloud centred at (x, y), scale s.
-    cloud(x, y, s = 1, seed = 0) { parts([[-80, 10, 50], [-25, -15, 62], [40, -5, 55], [85, 15, 40], [0, 22, 70]].map(([dx, dy, r], i) => ({ e: [x + dx * s, y + dy * s, r * s * (.9 + .2 * hash(seed + i)), r * s * .7], fill: P.cloud })), 0); },
-    // Soil cross-section with pebbles.
-    soil(x, y, w, h, seed = 0) {
-      c.fillStyle = mixCol(P.wood, P.ink, .35); c.fillRect(x, y, w, h);
-      const n = Math.round(w * h / 9000); for (let i = 0; i < n; i++) { const px = x + w * hash(seed + i * 3), py = y + h * hash(seed + i * 3 + 1), r = 3 + 7 * hash(seed + i * 3 + 2); c.beginPath(); c.ellipse(px, py, r * 1.3, r, hash(seed + i) * 3, 0, TAU); c.fillStyle = i % 3 ? mixCol(P.wood, P.ink, .5) : P.stone; c.fill(); }
+    // Puffy cloud centred at (x, y), scale s (drawStylizedCloud): a cool shaded underside, then the lit body, no outline.
+    cloud(x, y, s = 1, seed = 0) {
+      const E = [[-80, 10, 50], [-25, -15, 62], [40, -5, 55], [85, 15, 40], [0, 22, 70]].map(([dx, dy, r], i) => [x + dx * s, y + dy * s, r * s * (.9 + .2 * hash(seed + i)), r * s * .7]);
+      const puffs = dy => { c.beginPath(); for (const [ex, ey, rx, ry] of E) { c.moveTo(ex + rx, ey + dy); c.ellipse(ex, ey + dy, rx, ry, 0, 0, TAU); } };
+      puffs(8 * s); c.fillStyle = mixCol(P.cloud, P.skyTop, .35); c.fill();
+      const g = c.createLinearGradient(0, y - 70 * s, 0, y + 50 * s); g.addColorStop(0, '#FFFFFF'); g.addColorStop(1, mixCol(P.cloud, P.skyTop, .12));
+      puffs(0); c.fillStyle = g; c.fill();
     },
-    // Tunnel dug along a makePath path, width px wide.
+    // Soil cross-section (drawUndergroundCrossSection): a world-anchored pattern of a periodic 1024 px tile with a
+    // gradient from the crust down, wavy geological bands and lit pebbles, built once per (h, seed) at 2× (the camera
+    // zooms in to ~1.8). The pebbles stay put as the camera moves.
+    soil(x, y, w, h, seed = 0) {
+      const key = h + '|' + seed;
+      let pat = SOIL.get(key);
+      if (!pat) {
+        const TW = 1024, K = 2, cv = document.createElement('canvas'); cv.width = TW * K; cv.height = Math.ceil(h * K);
+        const g = cv.getContext('2d'); g.scale(K, K);
+        const top = mixCol(P.wood, P.ink, .22), mid = mixCol(P.wood, P.ink, .4), deep = mixCol(P.wood, P.ink, .62), gr = g.createLinearGradient(0, 0, 0, h);
+        gr.addColorStop(0, top); gr.addColorStop(.3, mid); gr.addColorStop(1, deep); g.fillStyle = gr; g.fillRect(0, 0, TW, h);
+        for (let b = 0; b < 4; b++) {  // bands: periodic in x so the tile repeats seamlessly
+          const by = h * (.12 + .22 * b), k1 = 2 + b, k2 = 5 + 2 * b, ph = TAU * hash(seed + b);
+          g.beginPath(); g.moveTo(0, by);
+          for (let px = 0; px <= TW; px += 16) g.lineTo(px, by + 18 * Math.sin(px * TAU * k1 / TW + ph) + 7 * Math.sin(px * TAU * k2 / TW));
+          g.lineTo(TW, h); g.lineTo(0, h); g.closePath(); g.fillStyle = b === 1 ? rgba(mixCol(P.wood, P.mustard, .35), .16) : `rgba(20,8,4,${.12 + .05 * b})`; g.fill();
+        }
+        for (let i = 0, n = Math.round(TW * h / 7000); i < n; i++) {
+          const px = TW * hash(seed + i * 3), py = h * hash(seed + i * 3 + 1), r = 3 + 8 * hash(seed + i * 3 + 2), col = i % 3 ? mixCol(P.wood, P.ink, .5) : mixCol(P.stone, P.wood, .3), a = hash(seed + i) * 3;
+          for (const ox of [-TW, 0, TW]) {
+            g.beginPath(); g.ellipse(px + ox, py, r * 1.3, r, a, 0, TAU); g.fillStyle = col; g.fill(); g.strokeStyle = inkOf(col); g.lineWidth = 1.2; g.stroke();
+            g.beginPath(); g.ellipse(px + ox - .3 * r, py - .35 * r, .5 * r, .25 * r, -.3, 0, TAU); g.fillStyle = rgba(lightOf(col), .5); g.fill();
+          }
+        }
+        SOIL.set(key, pat = c.createPattern(cv, 'repeat')); pat.setTransform(new DOMMatrix().scale(1 / K));
+      }
+      c.save(); c.translate(0, y); c.fillStyle = pat; c.fillRect(x, 0, w, h); c.restore();
+    },
+    // Tunnel dug along a makePath path, width px wide: dark rim, shaded inside, a lit floor and a dark ceiling line.
     tunnel(path, width) {
       const pts = []; for (let d = 0; d <= path.length; d += 12) { const q = path.at(d); pts.push([q.x, q.y]); }
       const q = path.at(path.length); pts.push([q.x, q.y]);
-      stroke(pts, width + 10, mixCol(P.wood, P.ink, .6)); stroke(pts, width, mixCol(P.wood, P.ink, .15));
+      stroke(pts, width + 10, mixCol(P.wood, P.ink, .7)); stroke(pts, width, mixCol(P.wood, P.ink, .32));
+      stroke(pts.map(([x, y]) => [x, y + .18 * width]), .45 * width, mixCol(P.wood, P.ink, .16));
+      stroke(pts.map(([x, y]) => [x, y - .3 * width]), .18 * width, mixCol(P.wood, P.ink, .5));
     },
     // Nest chamber dug in soil(): a cavity with its flat floor at y, w wide and h high around x, with the dark rim and the
     // lit inside of tunnel(). waste (0..1) heaps dark refuse on the floor (the waste chamber).
     chamber(x, y, w, h, seed = 0, waste = 0) {
       const pts = []; for (let i = 0; i < 14; i++) { const a = i * TAU / 14, k = .9 + .18 * hash(seed + i * 2.3); pts.push([x + Math.cos(a) * w / 2 * k, Math.min(y + 6, y - h / 2 + Math.sin(a) * h / 2 * k)]); }
-      shape({ smooth: true, poly: pts }); c.lineJoin = 'round'; c.lineWidth = 10; c.strokeStyle = mixCol(P.wood, P.ink, .6); c.stroke(); c.fillStyle = mixCol(P.wood, P.ink, .15); c.fill();
+      // Dark vault, warm lit floor: a radial gradient from the floor's centre.
+      const g = c.createRadialGradient(x, y - .15 * h, .05 * w, x, y - .3 * h, .6 * w); g.addColorStop(0, mixCol(P.wood, P.sun, .12)); g.addColorStop(.55, mixCol(P.wood, P.ink, .25)); g.addColorStop(1, mixCol(P.wood, P.ink, .55));
+      shape({ smooth: true, poly: pts }); c.lineJoin = 'round'; c.lineWidth = 10; c.strokeStyle = mixCol(P.wood, P.ink, .7); c.stroke(); c.fillStyle = g; c.fill();
       if (waste <= 0) return;
       const hw = .42 * w, top = u => y - waste * .45 * h * (1 - u * u), cols = [mixCol(P.wood, P.ink, .6), mixCol(P.stone, P.ink, .35), mixCol(P.leafDk, P.ink, .55), mixCol(P.cream, P.wood, .5)];
       const mound = []; for (let i = 0; i <= 12; i++) { const u = i / 6 - 1; mound.push([x + u * hw, i % 12 ? top(u) : y + 4]); }
@@ -549,8 +646,10 @@
         for (const [fx, fy, fa, fk] of forks) root(fx, fy, fa, L * .55, w * .6, d + 1, fk, sd * 1.7 + fa);
       };
       for (let j = 0; j < 3; j++) root(x + (j - 1) * len * .04, y, PI2 + (j - 1) * .4 + .3 * (hash(seed + j) - .5), len * (.7 + .3 * hash(seed + j + 5)), clamp(len * .03, 4, 14), 0, grow, seed * 3 + j + 1);
-      for (const [pts, w] of lines) stroke(pts, w + 5, P.line);
-      for (const [pts, w] of lines) stroke(pts, w, mixCol(P.wood, P.cream, .45));
+      const rc = mixCol(P.wood, P.cream, .45);
+      for (const [pts, w] of lines) stroke(pts, w + 5, inkOf(rc));
+      for (const [pts, w] of lines) stroke(pts, w, rc);
+      for (const [pts, w] of lines) stroke(pts.map(([x, y]) => [x - .2 * w, y - .2 * w]), .35 * w, lightOf(rc));  // lit edge
     },
     // Fungus garden: a pale sponge of bubbles heaped on the floor at (x, y), up to w wide and h high, with pores; grow
     // (0..1) raises it from the floor, the bubbles breathe slowly with t; parasite (0..1) spreads a dark Escovopsis patch.

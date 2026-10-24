@@ -125,19 +125,23 @@ var CARTOON_PARTS = (() => {
     ant: {
       // Big round head with big white eyes, three inked body forms on a thin waist, noodle legs.
       side: {
-        head: { d: 'M -13.6 -3.4 C -13.6 -13.6 -3.4 -17 5.1 -15.98 C 13.6 -14.96 18.02 -6.8 17 1.7 C 16.32 8.5 10.2 13.6 1.7 13.6 C -6.8 13.6 -13.6 7.48 -13.6 -3.4 Z', pivot: [0, 0], len: 10, layer: 6, fill: 'color' },
-        mandible: { d: 'M -1.82 -2.08 C 2.6 -3.38 6.5 -1.82 9.62 1.82 C 10.14 2.86 9.1 3.64 8.06 2.86 C 5.98 1.56 3.38 1.3 0 2.08 C -2.6 2.34 -3.38 -1.3 -1.82 -2.08 Z', pivot: [0, 0], len: 7, layer: 6.1, fill: 'dark' },
+        head: { d: 'M -9 -3 C -14 -8 -12 -17 -3 -16.5 C 6 -16 16 -9 17 1 C 17.5 5 16.5 7.5 15 9 C 10 13 -2 14 -8 11 C -14 8 -14 0 -9 -3 Z', pivot: [0, 0], len: 10, layer: 6, fill: 'color' },
+        mandible: { d: 'M -1.8 -2.4 C 3 -3.6 7.4 -2 10.4 2 C 11 3.2 9.8 4 8.8 3.2 L 8 4.4 L 6.6 3 L 5.6 4.4 L 4.4 2.8 L 3 3.8 C 1.6 2.6 0.4 2.6 -1 2.6 C -3 2.6 -3.4 -1.4 -1.8 -2.4 Z', pivot: [0, 0], len: 7, layer: 6.1, fill: 'dark' },
         mesosoma: { d: 'M -10 2 C -11 -3 -7 -8.4 0 -9 C 5 -9.4 9.4 -6.4 10.8 -2 C 11.8 1.6 9.4 5.6 4 6.2 C -1 6.8 -9.4 6 -10 2 Z', pivot: [0, 0], len: 10, layer: 5, fill: 'color',
           spots: [{ d: 'M -8 -3.6 C -6.4 -6.6 -3.4 -8 0 -8.2 C -2.2 -6.6 -4.4 -5 -8 -3.6 Z', fill: 'dark' }] },
+        // Thorax spines (pronotal, mesonotal, propodeal), in the mesosoma's frame and group.
+        spines: { d: 'M 4.6 -8.4 L 8.6 -12.8 L 8.4 -6.8 Z M -1.6 -8.6 L 0.4 -13.4 L 1.6 -8.8 Z M -9.4 -2.4 L -11.8 -7.4 L -7.2 -5.4 Z', pivot: [0, 0], len: 10, layer: 5, fill: 'color' },
         petiole: { d: 'M -3.2 2 C -3.4 -1 -1.8 -5.4 0.4 -5.4 C 2.4 -5.4 3.4 -1 3.2 2 C 2.2 3.8 -2.2 3.8 -3.2 2 Z', pivot: [0, 0], len: 10, layer: 4, fill: 'color' },
         stalk: { d: 'M -1 -1.6 L 31 -1.6 C 32.4 -1.6 32.4 1.6 31 1.6 L -1 1.6 C -2.4 1.6 -2.4 -1.6 -1 -1.6 Z', pivot: [0, 0], len: 30, layer: 2.9, fill: 'dark' },
         gaster: { d: 'M 11 -1 C 11 6 7 11 0 11.2 C -8 11.4 -16.4 7.4 -17.4 1.6 C -16.6 -5 -11 -11.8 -4 -12.6 C 3 -13.4 11 -9 11 -1 Z', pivot: [0, 0], len: 10, layer: 3, fill: 'color',
           spots: [{ d: 'M -2.6 -12.8 C -0.6 -6 -0.6 4 -2.2 11.2 L -5.6 10.6 C -4 4 -4 -6 -5.8 -12.2 Z', fill: 'dark' }, { d: 'M -10.6 -9.8 C -9 -4 -9 3 -10.4 8.6 L -12.8 7 C -11.6 2 -11.6 -3.6 -12.8 -8 Z', fill: 'dark' }] },
         femur: { d: 'M -1.9 0 C -1.9 -2.4 1.9 -2.4 1.9 0 L 1.4 17 C 1.4 18.8 -1.4 18.8 -1.4 17 Z', pivot: [0, 0], len: 17, angle: D, layer: 2, fill: 'color' },
-        tibia: { d: 'M -1.4 0 C -1.4 -1.8 1.4 -1.8 1.4 0 L 0.9 18 C 2 19.2 2.8 20.2 3.4 21.4 L 2 22 C 1.4 21 0.8 20.4 -0.4 19.6 L -1 18 Z', pivot: [0, 0], len: 21, angle: D, layer: 2.1, fill: 'color' },
+        tibia: { d: 'M -1.5 0 C -1.5 -2 1.5 -2 1.5 0 L 1.1 14 C 1.1 15.6 -1.1 15.6 -1.1 14 Z', pivot: [0, 0], len: 14, angle: D, layer: 2.1, fill: 'color' },
+        // Tarsus with its claw: the leg's third segment, along the last third of the pose's shin.
+        tarsus: { d: 'M -0.9 0 C -0.9 -1.2 0.9 -1.2 0.9 0 L 0.7 7.6 C 1.8 8.4 2.6 9.2 3 10.2 L 1.8 10.6 C 1.2 9.8 0.6 9.4 -0.4 9 L -0.7 7.6 Z', pivot: [0, 0], len: 8, angle: D, layer: 2.2, fill: 'dark' },
         // Wing of queens and alates (also from above): a long pale blade from the thorax, with two veins.
-        wing: { d: 'M -2 -3 C 10 -8 34 -9.4 50 -5 C 55.4 -3.4 55.4 3 50 4.2 C 34 7.4 12 6.4 -2 3 C -4 1.6 -4 -1.6 -2 -3 Z', pivot: [0, 0], len: 50, layer: 7, fill: 'wing',
-          lines: ['M 4 -1 C 16 -4 32 -5 44 -3', 'M 8 1.6 C 18 1 28 1.8 36 3'] },
+        wing: { d: 'M -2 -3 C 10 -8 34 -9.4 50 -5 C 55.4 -3.4 55.4 3 50 4.2 C 34 7.4 12 6.4 -2 3 C -4 1.6 -4 -1.6 -2 -3 Z', pivot: [0, 0], len: 50, layer: 7, fill: 'wing', glass: true,
+          lines: ['M 4 -1 C 16 -4 32 -5 44 -3', 'M 8 1.6 C 18 1 28 1.8 36 3', 'M 18 -3.4 C 21 -1 22 1 22 2.8', 'M 30 -4.4 C 32 -2 33 0 33 3', 'M 40 -3.6 C 42 -1.4 42 1 41 3.4'] },
       },
       top: {
         head: { d: 'M -11.9 0 C -11.9 -11.22 -5.1 -14.62 3.4 -14.62 C 11.9 -14.62 17 -8.5 17 0 C 17 8.5 11.9 14.62 3.4 14.62 C -5.1 14.62 -11.9 11.22 -11.9 0 Z', pivot: [0, 0], len: 10, layer: 6, fill: 'color' },
@@ -206,8 +210,8 @@ var CARTOON_PARTS = (() => {
         abdomen: { d: 'M 9 0 C 9 7 2 11 -8 11 C -18 11 -26 6 -26 1 C -26 -5 -19 -10 -8 -10 C 2 -10 9 -6 9 0 Z', pivot: [0, 0], len: 10, layer: 4, fill: 'color',
           spots: [{ d: 'M -4 -10 C -2.6 -4 -2.6 4 -4 10.8 L -8 11 C -6.4 4 -6.4 -4 -8 -10 Z', fill: 'dark' }, { d: 'M -14 -8.6 C -12.6 -3 -12.6 3 -14 9.4 L -17.4 8.6 C -16 3 -16 -3 -17.4 -7.8 Z', fill: 'dark' }] },
         head: { d: 'M 9 0 C 9 6 5 9 0 9 C -5 9 -8 6 -8 0 C -8 -6 -5 -9 0 -9 C 5 -9 9 -6 9 0 Z', pivot: [0, 0], len: 10, layer: 6, fill: 'color' },
-        wing: { d: 'M -2 -4 C 8 -10 26 -11.4 36 -5 C 40 -2 40 3 36 5 C 26 9 8 8 -2 4 C -4 2 -4 -2 -2 -4 Z', pivot: [0, 0], len: 36, layer: 7, fill: 'wing',
-          lines: ['M 4 -2 C 14 -5 24 -5 32 -2'] },
+        wing: { d: 'M -2 -4 C 8 -10 26 -11.4 36 -5 C 40 -2 40 3 36 5 C 26 9 8 8 -2 4 C -4 2 -4 -2 -2 -4 Z', pivot: [0, 0], len: 36, layer: 7, fill: 'wing', glass: true,
+          lines: ['M 4 -2 C 14 -5 24 -5 32 -2', 'M 6 2 C 14 3 22 3 30 1', 'M 16 -4 C 18 -1 18 1 17 3'] },
       },
     },
 

@@ -17,9 +17,11 @@
   const EARTH = mixCol(P.wood, P.ground, .2), EARTH_DK = mixCol(P.wood, P.ink, .35);
   // Camada de fundo com paralaxe só horizontal (f): a vertical acompanha a câmera, para o fundo sair do quadro quando
   // ela desce para o solo ou sobe para o céu. draw(x0, x1) recebe a faixa visível em coordenadas da camada.
+  // Variante C: profundidade de campo; o fundo distante (f <= .35) e o capim da frente desfocam (ctx.filter).
+  const dof = (px, fn) => { const c = animationEngine.context; c.save(); c.filter = `blur(${px}px)`; try { fn(); } finally { c.restore(); } };
   function layer(cx, cy, zoom, f, t, draw) {
     const lx = lerp(960, cx, f);
-    Kit.cam(lx, cy, zoom, 0, hand(t)); draw(lx - W / 2 / zoom - 200, lx + W / 2 / zoom + 200); Kit.camEnd();
+    Kit.cam(lx, cy, zoom, 0, hand(t)); dof(f <= .35 ? 4 : 0, () => draw(lx - W / 2 / zoom - 200, lx + W / 2 / zoom + 200)); Kit.camEnd();
   }
   const view = (cx, zoom) => [cx - W / 2 / zoom - 80, cx + W / 2 / zoom + 80];
   const toScreen = (x, y, [cx, cy, z]) => [(x - cx) * z + W / 2, (y - cy) * z + H / 2];
@@ -108,7 +110,7 @@
       const path = makePath([[hx + 700, hy - 450], [hx + 250, hy - 100], [hx, hy]]);
       A().creature(creaturePose(FLY, { path, s: easeOut(seg(t, FLY_IN, FLY_IN + .8)) * path.length / FSC, size: FSC, t, seed: 4, gait: 'fly' }));
     }
-    grass(t, x0, x1, x => gC(x) + 140, 60, 120, 260, null);
+    dof(5, () => grass(t, x0, x1, x => gC(x) + 140, 60, 120, 260, null));
     Kit.camEnd();
   }
   function c1s01(t) {
@@ -155,7 +157,7 @@
     }
     Kit.poly([[NEST1 - 70, g1(NEST1) + 8], [NEST1 - 30, g1(NEST1) - 20], [NEST1 + 25, g1(NEST1) - 24], [NEST1 + 75, g1(NEST1) + 8]], EARTH, { smooth: true, weight: 4 });
     Kit.ellipse(NEST1 + 5, g1(NEST1) - 6, 22, 7, P.line);
-    grass(t, x0, x1, g1, 18, 16, 34, 1, [[hp.head.x, hp.head.y]]);
+    dof(5, () => grass(t, x0, x1, g1, 18, 16, 34, 1, [[hp.head.x, hp.head.y]]));
     Kit.camEnd();
   }
 
