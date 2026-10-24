@@ -1401,4 +1401,10 @@ AnimationPlatform.registerProject({
   for (const id of ['sauva-exp-e4', 'sauva-exp-e4c']) AnimationPlatform.registerProject({ ...base, ...toon3d, id, duration: cut, storyboard, scripts: [...kit, 'src/scenes/exp-sauva-e4.js'] });  // e4c: close dos rostos
   AnimationPlatform.registerProject({ ...base, ...toon3d, id: 'toon3d-b', title: 'Kit toon3d: besouro na mata', duration: 10, audio: undefined, chapters: undefined, scripts: [...kit, 'src/scenes/exp-toon3d-b.js'],
     storyboard: [{ id: 'b1', start: 0, end: 10, event: 'besouro atravessa o chão da mata', transition: 'cut', reads: [{ start: 0, end: 10, text: '(sem narração)' }] }] });
+  // E5 (0–60 s, mesmos planos do piloto) e B2: o kit com multidões físicas (crowd.js) e planos por dados (shot.js).
+  const kit5 = [...kit.slice(0, 6), 'src/nature/crowd.js', ...kit.slice(6), 'src/styles/toon3d/shot.js'], cut5 = 60;
+  const storyboard5 = base.storyboard.filter(s => s.start < cut5).map(s => ({ ...s, end: Math.min(s.end, cut5), reads: s.reads.filter(r => r.start < cut5).map(r => ({ ...r, end: Math.min(r.end, cut5) })) }));
+  AnimationPlatform.registerProject({ ...base, ...toon3d, id: 'sauva-exp-e5', duration: cut5, storyboard: storyboard5, scripts: [...kit5, 'src/scenes/exp-sauva-e5.js'] });
+  AnimationPlatform.registerProject({ ...base, ...toon3d, id: 'toon3d-b2', title: 'Kit toon3d: besouro na mata (B2)', duration: 10, audio: undefined, chapters: undefined, scripts: [...kit5, 'src/scenes/exp-toon3d-b2.js'],
+    storyboard: [{ id: 'b1', start: 0, end: 10, event: 'besouro atravessa o chão da mata', transition: 'cut', reads: [{ start: 0, end: 10, text: '(sem narração)' }] }] });
 })();

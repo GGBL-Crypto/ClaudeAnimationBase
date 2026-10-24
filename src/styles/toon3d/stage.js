@@ -3,26 +3,42 @@
 // peça, céu em gradiente com sol, neblina, bloom e pools instanciados que a cena reescreve a cada quadro pelo emissor E
 // (ver creature.js). Nada aqui conhece uma história: a cena chama toonStage(art, o) no buildLowpolyScene e, por quadro,
 // St.begin(t), desenha, St.camera(...) e St.end(). o = {sun: direção da tela [direita, cima], bloom, gobo, sky: [cores]}.
+// Material acetinado da quitina e dos membros ([roughness, specular]) e bloom ([força, raio, limiar]): o limiar 3 deixa
+// passar só o disco do sol (4× branco); pólen e brilhos ficam abaixo.
+const SATIN = { chitin: [.65, .06], limb: [.7, .05] }, BLOOM = [.35, .4, 3];
+// Legenda centrada no alto do quadro, entra numa mola (k = 0..1).
+function toonCaption(c, str, k) {
+  const s = backOut(k), size = 62; if (s < .02) return;
+  c.save(); c.translate(W / 2, 110); c.scale(s, s); c.globalAlpha = clamp(k * 3);
+  c.font = `700 ${size}px "Segoe UI", "Trebuchet MS", sans-serif`; const w = c.measureText(str).width + 1.2 * size, h = 1.5 * size;
+  c.beginPath(); c.roundRect(-w / 2, -h / 2, w, h, .45 * size); c.fillStyle = 'rgba(16,20,30,.62)'; c.fill(); c.strokeStyle = 'rgba(255,240,200,.25)'; c.lineWidth = 2; c.stroke();
+  c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#FFF8EC'; c.fillText(str, 0, 0); c.restore();
+}
 function toonStage(art, o = {}) {
-  const THREE = art.THREE, scene = art.scene, own = x => art.own(x), { add, sub, mul, unit, cross, len } = V3;
+  const THREE = art.THREE, scene = art.scene, own = x => art.own(x), { add, sub, mul, unit, cross, len, dot } = V3;
   const TIME = { value: 0 }, P = {}, colors = new Map(), m4 = new THREE.Matrix4();
   const col = hex => { let c = colors.get(hex); if (!c) colors.set(hex, c = new THREE.Color(hex)); return c; };
   const tex = (kind, seed) => toonTexture(THREE, kind, seed);
   const grad = own(new THREE.DataTexture(new Uint8Array([70, 58, 128, 255, 132, 128, 186, 255, 236, 222, 196, 255, 255, 243, 205, 255]), 4, 1, THREE.RGBAFormat));
   grad.minFilter = grad.magFilter = THREE.NearestFilter; grad.needsUpdate = true;
-  // look: rampa com cor (o three só lê o .r do gradientMap, então troca a função), contorno (rim), verniz (gloss) e a
-  // sombra de folhas em movimento (gobo, de ambient.js). wrap(sh) mexe no vertex shader (vento).
-  const look = (m, { rim = false, gobo = false, gloss = 0, glow = 0 }, wrap = sh => sh) => {
-    m.customProgramCacheKey = () => `t3${+rim}${+gobo}${gloss}${glow}${wrap.name}`;
+  // look: rampa com cor (o three só lê o .r do gradientMap, então troca a função), contorno (rim), verniz duro (gloss, só
+  // nos olhos), acetinado (satin = [roughness, specular]: lóbulo Blinn-Phong largo e fraco, expoente 2 / r⁴ − 2, sem
+  // clearcoat) e a sombra de folhas em movimento (gobo, de ambient.js). wrap(sh) mexe no vertex shader (vento).
+  const look = (m, { rim = false, gobo = false, gloss = 0, glow = 0, satin = null }, wrap = sh => sh) => {
+    m.customProgramCacheKey = () => `t3${+rim}${+gobo}${gloss}${glow}${satin}${wrap.name}`;
     m.onBeforeCompile = sh => {
       sh.uniforms.uTime = TIME; wrap(sh);
       sh.fragmentShader = (gobo ? 'uniform float uTime; varying vec2 vGobo;\n' : '') + sh.fragmentShader.replace('#include <gradientmap_pars_fragment>', `uniform sampler2D gradientMap;
 vec3 getGradientIrradiance(vec3 normal, vec3 lightDirection) { return texture2D(gradientMap, vec2(dot(normal, lightDirection) * .5 + .5, .5)).rgb; }`)
         .replace('#include <opaque_fragment>', (rim ? `
-  outgoingLight += vec3(1., .78, .46) * .5 * smoothstep(.5, .64, 1. - abs(dot(normal, geometryViewDir))) * smoothstep(-.25, .35, dot(normal.xy, vec2(-.6, .8)));` : '') + (gloss ? `
+  outgoingLight += vec3(1., .78, .46) * .18 * smoothstep(.5, .64, 1. - abs(dot(normal, geometryViewDir))) * smoothstep(-.25, .35, dot(normal.xy, vec2(-.6, .8)));` : '') + (gloss ? `
 #if NUM_DIR_LIGHTS > 0
   float gS = max(dot(normal, normalize(directionalLights[0].direction + geometryViewDir)), 0.);
   outgoingLight += vec3(1., .96, .86) * (.6 * smoothstep(.968, .982, gS) + .07 * smoothstep(.75, .96, gS)) * ${gloss.toFixed(2)};
+#endif` : '') + (satin ? `
+#if NUM_DIR_LIGHTS > 0
+  float sH = max(dot(normal, normalize(directionalLights[0].direction + geometryViewDir)), 0.), sN = ${(2 / satin[0] ** 4 - 2).toFixed(2)};
+  outgoingLight += directionalLights[0].color * ${satin[1].toFixed(3)} * (sN + 2.) / 8. * pow(sH, sN) * max(dot(normal, directionalLights[0].direction), 0.);
 #endif` : '') + (glow ? `
   outgoingLight = mix(outgoingLight, diffuseColor.rgb, ${glow.toFixed(2)});` : '') + (gobo ? AMBIENT_GOBO.frag : '') + '\n#include <opaque_fragment>');
       if (gobo) sh.vertexShader = 'varying vec2 vGobo;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n' + AMBIENT_GOBO.vert);
@@ -83,29 +99,44 @@ void main() {
   };
   // Recortes (folha, pétala, samambaia): sem luz de contorno, que em lâminas finas vistas de raspão as deixava brancas.
   const cut = (kind, seed = 0, glow = 0) => toon({ map: tex(kind, seed), alphaTest: .5, side: THREE.DoubleSide }, { gobo: o.gobo, glow });
-  const sphere = new THREE.SphereGeometry(1, 16, 10), chitin = toon({ map: tex('chitin') }, { rim: true, gloss: 1 });
+  const sphere = new THREE.SphereGeometry(1, 16, 10), chitin = toon({ map: tex('chitin') }, { rim: true, satin: SATIN.chitin });
   Object.assign(P, {
     sph: pool(new THREE.IcosahedronGeometry(1, 1), toon({}, { rim: true }), 1600, true),
     cyl: pool(new THREE.CylinderGeometry(1, 1, 1, 7, 1, true), toon({}, { rim: true }), 1600, true),
-    far: pool(new THREE.IcosahedronGeometry(1, 1), toon({ flatShading: true }), 90, false, false),
-    shell: pool(sphere, chitin, 4600, true),
+    far: pool(new THREE.IcosahedronGeometry(1, 1), toon({ flatShading: true }), 400, false, false),
+    puff: pool(new THREE.IcosahedronGeometry(1, 1), toon({}), 300, false, false),
+    shell: pool(sphere, chitin, 9000, true),
     lid: pool(new THREE.SphereGeometry(1, 12, 5, 0, TAU, 0, Math.PI / 2), chitin, 500, true),
-    limb: pool(new THREE.CylinderGeometry(1, 1, 1, 8, 1), toon({}, { rim: true, gloss: .7 }), 4200, true),
+    limb: pool(new THREE.CylinderGeometry(1, 1, 1, 8, 1), toon({}, { rim: true, satin: SATIN.limb }), 4200, true),
+    root: pool(new THREE.CylinderGeometry(1, 1, 1, 7, 1, true), toon({ map: tex('bark') }, { rim: true }), 900, true),
     eye: pool(sphere, toon({}, { gloss: 1.2, glow: .5 }), 1600, true),
     facet: pool(sphere, toon({ map: tex('facets') }, { gloss: 1.1 }), 40, true),
     glint: pool(new THREE.SphereGeometry(1, 8, 6), own(new THREE.MeshBasicMaterial({ fog: false })), 800, false, false),
     wing: pool(quadGeo(.04, 0), own(new THREE.MeshBasicMaterial({ map: tex('wing'), transparent: true, side: THREE.DoubleSide, depthWrite: false })), 80, false, false),
-    leaf: pool(quadGeo(), cut('leaf', 0), 1200, false), leaf2: pool(quadGeo(), cut('leaf', 3), 600, false),
+    leaf: pool(quadGeo(), cut('leaf', 0), 6000, false), leaf2: pool(quadGeo(), cut('leaf', 3), 3000, false),
     petal: pool(quadGeo(.12, -.15), cut('petal', 0, .3), 1600, false), fern: pool(quadGeo(.06, .25), cut('fern'), 500, false),
   });
   // Céu em gradiente, neblina na cor do horizonte, sol quente e céu azulado.
-  const sky = o.sky || ['#3D8BD4', '#8CC4EA', '#E2E6CC', '#F3E4C0'], sk = document.createElement('canvas'); sk.width = 4; sk.height = 256;
-  const sg = sk.getContext('2d'), sgr = sg.createLinearGradient(0, 0, 0, 256); sky.forEach((c, i) => sgr.addColorStop([0, .55, .84, 1][i], c));
-  sg.fillStyle = sgr; sg.fillRect(0, 0, 4, 256); scene.background = own(new THREE.CanvasTexture(sk)); scene.background.colorSpace = THREE.SRGBColorSpace;
-  scene.fog = new THREE.Fog(sky[3], 10, 60);
+  const skies = new Map(), skyTex = sky => {
+    let tx = skies.get(sky.join()); if (tx) return tx;
+    const sk = document.createElement('canvas'); sk.width = 4; sk.height = 256;
+    const sg = sk.getContext('2d'), sgr = sg.createLinearGradient(0, 0, 0, 256); sky.forEach((c, i) => sgr.addColorStop([0, .55, .84, 1][i], c));
+    sg.fillStyle = sgr; sg.fillRect(0, 0, 4, 256); tx = own(new THREE.CanvasTexture(sk)); tx.colorSpace = THREE.SRGBColorSpace; skies.set(sky.join(), tx); return tx;
+  };
+  const sky = o.sky || ['#3D8BD4', '#8CC4EA', '#E2E6CC', '#F3E4C0'];
+  scene.background = skyTex(sky); scene.fog = new THREE.Fog(sky[3], 10, 60);
   let key, hemi; for (const c of scene.children) { if (c.isDirectionalLight) key = c; if (c.isHemisphereLight) hemi = c; }
   key.color.set('#FFD49A'); key.intensity = o.key ?? 2.4; hemi.color.set('#96BEF2'); hemi.groundColor.set(o.groundLight || '#8A5634'); hemi.intensity = o.ambient ?? 1.4;
   key.shadow.camera.far = 90; scene.add(key.target);
+  // Clima por plano: céu, luz principal e ambiente; St.begin volta ao clima base, o plano chama St.mood(m) depois.
+  // sunAt = posição do sol na tela [direita, cima]; keyDir = de onde vem a luz principal.
+  const base = { sky, key: key.intensity, keyHex: '#FFD49A', ambient: hemi.intensity, groundLight: o.groundLight || '#8A5634', sunHex: '#FFF2CC', sunAt: o.sun, keyDir: [-3, 7, 5] };
+  let cur = base;
+  const setMood = m => {
+    m = cur = { ...base, ...m }; scene.background = skyTex(m.sky); scene.fog.color.set(m.sky[3]); OUT.uniforms.fogColor.value.set(m.sky[3]);
+    key.color.set(m.keyHex); key.intensity = m.key; hemi.intensity = m.ambient; hemi.groundColor.set(m.groundLight);
+    if (St.sky.sun) St.sky.sun.material.color.set(m.sunHex).multiplyScalar(4);
+  };
   const E = { eye: [0, 0, 0], focal: 1080 / (2 * Math.tan(20 * Math.PI / 180)) };
   Object.assign(E, {
     quad: (pool, pos, X, Y, Z, hex) => put(P[pool], pos, X, Y, Z, hex),
@@ -119,8 +150,20 @@ void main() {
       put(P[pool], mul(add(p0, p1), .5), mul(x, r), ax, mul(z, r), hex);
     },
     px: (pos, size) => size * E.focal / Math.max(1e-3, len(sub(pos, E.eye))),  // tamanho na tela em px
+    // A esfera (pos, r) cai no quadro da câmera atual? Quem está fora não é desenhado (os pools têm limite).
+    visible(pos, r) {
+      const d = sub(pos, E.eye), z = dot(d, E.fw); if (z < -r) return false;
+      const zz = Math.max(z, 1e-3), m = r * E.focal / zz;
+      return Math.abs(dot(d, E.rt) * E.focal / zz) < 960 + m && Math.abs(dot(d, E.up) * E.focal / zz) < 540 + m;
+    },
   });
-  const St = { THREE, scene, P, E, TIME, look, toon, cut, quadGeo, fixed, tex, OUT, key, hemi, own, sky: {} };
+  let label = null;
+  const St = { THREE, scene, P, E, TIME, look, toon, cut, quadGeo, fixed, tex, OUT, key, hemi, own, sky: {}, mood: setMood, label: (text, k) => { label = k > .02 ? [text, k] : null; } };
+  // Legenda: desenhada no quadro 2D depois do render (o motor copia o WebGL para o canvas de saída).
+  if (typeof animationEngine !== 'undefined') {
+    const engine = animationEngine, render = engine.render.bind(engine);
+    engine.render = async (t, op) => { await render(t, op); if (label) toonCaption(engine.canvas.getContext('2d'), ...label); };
+  }
   // Sol preso a um canto do quadro, longe como um céu, com raios; o bloom (pós) faz o sol e o pólen brilharem.
   if (o.sun) {
     const basic = x => own(new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, fog: false, ...x }));
@@ -140,7 +183,7 @@ void main() {
       if (!composer) {
         const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }] = await mods, sz = renderer.getSize(new THREE.Vector2());
         composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(sz.x, sz.y, { type: THREE.HalfFloatType, samples: 4 }));
-        composer.addPass(new RenderPass(scene, cam)); composer.addPass(new UnrealBloomPass(sz.clone(), .5, .55, 1.15)); composer.addPass(new OutputPass());
+        composer.addPass(new RenderPass(scene, cam)); composer.addPass(new UnrealBloomPass(sz.clone(), ...BLOOM)); composer.addPass(new OutputPass());
       }
       composer.render();
     };
@@ -161,7 +204,7 @@ void main() {
     const mesh = new THREE.Mesh(own(g), toon({ map: tex(map), vertexColors: true }, { gobo: o.gobo }, soil)); mesh.receiveShadow = true; scene.add(mesh); return mesh;
   };
   // Por quadro. camera: alvo, distância, elevação e giro; ajusta a caixa da sombra, a neblina e o sol.
-  St.begin = t => { for (const p of Object.values(P)) p.i = 0; TIME.value = t; };
+  St.begin = t => { for (const p of Object.values(P)) p.i = 0; TIME.value = t; label = null; setMood({}); };
   St.end = () => {
     for (const p of Object.values(P)) {
       p.m.count = p.i; p.m.instanceMatrix.needsUpdate = true; if (p.m.instanceColor) p.m.instanceColor.needsUpdate = true;
@@ -170,13 +213,13 @@ void main() {
   };
   St.camera = (tgt, d, elev, yaw = 0) => {
     const pos = add(tgt, [d * Math.cos(elev) * Math.sin(yaw), d * Math.sin(elev), d * Math.cos(elev) * Math.cos(yaw)]);
-    art.cameraPose(pos, tgt); E.eye = pos;
-    const half = Math.max(2.5, .75 * d), lp = add(tgt, mul(unit([-3, 7, 5]), 40));
+    art.cameraPose(pos, tgt); E.eye = pos; E.fw = unit(sub(tgt, pos)); E.rt = unit(cross(E.fw, [0, 1, 0])); E.up = cross(E.rt, E.fw);
+    const half = Math.max(2.5, .75 * d), lp = add(tgt, mul(unit(cur.keyDir), 40));
     key.position.set(...lp); key.target.position.set(...tgt);
     Object.assign(key.shadow.camera, { left: -half, right: half, top: half, bottom: -half, near: 5, far: 90 }); key.shadow.camera.updateProjectionMatrix();
     scene.fog.near = OUT.uniforms.fogNear.value = d + 6; scene.fog.far = OUT.uniforms.fogFar.value = d + 55;
     if (St.sky.sun) {
-      const fw = unit(sub(tgt, pos)), rt = unit(cross(fw, [0, 1, 0])), up = cross(rt, fw), [sx, sy] = o.sun, dir = unit(add(fw, add(mul(rt, sx), mul(up, sy))));
+      const fw = unit(sub(tgt, pos)), rt = unit(cross(fw, [0, 1, 0])), up = cross(rt, fw), [sx, sy] = cur.sunAt, dir = unit(add(fw, add(mul(rt, sx), mul(up, sy))));
       St.sky.sun.visible = St.sky.rays.visible = o.sunVisible ? o.sunVisible(tgt) : true;
       St.sky.sun.position.set(...add(pos, mul(dir, 60))); St.sky.sun.lookAt(...pos);
       St.sky.rays.position.set(...add(pos, mul(dir, 14))); St.sky.rays.lookAt(...pos);

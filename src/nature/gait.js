@@ -22,9 +22,9 @@ function limbCycle(s, offset, stride, duty, vary = 0, seed = 0) {
 function footAt(s, offset, o) {
   const { k, stance, u } = limbCycle(s, offset, o.stride, o.duty, o.vary, o.seed);
   const aK = k => o.vary ? gaitDist(k - offset + o.duty / 2, o.stride, o.vary, o.seed) : (k - offset) * o.stride + o.duty * o.stride / 2, a = o.plant(aK(k));
-  if (stance) return { pos: a, stance, lift: 0 };
+  if (stance) return { pos: a, stance, lift: 0, k, u };
   const b = o.plant(aK(k + 1)), e = ease(u), m = o.moving ?? 1, w = (1 - m) * Math.sin(Math.PI * u), r = w ? o.plant(s) : a;
-  return { pos: [lerp(lerp(a[0], b[0], e), r[0], w), lerp(lerp(a[1], b[1], e), r[1], w)], stance: !m, lift: o.lift * Math.sin(Math.PI * u) * m };
+  return { pos: [lerp(lerp(a[0], b[0], e), r[0], w), lerp(lerp(a[1], b[1], e), r[1], w)], stance: !m, lift: o.lift * Math.sin(Math.PI * u) * m, k, u };
 }
 // IK de dois ossos pela lei dos cossenos; bend (1 | -1) escolhe o lado do joelho.
 function ik2(root, end, l1, l2, bend) {

@@ -67,6 +67,28 @@ function fern(E, f, t) {
   }
 }
 
+// Copa de folhas (por quadro): miolo escuro (bola) coberto por n folhas texturizadas nascendo de dentro para fora, em
+// pontos de Fibonacci com sorteio; cada folha cai um pouco na ponta e balança com o vento na sua fase. c = centro, r =
+// raio, o = {n, seed, squash (achata em Y), core: cor do miolo, tint: cores das folhas, pool: 'sph' | 'far'}.
+function canopy(E, c, r, t, o = {}) {
+  const { mul, unit, cross, add } = V3, { n = 120, seed = 0, squash = .8, core = '#2E5A24', tint = ['#FFFFFF', '#E4F0B8', '#C8DC98', '#F0F6D8'], pool = 'far' } = o;
+  E.ovoid(c, [1, 0, 0], [0, 1, 0], .82 * r, .82 * r * squash, .82 * r, core, pool);
+  const w = wind(t, c[0] * 100, seed);
+  for (let i = 0; i < n; i++) {
+    const y = 1 - 2 * (i + .5) / n, a = i * 2.39996 + 6 * hash(seed * 3.1 + i), q = Math.sqrt(1 - y * y), k = .8 + .25 * hash(seed + i * 1.7);
+    const d = [Math.cos(a) * q, y * squash, Math.sin(a) * q], sway = .12 * w + .08 * Math.sin(t * (1.3 + hash(i + seed)) + i);
+    const Y = unit(add(d, [.25 * sway, -.35 + .2 * hash(i * 2.3 + seed), 0])), X = unit(cross(Y, Math.abs(Y[1]) < .95 ? [0, 1, 0] : [1, 0, 0])), Z = cross(X, Y), L = r * (.34 + .14 * hash(i * 5.1 + seed));
+    E.quad(i % 3 ? 'leaf' : 'leaf2', add(c, mul(d, .7 * r * k)), mul(X, .62 * L), mul(Y, L), mul(Z, .6 * L), tint[i % tint.length]);
+  }
+}
+// Árvore (por quadro): tronco com casca e copa de folhas em 1–3 cachos. base = pé do tronco.
+function tree(E, base, h, r, t, seed = 0, o = {}) {
+  const sw = .04 * h * wind(t, base[0] * 100, seed), top = [base[0] + sw, base[1] + h, base[2]];
+  E.rod([base[0], base[1] - .1, base[2]], top, .06 * h, '#D8BFA0', 'root');
+  const k = o.clusters || 3;
+  for (let j = 0; j < k; j++) { const a = j * 2.1 + seed, off = j ? [Math.cos(a) * .55 * r, -.15 * r + .2 * r * hash(seed + j), Math.sin(a) * .4 * r] : [0, .2 * r, 0]; canopy(E, V3.add(top, off), r * (j ? .7 : 1), t, { n: o.n ? Math.round(o.n * (j ? .55 : 1)) : undefined, seed: seed * 7 + j, ...o }); }
+}
+
 // Bioma: chão, plantas fixas e uma função draw(t) para o que balança. o = {area, ground: h(x, z), free: zonas, seed,
 // color(x, z): cor do chão}. 'meadow' = campo (capim, flores, folhas caídas, pedrinhas); 'forest' = chão de mata
 // (serapilheira densa, musgo, samambaias, gravetos, pedras, cogumelos e troncos ao fundo).
@@ -86,7 +108,7 @@ function toonBiome(St, name, o) {
   const rocks = scatter(forest ? 40 : 60, seed + 21, area, { free, zpow: 1.2 }), rk = St.toon({ map: St.tex('stone') }, { rim: true });
   St.fixed(new THREE.IcosahedronGeometry(1, 1), rk, rocks.map(p => { const r = .04 + (forest ? .25 : .1) * p.k * p.k; return [[p.x, hAt(p.x, p.z) + .2 * r, p.z], [1.3 * r, 0, 0], [0, .6 * r, 0], [0, 0, r], ['#E8DDD0', '#D6CBB8', '#F0E4D2'][Math.floor(p.k * 3)]]; }), true);
   const twigs = scatter(forest ? 70 : 15, seed + 31, area, { free }), bark = St.toon({ map: St.tex('bark') }, { rim: true });
-  St.fixed(new THREE.CylinderGeometry(1, .7, 1, 6, 1), bark, twigs.map(p => { const a = p.k * 51, L = .3 + .8 * p.k, Y = [Math.cos(a) * L, .02, Math.sin(a) * L], X = unit(cross(Y, [0, 1, 0])); return [[p.x, hAt(p.x, p.z) + .02, p.z], mul(X, .018), Y, mul(unit(cross(X, Y)), .018), '#C8A880']; }), true);
+  St.fixed(new THREE.CylinderGeometry(1, .7, 1, 6, 1), bark, twigs.map(p => { const a = p.k * 51, L = .3 + .8 * p.k, Y = [Math.cos(a) * L, .02, Math.sin(a) * L], X = unit(cross(Y, [0, 1, 0])); return [[p.x, hAt(p.x, p.z) + .02, p.z], mul(X, .018), Y, mul(unit(cross(X, Y)), .018), '#8E6E4E']; }), true);
   // Capim: no campo, denso e baixo perto das zonas livres; na mata, ralo.
   const grass = scatter(forest ? 2500 : 14000, seed + 41, area, { free: free.map(z => ({ ...z, r: z.r * .55 })), zpow: 1.6 });
   grassField(St, grass, { ground: hAt, gobo: o.gobo, h: p => (.08 + .32 * p.k) * (p.d < 1.5 ? .2 + .8 * (p.d / 1.5) ** 2 : 1) * (forest ? .7 : 1 + .6 * clamp(-p.z / 20)),
@@ -113,8 +135,8 @@ function toonBiome(St, name, o) {
         E.rod(g, top, .02 + .02 * p.k, '#F4ECDA', 'cyl'); E.ovoid(top, [1, 0, 0], [0, 1, 0], .07 + .06 * p.k, .045 + .03 * p.k, .07 + .06 * p.k, p.k > .5 ? '#D8352A' : '#C98A4A', 'sph');
         if (p.k > .5) for (let j = 0; j < 5; j++) { const a = j * 1.3 + p.k * 9; E.ball(V3.add(top, [Math.cos(a) * .06, .035 + .01 * (j % 2), Math.sin(a) * .06]), .012, '#FFF8EC', 'sph'); }
       }
-      for (const p of bushes) for (let j = 0; j < 3; j++) E.ball([p.x + .5 * j - .5, hAt(p.x, p.z) + .5 + .4 * p.k + .2 * j % 2, p.z - .3 * j], .7 + .6 * p.k, ['#3E6E2C', '#4E7E30', '#335E26'][(j + Math.floor(p.k * 3)) % 3], 'far');
-      for (const p of trunks) for (let j = 0; j < 4; j++) E.ball([p.x + 1.4 * Math.cos(j * 1.7 + p.k), hAt(p.x, p.z) + 8 + .8 * Math.sin(j * 2.1), p.z + 1.2 * Math.sin(j * 1.7 + p.k)], 1.6 + .5 * hash(j + p.k * 9), ['#3B7E34', '#4F9A3A', '#2E6A2E'][j % 3], 'far');
+      for (const p of bushes) canopy(E, [p.x, hAt(p.x, p.z) + .5 + .4 * p.k, p.z], .7 + .6 * p.k, t, { n: 26, seed: p.k * 50, core: '#2E5A22' });
+      for (const p of trunks) for (let j = 0; j < 3; j++) canopy(E, [p.x + 1.4 * Math.cos(j * 1.7 + p.k), hAt(p.x, p.z) + 8 + .8 * Math.sin(j * 2.1), p.z + 1.2 * Math.sin(j * 1.7 + p.k)], 1.8 + .5 * hash(j + p.k * 9), t, { n: 50, seed: p.k * 90 + j, core: '#2A5A26' });
     },
   };
 }

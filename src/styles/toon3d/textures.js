@@ -169,11 +169,14 @@ const stone = (g, w, h, s) => {
     wrapT(g, w, h, x, y, 20, () => { g.globalAlpha = .6; o.forEach((e, j) => ell(g, x + e[0], y + e[1], e[2], e[3], 0, ['#b6bf6a', '#c9c58a', '#7f9a58'][j % 3])); g.globalAlpha = 1; });
   }
 };
+// Quitina natural (multiplica a cor da peça): base clara com tom que varia em manchas largas, pontinhos (poros) e
+// fibrinhas curtas de feltro; nada de faixas lisas que pareçam plástico.
 const chitin = (g, w, h, s) => {
-  const r = R(s, 8), k = g.createLinearGradient(0, 0, 0, h); k.addColorStop(0, '#ffffff'); k.addColorStop(1, '#b8b8b8');
+  const r = R(s, 8), k = g.createLinearGradient(0, 0, 0, h); k.addColorStop(0, '#f4f1ec'); k.addColorStop(1, '#c4beb6');
   g.fillStyle = k; g.fillRect(0, 0, w, h);
-  for (let y = 3; y < h; y += 6) { g.globalAlpha = .05; g.fillStyle = y % 12 ? '#000' : '#fff'; g.fillRect(0, y, w, 2); }
-  grainy(g, w, h, r, 700, ['#000000', '#ffffff'], .06, [1, 2]);
+  for (let i = 0; i < 26; i++) { const x = r(0, w), y = r(0, h), d = r(24, 70); wrapT(g, w, h, x, y, d, () => blob(g, x, y, d, i % 3 ? '#8a8078' : '#ffffff', .16)); }
+  grainy(g, w, h, r, 2600, ['#5a524c', '#ffffff'], .1, [1, 1.8]);
+  for (let i = 0; i < 900; i++) { const x = r(0, w), y = r(0, h), a = r(0, TAU), l = r(2, 5); wrapT(g, w, h, x, y, 6, () => line(g, [[x, y], [x + Math.cos(a) * l, y + Math.sin(a) * l]], i % 2 ? '#6a625a' : '#fffaf0', .8, .14)); }
 };
 const facets = (g, w, h, s) => {
   const r = R(s, 9), N = 18, cw = w / N, R0 = cw / Math.sqrt(3), rh = cw * .866;

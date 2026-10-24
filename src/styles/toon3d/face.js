@@ -50,8 +50,8 @@ function drawFace(E, h, F, st, o = {}) {
     const X = unit(cross(n, h.l)), Z = cross(X, n);
     E.quad('lid', c, mul(X, 1.07 * R), mul(n, 1.07 * R), mul(Z, 1.07 * R), h.hex);
     if (F.brow) {  // sobrancelha: bastão acima do olho, ponta de dentro e de fora
-      const b = comb(c, [ue, R * (1.08 + .3 * st.brow[0])], [e, R * .35]), lat = mul(unit(cross(e, ue)), sg * R * .5), tilt = mul(ue, R * .3 * st.brow[1]);
-      spindle(E, add(sub(b, lat), tilt), sub(add(b, lat), tilt), .1 * R, F.browHex || '#2A140C');
+      const b = comb(c, [ue, R * (.9 + .2 * st.brow[0])], [e, R * .52]), lat = mul(unit(cross(e, ue)), sg * R * .55), tilt = mul(ue, R * .22 * st.brow[1]);  // rente ao olho
+      spindle(E, add(sub(b, lat), tilt), sub(add(b, lat), tilt), .09 * R, F.browHex || '#2A140C');
     }
   }
   if (!F.mouth || (E.px && E.px(h.c, h.ax[2]) < 14)) return;
