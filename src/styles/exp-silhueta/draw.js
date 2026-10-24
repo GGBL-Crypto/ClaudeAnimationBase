@@ -24,14 +24,18 @@
     }
     return BG[key] = a;
   }
-  // Fibra do papel e vinheta, aplicadas por cima de tudo em multiply: aparecem só onde passa luz.
+  // Fibra do papel e vinheta, aplicadas por cima de tudo em multiply. A fibra é difusa (fios curtos desfocados, baixo
+  // contraste) e só aparece no centro iluminado: a máscara radial a apaga nas bordas.
   const FIB = (() => {
-    const a = canvas(W, H), g = a.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.lineCap = 'round';
+    const f = canvas(W, H), h = f.getContext('2d'); h.filter = 'blur(1.4px)'; h.lineCap = 'round';
     for (let i = 0; i < STYLE.texture.fibers; i++) {
-      const x = W * hash(i * 1.31 + 7), y = H * hash(i * 2.17 + 3), l = 18 + 80 * hash(i * .7 + 1), a0 = TAU * hash(i * 3.3 + 5), b = (hash(i + 11) - .5) * .9;
-      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + l / 2 * Math.cos(a0 + b), y + l / 2 * Math.sin(a0 + b), x + l * Math.cos(a0), y + l * Math.sin(a0));
-      g.strokeStyle = `rgba(110,70,40,${.06 + .16 * hash(i + 13)})`; g.lineWidth = .6 + 1.6 * hash(i + 17); g.stroke();
+      const x = W * hash(i * 1.31 + 7), y = H * hash(i * 2.17 + 3), l = 6 + 22 * hash(i * .7 + 1), a0 = TAU * hash(i * 3.3 + 5), b = (hash(i + 11) - .5) * .6;
+      h.beginPath(); h.moveTo(x, y); h.quadraticCurveTo(x + l / 2 * Math.cos(a0 + b), y + l / 2 * Math.sin(a0 + b), x + l * Math.cos(a0), y + l * Math.sin(a0));
+      h.strokeStyle = `rgba(120,80,50,${.05 + .07 * hash(i + 13)})`; h.lineWidth = 1 + 1.5 * hash(i + 17); h.stroke();
     }
+    h.filter = 'none'; h.globalCompositeOperation = 'destination-in';
+    const m = h.createRadialGradient(960, 470, 80, 960, 500, 820); m.addColorStop(0, '#000'); m.addColorStop(1, 'rgba(0,0,0,0)'); h.fillStyle = m; h.fillRect(0, 0, W, H);
+    const a = canvas(W, H), g = a.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.drawImage(f, 0, 0);
     const v = g.createRadialGradient(960, 500, 320, 960, 540, 1250); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(20,6,2,.8)');
     g.fillStyle = v; g.fillRect(0, 0, W, H);
     return a;
@@ -239,23 +243,24 @@
     }, col, { seam: s });
     for (const k of ['armL', 'armR']) if (L[k].far) arm(L[k], T.far, 0);
     for (const k of ['legL', 'legR']) if (L[k].far) leg(L[k], T.far, 0);
-    // Mochila: fresta de luz em volta, aba e ornamento vazados; saco de dormir enrolado em cima.
+    // Mochila: fresta de luz em volta e aba vazada; saco de dormir enrolado em cima.
     piece(poly([[-.09, -.01], [-.2, .0], [-.235, .12], [-.225, .26], [-.12, .29], [-.07, .24], [-.07, .03]]), T.ink, { seam });
     piece(() => { const [x, y] = q(-.165, .31); c.ellipse(x, y, .085 * S, .038 * S, Math.atan2(ux * f, -uy * f), 0, TAU); }, T.ink, { seam });
     if (rich) {
-      const [ox, oy] = q(-.155, .12); c.lineWidth = .007 * S; c.strokeStyle = T.lite;
-      c.beginPath(); c.arc(ox, oy, .035 * S, 0, TAU); c.stroke();
-      for (let i = 0; i < 6; i++) hole(ox + .055 * S * Math.cos(i * TAU / 6), oy + .055 * S * Math.sin(i * TAU / 6), .007 * S, .007 * S);
+      c.lineWidth = .007 * S; c.strokeStyle = T.lite;
       path([q(-.21, .2), q(-.075, .21)]); c.stroke();  // aba
       const [rx, ry] = q(-.165, .31); c.beginPath(); c.arc(rx, ry, .014 * S, 0, 5); c.stroke();  // rolo
     }
     // Tronco (camisa e calção) e pescoço.
     piece(poly([[.055, -.11], [.08, .0], [.095, .14], [.09, .22], [.045, .265], [-.02, .275], [-.08, .25], [-.095, .16], [-.09, .04], [-.065, -.11]]), T.ink);
-    if (rich) { c.lineWidth = .008 * S; c.strokeStyle = T.lite; path([q(-.085, 0), q(.078, 0)]); c.stroke(); hole(...q(.0, 0), .012 * S, .009 * S); path([q(.02, .262), q(.06, .2), q(.085, .235)]); c.stroke(); }  // cinto, fivela e gola
+    if (rich) { c.lineWidth = .008 * S; c.strokeStyle = T.lite; path([q(-.085, 0), q(.078, 0)]); c.stroke(); path([q(.02, .262), q(.06, .2), q(.085, .235)]); c.stroke(); }  // cinto e gola
     piece(() => bone(q(0, .26), [p.head.x - f * .2 * hr, p.head.y + .4 * hr], .028 * S, .028 * S), T.ink);
     // Cabeça de perfil com chapéu (no quadro da cabeça).
     const e = p.face?.expression || 'neutral', bl = p.face?.blink || 0;
+    // Susto (emote !): a cabeça vai para trás e o chapéu pula no repique da mola do emote.
+    const em = p.emote, pop = em?.sym === '!' ? clamp(em.k) * ease(em.a) : 0, jump = em?.sym === '!' ? .35 * pop + 1.4 * Math.max(0, em.k - 1) : 0;
     at(p.head.x, p.head.y, p.head.angle, f, () => {
+      c.rotate(-.32 * pop);
       const R = hr, P2 = pts => () => pts.forEach(([x, y], i) => i ? c.lineTo(x * R, y * R) : c.moveTo(x * R, y * R));
       piece(() => { c.arc(0, 0, R, Math.PI * .62, Math.PI * 1.72); P2([[.62, -.78], [.9, -.32], [1.0, -.12], [1.32, .14], [1.0, .26], [1.06, .4], [.98, .5], [1.04, .62], [.9, .82], [.5, .95], [-.2, .98]])(); c.closePath(); }, T.ink);
       if (e === 'surprised') hole(1.0 * R, .52 * R, .1 * R, .08 * R);
@@ -268,6 +273,7 @@
         c.lineWidth = .05 * R; c.beginPath(); c.arc(-.12 * R, .05 * R, .14 * R, .9, TAU - .9); c.stroke();  // orelha
       }
       // Chapéu: aba larga, copa com mossa e faixa de losangos vazados.
+      c.translate(-.1 * jump * R, -jump * R); c.rotate(-.15 * jump);
       piece(() => { P2([[-1.45, -.5], [-.9, -.66], [.9, -.66], [1.55, -.5], [1.5, -.42], [.9, -.5], [-.9, -.5], [-1.4, -.4]])(); c.closePath(); }, T.ink, { seam: seam * .7 });
       piece(() => { P2([[-.85, -.58], [-.72, -1.35], [-.3, -1.5], [0, -1.38], [.3, -1.52], [.7, -1.38], [.88, -.58]])(); c.closePath(); }, T.ink);
       if (rich) for (let i = 0; i < 5; i++) { const x = (-.56 + .28 * i) * R, y = -.8 * R, s = .08 * R; path([[x - s, y], [x, y - s], [x + s, y], [x, y + s]]); c.closePath(); c.fillStyle = T.lite; c.fill(); }
@@ -275,8 +281,8 @@
     for (const k of ['legL', 'legR']) if (!L[k].far) leg(L[k], T.ink, seam);
     for (const k of ['armL', 'armR']) if (!L[k].far) arm(L[k], T.ink, seam);
     if (rich) {
-      for (const k of ['legL', 'legR', 'armL', 'armR']) if (!L[k].far) { rivet(...L[k].root, .012 * S); rivet(...L[k].mid, .011 * S); }
-      rivet(...q(0, .26), .01 * S);
+      for (const k of ['legL', 'legR', 'armL', 'armR']) if (!L[k].far) rivet(...L[k].root, .012 * S);  // ombro e quadril
+      for (const k of ['legL', 'legR']) if (!L[k].far) rivet(...L[k].mid, .011 * S);  // joelho
     }
     emote(p, hr);
   }
@@ -285,8 +291,8 @@
     const e = p.emote; if (!e) return;
     const k = Math.min(e.k, ease(e.a)); if (k <= 0) return;
     c.save(); c.translate(p.head.x + p.facing * hr * 2.7, p.head.y - hr * 1.7); c.scale(k, k); c.globalAlpha *= clamp(e.a);
-    c.font = `bold ${hr * 2.4}px "Palatino Linotype", "Book Antiqua", Georgia, serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.lineWidth = hr * .14; c.strokeStyle = T.lite; c.lineJoin = 'round'; c.strokeText(e.sym, 0, 0); c.fillStyle = P.ink; c.fillText(e.sym, 0, 0);
+    c.font = `bold ${hr * (e.sym === '!' ? 3.6 : 2.4)}px "Palatino Linotype", "Book Antiqua", Georgia, serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.lineWidth = hr * (e.sym === '!' ? .22 : .14); c.strokeStyle = T.lite; c.lineJoin = 'round'; c.strokeText(e.sym, 0, 0); c.fillStyle = P.ink; c.fillText(e.sym, 0, 0);
     c.restore();
   }
 
@@ -349,7 +355,13 @@
     into(sg, () => {
       cam(F, 1);
       soil(t, x => w.ground(x) - 26 * Math.exp(-(((x - w.nest) / 60) ** 2)), x0, x1, 2600, 5, 5, 3);
-      c.globalCompositeOperation = 'destination-out'; c.lineCap = c.lineJoin = 'round';
+      // Raízes de capim em silhueta, um pouco mais claras que a terra, descendo da superfície (os túneis as cortam).
+      c.lineCap = c.lineJoin = 'round'; c.strokeStyle = mixCol(P.ink, P.lampU[1], .2);
+      for (const [rx0, n, seed] of [[1010, 7, 1], [1270, 5, 2], [720, 6, 3]]) for (let j = 0; j < n; j++) {
+        let x = rx0 + (j - n / 2) * 7, y = w.ground(rx0), a = Math.PI / 2 + (j - n / 2) * .12;
+        for (let k = 0; k < 12; k++) { const nx = x + Math.cos(a) * 16, ny = y + Math.sin(a) * 16; c.lineWidth = Math.max(.8, 4.5 - k * .35); path([[x, y], [nx, ny]]); c.stroke(); x = nx; y = ny; a += .3 * noise1(seed * 20 + j, k * .6); }
+      }
+      c.globalCompositeOperation = 'destination-out';
       for (const pts of w.tunnels) { c.lineWidth = 36; path(pts.map(([x, y]) => [x, y - 11])); c.stroke(); }
       for (const [x, y, cw, ch, s] of w.chambers) {
         c.beginPath();
@@ -361,8 +373,9 @@
         let x = rx + (i - 3) * 14, y = ry, a = Math.PI / 2 + (i - 3) * .28;
         for (let k = 0; k < 9; k++) { const nx = x + Math.cos(a) * rh * .07, ny = y + Math.sin(a) * rh * .07; c.lineWidth = 5 - k * .5; path([[x, y], [nx, ny]]); c.stroke(); x = nx; y = ny; a += .35 * noise1(i * 9 + 1, k * .7); }
       }
-      c.lineWidth = 1.5;
-      for (let i = 0; i < 26; i++) { const x = lerp(-300, 2500, hash(i * 1.9 + 4)), y = lerp(900, 2200, hash(i * 2.3 + 8)); c.beginPath(); c.ellipse(x, y, 6 + 10 * hash(i + 3), 4 + 6 * hash(i + 5), hash(i + 7) * 3, 0, TAU); c.stroke(); }
+      c.globalAlpha = .22;  // seixos: vazados fracos, preenchidos
+      for (let i = 0; i < 40; i++) { const x = lerp(-300, 2500, hash(i * 1.9 + 4)), y = lerp(880, 2200, hash(i * 2.3 + 8)); c.beginPath(); c.ellipse(x, y, 7 + 12 * hash(i + 3), 5 + 7 * hash(i + 5), hash(i + 7) * 3, 0, TAU); c.fill(); }
+      c.globalAlpha = 1;
       c.globalCompositeOperation = 'source-over';
       for (const [x, y, fw, fh, s] of w.fungus) {
         const col = mixCol(P.ink, P.lampU[1], .4);
