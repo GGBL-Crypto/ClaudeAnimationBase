@@ -1408,3 +1408,13 @@ AnimationPlatform.registerProject({
   AnimationPlatform.registerProject({ ...base, ...toon3d, id: 'toon3d-b2', title: 'Kit toon3d: besouro na mata (B2)', duration: 10, audio: undefined, chapters: undefined, scripts: [...kit5, 'src/scenes/exp-toon3d-b2.js'],
     storyboard: [{ id: 'b1', start: 0, end: 10, event: 'besouro atravessa o chão da mata', transition: 'cut', reads: [{ start: 0, end: 10, text: '(sem narração)' }] }] });
 })();
+// Competição de estilos 2D (exp/estilos, não promover): estilos-a = 0–20 s do c01, estilos-h = explorador e formigas, 8 s
+// sem narração. O estilo vem de --style (exp-tv, exp-palito, ...); a coreografia é a mesma (src/scenes/exp-estilos.js).
+(() => {
+  const base = AnimationPlatform.projects['sauva-operaria'], cut = 20, compatibleStyles = ['debug', 'tv', 'palito', 'aquarela', 'flat', 'papel', 'nanquim', 'silhueta'].map(s => 'exp-' + s);
+  const storyboard = base.storyboard.filter(s => s.start < cut).map(s => ({ ...s, end: Math.min(s.end, cut), reads: s.reads.filter(r => r.start < cut).map(r => ({ ...r, end: Math.min(r.end, cut) })) }));
+  const scripts = [...['noise', 'path', 'gait', 'creature', 'specs', 'env', 'crowd'].map(f => `src/nature/${f}.js`), 'src/scenes/exp-estilos.js'], common = { style: 'exp-debug', compatibleStyles, scripts, chapters: undefined, reviewTimes: undefined };
+  AnimationPlatform.registerProject({ ...base, ...common, id: 'estilos-a', title: 'Estilos 2D: saúva, 0–20 s', duration: cut, storyboard });
+  AnimationPlatform.registerProject({ ...base, ...common, id: 'estilos-h', title: 'Estilos 2D: explorador e formigas', duration: 8, audio: undefined,
+    storyboard: [{ id: 'h1', start: 0, end: 8, event: 'Um explorador de mochila anda na trilha, para, se agacha e olha uma fila de formigas, surpreso.', transition: 'corte', reads: [{ start: 0, end: 8, text: '(sem narração)' }] }] });
+})();

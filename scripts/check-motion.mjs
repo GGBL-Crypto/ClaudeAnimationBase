@@ -151,11 +151,39 @@ function groundOf(P) {
   };
 }
 
+// Adaptador 2D (exp/estilos, --2d): cenas com coreografia sem desenho (EST.frame em src/scenes/exp-estilos.js). O ponto
+// 2D (y para baixo) vira [x, −y, depth] e a câmera {cx, cy, z} vira uma câmera de frente a FOCAL / z: 1 unidade = z px,
+// como na tela. Cada camada de paralaxe f é verificada à parte, com a sua câmera (cx = lerp(960, cx, f)).
+export function sampleProject2d(id, { fps = 30, range } = {}) {
+  const platform = catalog(), project = platform.resolveProject(id), ctx = vm.createContext({ AnimationPlatform: platform, projectConfig: project, window: {}, console });
+  for (const file of ['src/motion.js', ...project.scripts]) vm.runInContext(readFileSync(join(ROOT, file), 'utf8'), ctx, { filename: file });
+  const scene = id === 'estilos-h' ? 'H' : 'A', [t0, t1] = range || [0, project.duration], layers = new Map();
+  for (let i = Math.round(t0 * fps); i < Math.round(t1 * fps); i++) {
+    const t = i / fps, F = ctx.EST.frame(scene, t), byLayer = new Map();
+    for (const a of F.actors) {
+      const P = a.pose, d = a.depth || 0, X = (x, y) => [x, -y, d], air = a.kind === 'fly', g = a.ground, hr = ctx.SPECS[P.spec].head.r * P.size;
+      const parts = [...P.spine, { ...P.head, r: hr }].map(q => ({ c: X(q.x, q.y), r: .9 * q.r, bottom: air ? 1 : g(q.x) - q.y - q.r }));
+      const feet = air ? [] : Object.entries(P.limbs).filter(([, l]) => l.foot).map(([name, l]) => ({ name, pos: X(...l.end), stance: l.stance, k: 0, h: g(l.end[0]) - l.end[1], reach: 0 }));
+      const f = a.layer ?? 1; if (!byLayer.has(f)) byLayer.set(f, []);
+      byLayer.get(f).push({ id: a.id, S: P.size, air, hidden: !!a.hidden, p: X(a.track.x, a.track.y), f: [Math.cos(a.track.angle), -Math.sin(a.track.angle), 0], parts, feet });
+    }
+    for (const f of new Set([...layers.keys(), ...byLayer.keys()])) {
+      const cx = 960 + (F.cam.cx - 960) * f;
+      if (!layers.has(f)) layers.set(f, []);
+      layers.get(f).push({ t, shot: F.shot, cam: { pos: [cx, -F.cam.cy, FOCAL / F.cam.z], tgt: [cx, -F.cam.cy, 0] }, agents: byLayer.get(f) || [] });
+    }
+  }
+  return layers;
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const args = parseArgs(process.argv.slice(2)), range = args.range && String(args.range).split(':').map(Number);
-  const frames = sampleProject(args.project, { fps: Number(args.fps || 30), range }), v = checkMotion(frames);
-  const text = report(v, `${args.project} (${frames.length} quadros, ${frames.reduce((n, f) => Math.max(n, f.agents.length), 0)} seres no máximo)`);
-  console.log(text);
-  if (args.out) writeFileSync(args.out, text + '\n', { flag: args.append ? 'a' : 'w' });
-  process.exitCode = v.length ? 1 : 0;
+  const args = parseArgs(process.argv.slice(2)), range = args.range && String(args.range).split(':').map(Number), fps = Number(args.fps || 30);
+  const runs = args['2d'] ? [...sampleProject2d(args.project, { fps, range })].map(([f, frames]) => [`${args.project} camada ${f}`, frames]) : [[args.project, sampleProject(args.project, { fps, range })]];
+  let total = 0;
+  for (const [i, [title, frames]] of runs.entries()) {
+    const v = checkMotion(frames), text = report(v, `${title} (${frames.length} quadros, ${frames.reduce((n, f) => Math.max(n, f.agents.length), 0)} seres no máximo)`);
+    console.log(text); total += v.length;
+    if (args.out) writeFileSync(args.out, text + '\n', { flag: args.append || i ? 'a' : 'w' });
+  }
+  process.exitCode = total ? 1 : 0;
 }
