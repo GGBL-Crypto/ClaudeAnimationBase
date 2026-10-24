@@ -16,7 +16,8 @@
   const hand = t => ({ t, k: .6, seed: 5 });
   const c = animationEngine.context;
   const COLD = () => Kit.gradient(mixCol(P.skyTop, P.stone, .3), P.skyLow);
-  const NIGHT = { color: P.ink, dark: P.line };
+  // Noite ao luar: silhuetas mais claras que o P.ink de c5s04c, para as caroneiras lerem sobre as folhas.
+  const NIGHT = { color: mixCol(P.sauva, P.shade, .55), dark: mixCol(P.sauvaDk, P.ink, .5) }, NIGHT_K = .42;
   // Camada de fundo com paralaxe só horizontal (layer() de c01).
   function layer(cx, cy, zoom, f, t, draw) {
     const lx = lerp(960, cx, f);
@@ -52,6 +53,13 @@
     const p = creaturePose(FLY, { path: makePath([[x - facing, y], [x, y]]), s: 1 / FS, size: FS, t, seed: 4, gait: 'fly', ...o });
     A().creature(p); return p;
   }
+  // Texto de tela legível no celular: auréola clara em volta das letras escuras.
+  function label(str, x, y, size, k, col = P.ink, halo = P.cloud) {
+    if (k <= 0) return;
+    const hw = .29 * size * str.length; x = clamp(x, hw + 40, W - hw - 40); y = clamp(y, .7 * size, 960 - .7 * size);
+    for (let i = 0; i < 8; i++) Kit.text(str, x + .07 * size * Math.cos(i * TAU / 8), y + .07 * size * Math.sin(i * TAU / 8), size, halo, { k });
+    Kit.text(str, x, y, size, col, { k });
+  }
   // Marca de susto ('!') perto da cabeça: o '!' do mood() não sai nas formigas.
   const mark = (t, t0, x, y, size) => { const k = Math.min(seg(t, t0, t0 + .35), 1 - seg(t, t0 + 1.1, t0 + 1.4)); if (k > 0) Kit.text('!', x, y, size, P.ink, { k }); };
   // Folha erguida da mandíbula para trás e para cima (ângulo th), para a cabeça aparecer; vira p.carry (o desenho
@@ -66,8 +74,8 @@
     const C = p.carry, k = o.k ?? .3; if (!C || k <= .01) return null;
     const a = p.facing < 0 ? Math.PI : 0, ca = Math.cos(a), size = k * p.size;
     const x = C.x - ca * .12 * C.w, y = C.y, ground = gx => { const u = clamp((gx - C.x) / C.w + .5); return C.y + (gx - C.x) * Math.tan(C.angle) - 2 * C.h * u * (1 - u); };
-    const path = makePath([[x - ca * 1e3, y], [x + ca * 1e3, y]]);
-    let q = creaturePose(SPECS.minima, { path, s: 1e3 / size, size, ground, moving: 0, t, seed, antennae: o.antennae });
+    const path = makePath([[x - ca * 1e3, y], [x + ca * 1e3, y]]);  // o.along: quanto ela andou para a frente na folha (× largura)
+    let q = creaturePose(SPECS.minima, { path, s: (1e3 + (o.along || 0) * C.w) / size, size, ground, moving: o.moving || 0, t, seed, antennae: o.antennae });
     if (o.nod) q = nod(q, ...o.nod);
     A().creature(q, { ...o.look, jaws: o.jaws ?? .5 + .5 * noise1(seed + 9, t * 1.4) });
     return q;
@@ -161,7 +169,7 @@
     fore(t, x0, x1); grass(t, x0, x1, g, 22, 30, 70, 1, [[hp.head.x, hp.head.y]]);
     Kit.camEnd();
     const [tx, ty] = toScreen(fx, fy - 70, cam);
-    Kit.text('Neodohrniphora elongata', tx, ty, 54, P.ink, { k: Math.min(seg(t, N1, N1 + .4), 1 - seg(t, t1 + 7.6, t1 + 7.95)) });
+    label('Neodohrniphora elongata', tx, ty, 84, Math.min(seg(t, N1, N1 + .4), 1 - seg(t, t1 + 7.6, t1 + 7.95)));
   }
 
   // ---------- c6s02: a mosca mergulha sobre ela várias vezes; ela se assusta e acelera ----------
@@ -185,7 +193,7 @@
     fore(t, x0, x1); grass(t, x0, x1, g, 22, 30, 70, 1, [[hp.head.x, hp.head.y]]);
     Kit.camEnd();
     const [tx, ty] = toScreen(hp.head.x - 75, hp.head.y - 40, cam);
-    Kit.text('1,5 mm', tx, ty, 58, P.ink, { k: Math.min(seg(t, rd('c6s02', 1) + .3, rd('c6s02', 1) + .7), 1 - seg(t, rd('c6s02', 2) - .4, rd('c6s02', 2))) });
+    label('1,5 mm', tx, ty, 92, Math.min(seg(t, rd('c6s02', 1) + .3, rd('c6s02', 1) + .7), 1 - seg(t, rd('c6s02', 2) - .4, rd('c6s02', 2))));
   }
 
   // ---------- c6s03: câmera lenta: a mosca toca a cabeça de uma irmã grande logo atrás dela e decola ----------
@@ -216,7 +224,7 @@
     grass(ts, x0, x1, g, 22, 30, 70, 1, [[bp.head.x, bp.head.y]]);
     Kit.camEnd();
     const [tx, ty] = toScreen(bp.head.x - 95, bp.head.y - 95, cam);
-    Kit.text('1 segundo', tx, ty, 66, P.ink, { k: Math.min(seg(t, TOUCH, TOUCH + .4), 1 - seg(t, LIFT + 1.6, LIFT + 2)) });
+    label('1 segundo', tx, ty, 96, Math.min(seg(t, TOUCH, TOUCH + .4), 1 - seg(t, LIFT + 1.6, LIFT + 2)));
   }
 
   // ---------- c6s04: corte seco para o chão: uma formiga morta de lado; a pupa entre as mandíbulas ----------
@@ -240,12 +248,20 @@
 
   // ---------- c6s05: a trilha esvazia: as grandes largam as folhas e voltam para o ninho; ficam as menores ----------
   const t5 = at('c6s05'), E5 = rd('c6s05', 1) + .5, SP5 = 175;
-  const cx5 = t => 1200 - 40 * (t - t5);
+  const cx5 = t => 1200 - 40 * (t - t5), Z5 = 1.6;
+  // A grande que larga a folha mais perto do centro: a câmera fecha nela e na folha largada, depois volta ao geral.
+  const F5 = (() => { const rx = view(cx5(E5 + 1), Z5)[1]; let best = null;
+    for (const a of lane(E5, cx5(E5) - 600, cx5(E5) + 600, { spacing: SP5, seed: 23, sizeVar: .35 })) {
+      if (a.sz < BL) continue; const td = E5 + .9 * a.h, xd = a.x - V * (td - E5);
+      if (xd < rx && (!best || Math.abs(xd - cx5(E5) - 80) < Math.abs(best - cx5(E5) - 80))) best = xd; }
+    return best ?? cx5(E5); })();
   function c6s05(t, lt) {
-    const z = 1.6 + .1 * ease(lt / 11), cam = [cx5(t), 735, z];
+    const close = ease(seg(t, rd('c6s05', 1) - .6, E5 + .3)) * (1 - ease(seg(t, E5 + 2.6, E5 + 4)));
+    // Antes do close, a câmera desce devagar sobre a trilha (o geral não fica parado).
+    const cam = [lerp(cx5(t) + 260 - 260 * ease(seg(lt, 0, 4.6)), F5 - 40, close), lerp(700 + 50 * ease(seg(lt, 0, 4.6)), 775, close), lerp(1.35 + .75 * ease(seg(lt, 0, 4.6)), 3.6, close)];
     const [x0, x1] = world(t, cam);
     for (const a of lane(t, x0, x1, { spacing: 260, speed: V * .9, seed: 31, dir: 1, size: BL * .9 })) ant(t, a, { dir: 1, ground: gb, carry: null });
-    const rx = view(cx5(E5 + 1), z)[1];
+    const rx = view(cx5(E5 + 1), Z5)[1];
     const ants = lane(t, x0 - 1500, x1, { spacing: SP5, seed: 23, sizeVar: .35 });
     for (const a of ants) {
       if (a.sz < BL) { ant(t, a); continue; }
@@ -263,7 +279,7 @@
     fore(t, x0, x1); grass(t, x0, x1, g, 22, 30, 70, 1);
     Kit.camEnd();
     const [tx, ty] = toScreen(cx5(rd('c6s05', 0)) - 80, 700, cam);
-    Kit.text('2 a 4 em 100', tx, ty, 74, P.ink, { k: Math.min(seg(t, rd('c6s05', 0) + .3, rd('c6s05', 0) + .7), 1 - seg(t, rd('c6s05', 1) - .1, rd('c6s05', 1) + .25)) });
+    label('2 a 4 em 100', tx, ty, 100, Math.min(seg(t, rd('c6s05', 0) + .3, rd('c6s05', 0) + .7), 1 - seg(t, rd('c6s05', 1) - .1, rd('c6s05', 1) + .25)));
   }
 
   // ---------- c6s06: close da folha dela: a caroneira em cima, de antenas erguidas ----------
@@ -316,7 +332,7 @@
     const low = k < .5 ? mixCol(P.skyLow, mixCol(P.skyLow, P.sun, .5), 2 * k) : mixCol(mixCol(P.skyLow, P.sun, .5), mixCol(P.shade, P.wingAccent, .2), 2 * k - 1);
     Kit.gradient(top, low);
   };
-  const nightLook = k => ({ color: mixCol(P.sauva, P.ink, k), dark: mixCol(P.sauvaDk, P.line, k) });
+  const nightLook = k => ({ color: mixCol(P.sauva, NIGHT.color, k), dark: mixCol(P.sauvaDk, NIGHT.dark, k) });
   // Caronas: cada carregadora tem um limiar; quando o limiar cai, a caroneira sobe (entra numa mola).
   const ridersAt = (t0, t1, base, top) => (t, a) => {
     const k = lerp(base, top, ease(seg(t, t0, t1))), on = t0 + (t1 - t0) * clamp((a.h - base) / Math.max(top - base, 1e-3));
@@ -326,49 +342,61 @@
   function c6s07b(t, lt) {
     const k = dusk(t), cam = [1400 - 60 * lt, 700, 1.5];
     const [x0, x1] = world(t, cam, { sky: sky7(k), dk: .6 * k, under: () => Kit.ellipse(1450, lerp(560, 860, k * 1.6), 70, 70, P.sun) });
-    sisters(t, x0, x1, { riders: R7b, look: nightLook(.8 * k) });
+    sisters(t, x0, x1, { riders: R7b, look: nightLook(k) });
     fore(t, x0, x1); grass(t, x0, x1, g, 22, 30, 70, 1);
     Kit.camEnd();
-    Kit.flash(.55 * seg(k, .4, 1), P.shade);
+    Kit.flash(NIGHT_K * seg(k, .4, 1), P.shade);
     if (k > .6) Kit.ellipse(400, lerp(420, 190, ease(seg(k, .6, 1))), 46, 46, P.sun);
   }
 
   // ---------- c6s07c: noite: a trilha continua, caroneiras nas folhas, céu escuro sem moscas; "?" ----------
-  const t7c = at('c6s07c'), UP7 = rd('c6s07c', 1) + 1.2, DN7 = UP7 + 3;
+  // A trilha fica no quadro o tempo todo; o céu é só fundo. Batidas: "?" no céu (rd0), a câmera fecha numa carregadora
+  // com caroneira (rd1), acompanha a fila até a seguinte e abre de novo no fim.
+  const t7c = at('c6s07c');
   const STARS = Array.from({ length: 40 }, (_, i) => [1920 * hash(i + 600), 1080 * hash(i + 601), 2 + 2 * hash(i + 602)]);
   function c6s07c(t, lt) {
-    const tilt = ease(seg(t, UP7, UP7 + 1.5)) * (1 - ease(seg(t, DN7, DN7 + 1.6))), cam = [1400 - 60 * (t - t7b), 700 - 420 * tilt, 1.5 + .1 * tilt];
+    const r1 = rd('c6s07c', 1), base = 1400 - 60 * (t - t7b);
+    const [dx, cy, z] = kf(t, [[t7c, [0, 700, 1.5]], [r1 + .2, [-140, 735, 2.1]], [r1 + 1.6, [-160, 770, 3]], [r1 + 3.6, [-260, 772, 3.1]], [r1 + 4.8, [120, 770, 2.7]], [r1 + 6.2, [60, 760, 2.8]], [t7c + 10.6, [0, 720, 1.9]]]);
+    const cam = [base + dx, cy, z];
     const [x0, x1] = world(t, cam, { sky: sky7(1), dk: .6 });
+    const hz = (600 - cam[1]) * cam[2] + 540;
     sisters(t, x0, x1, { riders: () => 1, look: NIGHT });
     fore(t, x0, x1); grass(t, x0, x1, g, 22, 30, 70, 1);
     Kit.camEnd();
-    Kit.flash(.55, P.shade);
-    // Lua e estrelas por cima da sombra (sobem e descem com a câmera).
-    const dy = 190 * tilt, hz = (600 - cam[1]) * cam[2] + 540;
-    Kit.ellipse(400, 190 + dy, 46, 46, P.sun);
-    for (const [x, y, r] of STARS) if (y + dy < hz) Kit.ellipse(x, y + dy, r, r, P.sun, { alpha: .55 + .45 * Math.sin(TAU * (.3 + hash(x)) * t + 7 * hash(y)) });
-    const [tx, ty] = toScreen(cam[0] + 120, 520 - 260 * tilt, cam);
-    Kit.text('?', tx, ty, 120, P.sun, { k: Math.min(seg(t, rd('c6s07c', 0) + .2, rd('c6s07c', 0) + .6), 1 - seg(t, at('c6s07d') - .5, at('c6s07d') - .1)) });
+    Kit.flash(NIGHT_K, P.shade);
+    // Lua e estrelas por cima da sombra, só acima do horizonte.
+    Kit.ellipse(400, Math.min(190, hz - 90), 46, 46, P.sun);
+    for (const [x, y, r] of STARS) if (y < hz - 30) Kit.ellipse(x, y, r, r, P.sun, { alpha: .55 + .45 * Math.sin(TAU * (.3 + hash(x)) * t + 7 * hash(y)) });
+    label('?', 1180, Math.min(260, hz - 120), 140, Math.min(seg(t, rd('c6s07c', 0) + .2, rd('c6s07c', 0) + .6), 1 - seg(t, at('c6s07d') - .5, at('c6s07d') - .1)), P.sun, P.shade);
   }
 
   // ---------- c6s07d: close de uma caroneira de cabeça baixa, antenas mexendo sobre a folha ----------
-  const t7d = at('c6s07d'), cx7d = t => 900 - V * (t - t7d);
-  const TAPS = [0, 1, 2, 3, 4, 5].map(i => rd('c6s07d', 0) + .5 + 1.1 * i + .2 * hash(i + 700));
+  // Batidas: toca a folha atrás (até W1), anda para a ponta da folha (W1–W2), trabalha a borda com as mandíbulas e as
+  // antenas (W2–UP), ergue a cabeça e a câmera abre para a folha inteira e a carregadora (UP–fim).
+  const t7d = at('c6s07d'), cx7d = t => 900 - V * (t - t7d), R7d = rd('c6s07d', 0);
+  const W1 = R7d + 1.8, W2 = W1 + 1.4, UP7d = W2 + 2.4;
+  const TAPS = [R7d + .3, R7d + 1.1, W2 + .2, W2 + .9, W2 + 1.6];
+  const ALONG = t => .32 * ease(seg(t, W1, W2));  // fração da largura da folha que ela anda para a frente
   function c6s07d(t, lt) {
     const x = cx7d(t), cp = creaturePose(SPECS.ant, { path: LEFT, s: sOf(x, -1, 1.1 * BL), size: 1.1 * BL, ground: g, t, seed: 812 }); hold(cp, .3, 1.1, .45);
-    // A câmera recua para mostrar a folha toda e volta a fechar na cabeça dela.
-    const C = cp.carry, [dx, zz] = kf(t, [[t7d, [-8, 16]], [t7d + 3, [28, 11]], [t7d + 6.5, [0, 16.5]]]), cam = [C.x + .12 * C.w + dx, C.y - .12 * C.w * Math.tan(-C.angle) - .5 * C.h - 4, zz];
+    const C = cp.carry, rs = .3 * cp.size, surf = gx => { const u = clamp((gx - C.x) / C.w + .5); return C.y + (gx - C.x) * Math.tan(C.angle) - 2 * C.h * u * (1 - u); };
+    const hx = C.x + .12 * C.w - ALONG(t) * C.w - .35 * rs;  // a cabeça dela (à esquerda do corpo)
+    const open = ease(seg(t, UP7d, UP7d + 1.4));
+    const cam = [lerp(hx + 10 + 6 * Math.sin(.8 * lt), C.x + .1 * C.w, open), lerp(surf(hx) - 10, C.y + .05 * C.w, open), lerp(15 + .8 * seg(t, W2, UP7d), 6.5, open)];
     const [x0, x1] = macro(t, ...cam, { sky: sky7(1), dk: .6, look: NIGHT });
     Kit.ellipse(1000, 300, 60, 60, P.sun);
     A().creature(cp);
-    const bob = TAPS.reduce((v, a) => v + Math.max(0, Math.sin(Math.PI * seg(t, a, a + .5))), 0);
-    const rp = rider(cp, t, 813, { antennae: 'tap', nod: [.03, .06 + .02 * bob, .8 + .2 * bob], jaws: .3 + .4 * bob });
+    // Borda trabalhada: marcas claras onde ela já tocou (presas à folha, ficam para trás quando ela anda).
+    for (const a of TAPS) if (t > a + .25) { const mx = C.x + .12 * C.w - ALONG(a) * C.w - .45 * rs; dot(mx, surf(mx) + 2, 2.2, 1.2, mixCol(P.leaf, P.cream, .45), 0, .4); }
+    const bob = TAPS.reduce((v, a) => v + Math.max(0, Math.sin(Math.PI * seg(t, a, a + .5))), 0), down = 1 - ease(seg(t, UP7d - .2, UP7d + .5)) * .9;
+    const walk = seg(t, W1, W2) > 0 && seg(t, W1, W2) < 1 ? 1 : 0;
+    const rp = rider(cp, t, 813, { along: ALONG(t), moving: walk, antennae: down > .5 ? 'tap' : 'explore', nod: [.03 * down, (.06 + .02 * bob) * down, (.8 + .2 * bob) * down - .25 * (1 - down)], jaws: .3 + .4 * bob });
     // Ciscos que ela tira da folha a cada toque.
-    const tip = rp ? rp.appendages[Object.keys(rp.appendages)[0]].at(-1) : [cp.carry.x, cp.carry.y];
-    for (const a of TAPS) for (let i = 0; i < 3; i++) { const u = seg(t, a + .15, a + .85); if (u > 0 && u < 1) { const [x, y] = arcPt(tip, [tip[0] + (i - 1.5) * 14, tip[1] + 30], 10 + 6 * i, u); Kit.ellipse(x, y, 1.3, 1.3, mixCol(P.leaf, P.cream, .5), { alpha: 1 - u }); } }
+    const tip = rp ? rp.appendages[Object.keys(rp.appendages)[0]].at(-1) : [C.x, C.y];
+    for (const a of TAPS) for (let i = 0; i < 3; i++) { const u = seg(t, a + .15, a + .85); if (u > 0 && u < 1) { const [px, py] = arcPt(tip, [tip[0] + (i - 1.5) * 14, tip[1] + 30], 10 + 6 * i, u); Kit.ellipse(px, py, 1.3, 1.3, mixCol(P.leaf, P.cream, .5), { alpha: 1 - u }); } }
     grass(t, x0, x1, x => g(x) + 18, 12, 10, 24, null);
     Kit.camEnd();
-    Kit.flash(.35, P.shade);
+    Kit.flash(.3, P.shade);
     Kit.vignette(.35);
   }
 
