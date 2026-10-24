@@ -106,22 +106,47 @@
     c.save(); c.globalAlpha = a.alpha ?? 1;
     if (a.flip) { const m = (p.spine[0].x + p.spine.at(-1).x) / 2; c.translate(m, 0); c.scale(a.flip, 1); c.translate(-m, 0); }
     if (p.carry) { const l = p.carry; A().leafPiece(l.x, l.y, l.w, l.h, l.angle, P.leaf); p = { ...p, carry: null }; }
+    const e = a.kind === 'human' && p.emote; if (e) p = { ...p, emote: null };
     A().creature(p, a.role === 'hero' ? LOOK : a.kind === 'human' ? { pack: a.gear?.includes('backpack') } : DEEP[a.role] || {});
+    if (e) bang(p, e);
     c.restore();
   }
-  const actors = (F, f) => F.actors.filter(a => a.layer === f).forEach(a => a.role === 'hero' && F.shot === 'wide' ? glow(a) : actor(a));
-  // Protagonista pequena no plano aberto: desenhada à parte e colada com um halo creme em volta da silhueta, para não
-  // se perder entre as irmãs.
-  const HB = document.createElement('canvas'), hbG = HB.getContext('2d'); HB.width = HB.height = 512;
-  function glow(a) {
-    if (a.hidden) return;
-    const p = a.pose, m = c.getTransform(), x = (p.spine[0].x + p.spine.at(-1).x) / 2, y = p.spine[0].y - .3 * p.size;
-    const sx = m.a * x + m.c * y + m.e, sy = m.b * x + m.d * y + m.f;
-    if (1.6 * p.size * m.a > 250) return actor(a);
-    hbG.resetTransform(); hbG.clearRect(0, 0, 512, 512); hbG.setTransform(m.a, m.b, m.c, m.d, m.e - sx + 256, m.f - sy + 256);
-    Kit.into(hbG, () => actor(a));
-    c.save(); c.resetTransform(); c.shadowColor = 'rgba(255,246,214,.95)'; c.shadowBlur = 9;
-    for (let i = 0; i < 3; i++) c.drawImage(HB, sx - 256, sy - 256); c.restore();
+  // Emote do explorador ('?', '!'): grosso, com borda creme, à frente do rosto; entra na mola (e.k passa de 1) e cresce
+  // mais um pouco no pico, um pop.
+  function bang(p, e) {
+    const k = Math.min(e.k, ease(e.a)); if (k <= 0) return;
+    const r = SPECS.human.head.r * p.size * HD.headScale, [ax, ay, sz] = HD.emoteAt, x = p.head.x + p.facing * r * ax, y = p.head.y - r * ay - HD.neck * p.size / 100;
+    c.save(); c.translate(x, y); c.scale(1.15 * k, 1.15 * k); c.rotate(p.facing * .12);
+    c.font = `900 ${r * sz}px "Arial Black", "Segoe UI", sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
+    c.lineWidth = .34 * r; c.strokeStyle = P.cloud; c.strokeText(e.sym, 0, 0);
+    c.lineWidth = .12 * r; c.strokeStyle = P.line; c.strokeText(e.sym, 0, 0); c.fillStyle = P.line; c.fillText(e.sym, 0, 0);
+    c.restore();
+  }
+  // Atores da camada f. Plano aberto: a protagonista (40 px) com halo creme, para não se perder entre as irmãs. Trilha
+  // do H: a fila com um contorno escuro grosso em volta da silhueta, para ler as formigas pequenas na terra clara.
+  function actors(F, f) {
+    const L = F.actors.filter(a => a.layer === f);
+    if (F.shot === 'wide') return L.forEach(a => a.role === 'hero' ? stamp([a], 'rgba(255,246,214,.95)', 9, 3) : actor(a));
+    if (F.shot === 'trail') { L.filter(a => a.role !== 'line').forEach(actor); return stamp(L.filter(a => a.role === 'line'), 'rgba(23,23,28,.95)', 3, 3); }
+    L.forEach(actor);
+  }
+  // Desenha os atores num canvas à parte (só no retângulo que ocupam na tela) e cola n vezes com sombra col de blur px:
+  // a sombra contorna a silhueta inteira por fora, sem marcar as peças por dentro.
+  const ST = document.createElement('canvas'), stG = ST.getContext('2d'); ST.width = W; ST.height = H;
+  function stamp(list, col, blur, n) {
+    list = list.filter(a => !a.hidden && (a.alpha ?? 1) > 0); if (!list.length) return;
+    const m = c.getTransform(); let x0 = W, y0 = H, x1 = 0, y1 = 0;
+    for (const { pose: p } of list) for (const q of [p.spine[0], p.spine.at(-1)]) {
+      const sx = m.a * q.x + m.c * q.y + m.e, sy = m.b * q.x + m.d * q.y + m.f, r = 1.3 * p.size * m.a;
+      x0 = Math.min(x0, sx - r); y0 = Math.min(y0, sy - r); x1 = Math.max(x1, sx + r); y1 = Math.max(y1, sy + r);
+    }
+    x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0)); x1 = Math.min(W, Math.ceil(x1)); y1 = Math.min(H, Math.ceil(y1));
+    if (x1 <= x0 || y1 <= y0) return;
+    const w = x1 - x0, h = y1 - y0;
+    stG.resetTransform(); stG.clearRect(x0, y0, w, h); stG.setTransform(m); Kit.into(stG, () => list.forEach(actor));
+    c.save(); c.resetTransform(); c.shadowColor = col; c.shadowBlur = blur;
+    for (let i = 0; i < n; i++) c.drawImage(ST, x0, y0, w, h, x0, y0, w, h);
+    c.restore();
   }
 
   // Capim gigante enevoado (raízes em root) e o chão da camada .35, parados e desfocados.
@@ -141,6 +166,45 @@
     });
   }
 
+  // Primeiro plano dos closes: dois tufos quase pretos nos cantos de baixo, desfocados (lowres), em tela.
+  const fg = t => lowres(() => { const col = mixCol(P.leafDk, P.ink, .8); A().tuft(70, 1150, 520, t, 3, col); A().tuft(1870, 1160, 430, t, 8, col); });
+
+  // Subsolo parado, desenhado uma vez (still, 1,4 px por unidade): três faixas de valor de ondas largas, seixos em grupos
+  // em volta das câmaras e em poucos bolsões, depois túneis e câmaras por cima.
+  const SOIL_AT = [-300, 846, 2700, 1300];
+  const soilArt = w => () => {
+    const [bx, by, bw, bh] = SOIL_AT, x2 = bx + bw, y2 = by + bh, cols = [.2, .36, .52].map(k => mixCol(P.wood, P.ink, k));
+    Kit.poly([[bx, by], [x2, by], [x2, y2], [bx, y2]], cols[0], { stroke: false });
+    [[150, 0], [560, 2]].forEach(([dy, sd], i) => {
+      const edge = []; for (let x = bx; x <= x2; x += 40) edge.push([x, by + dy + 40 * Math.sin(x * .0023 + sd) + 14 * Math.sin(x * .0071 + sd)]);
+      Kit.poly([...edge, [x2, y2], [bx, y2]], cols[i + 1], { stroke: false });
+      Kit.line(edge, mixCol(cols[i + 1], P.ink, .3), 3);
+    });
+    const peb = (x, y, r, sd) => { Kit.ellipse(x, y, 1.3 * r, r, mixCol(P.stone, P.wood, .45 + .3 * hash(sd)), { rot: hash(sd + 1) - .5 }); Kit.ellipse(x - .35 * r, y - .35 * r, .45 * r, .3 * r, mixCol(P.stone, P.cloud, .3)); };
+    const groups = [...w.chambers.map(([x, y, cw, ch]) => [x, y - ch / 2, .62 * cw, .75 * ch, 16]), [1250, 1000, 120, 60, 7], [120, 1250, 140, 70, 8], [2050, 1350, 130, 70, 7], [1400, 1900, 160, 70, 9]];
+    groups.forEach(([x, y, rx, ry, n], g) => { for (let i = 0; i < n; i++) { const a = TAU * hash(g * 31 + i), d = .85 + .4 * hash(g * 17 + i); peb(x + Math.cos(a) * rx * d, y + Math.sin(a) * ry * d, 4 + 9 * hash(g * 7 + i), g * 50 + i); } });
+    for (const p of w.tunnels) A().tunnel(pathOf(p), 34);
+    for (const [x, y, cw, ch, sd] of w.chambers) A().chamber(x, y, cw, ch, sd);
+  };
+  // Fungo: uma massa esponjosa de borda em gomos redondos (respira devagar com t), clara em cima e terrosa embaixo, com dobras
+  // e poros.
+  function sponge(x, y, w, h, t, sd) {
+    const pts = [], n = 30;
+    for (let i = 0; i <= n; i++) { const u = i / n, a = Math.PI * (1 + u), b = .9 + .12 * Math.abs(Math.sin(u * Math.PI * 7 + sd)) + .012 * Math.sin(t * 1.2 + i); pts.push([x + Math.cos(a) * w / 2 * b, y + 4 + Math.sin(a) * h * b]); }
+    pts.push([x + .45 * w, y + 6], [x - .45 * w, y + 6]);
+    const g = c.createLinearGradient(0, y - h, 0, y); g.addColorStop(0, mixCol(P.cream, P.cloud, .7)); g.addColorStop(.55, P.cream); g.addColorStop(1, mixCol(P.cream, P.wood, .45));
+    Kit.poly(pts, g, { smooth: true, weight: 4 });
+    for (let i = 0; i < 5; i++) Kit.ellipse(x + (i - 2) * .17 * w, y - (.55 + .2 * Math.cos((i - 2) * .7)) * h, .07 * w, .045 * w, mixCol(P.cream, P.cloud, .8), { alpha: .7 });  // luz de cima nos gomos
+    for (let i = 0; i < 9; i++) {  // dobras: arcos curtos de tinta
+      const u = 2 * hash(sd + i * 3.3) - 1, v = .25 + .6 * hash(sd + i * 5.1), px = x + u * .38 * w * Math.sqrt(1 - v * v), py = y - v * .8 * h, r = (.05 + .04 * hash(sd + i)) * w;
+      Kit.line([[px - r, py], [px, py - .5 * r], [px + r, py]], mixCol(P.cream, P.wood, .6), Math.max(2, .012 * w), { alpha: .7 });
+    }
+    for (let i = 0; i < 26; i++) {  // poros
+      const u = 2 * hash(sd + i * 1.7) - 1, v = .08 + .8 * hash(sd + i * 2.9), r = (.008 + .012 * hash(sd + i * 4.3)) * w;
+      Kit.ellipse(x + u * .44 * w * Math.sqrt(1 - v * v), y - v * .85 * h, r, .8 * r, mixCol(P.cream, P.wood, .6));
+    }
+  }
+
   // ---------- A: close, plano aberto, nome ----------
   function close(F) {
     const t = F.t, W_ = F.world, [x0, x1] = view(F);
@@ -153,6 +217,7 @@
     actors(F, 1);
     lowres(() => front(t, F, x0, x1));
     Kit.camEnd();
+    fg(t);
     finish(t);
   }
   function wide(F) {
@@ -168,11 +233,9 @@
     A().tree(w.tree.x, g(w.tree.x) + 10, w.tree.h, .04 * wind(t, w.tree.x), 4);
     A().ground(g, x0, x1);
     // Corte do solo: terra, túneis, câmaras, raízes, fungo, depois quem mora lá.
-    A().soil(x0, w.soilTop, x1 - x0, 1300, 11);
-    for (const p of w.tunnels) A().tunnel(pathOf(p), 34);
-    for (const [x, y, cw, ch, sd] of w.chambers) A().chamber(x, y, cw, ch, sd);
+    still('soil', SOIL_AT, 1.4, 0, soilArt(w));
     A().roots(w.roots.x, w.roots.y, w.roots.h, 1, 5);
-    for (const [x, y, fw, fh, sd] of w.fungus) A().fungus(x, y, fw, fh, t, sd);
+    for (const [x, y, fw, fh, sd] of w.fungus) sponge(x, y, fw, fh, t, sd);
     const [gx, gy, gw, gh] = w.chambers[0]; grains(t, gx - .35 * gw, gx + .35 * gw, gy - gh + 10, gy, 3, 21);
     grass(t, x0, x1, g, 18, 16, 34, 0);
     const hero = F.actors.find(a => a.role === 'hero').pose;
@@ -195,6 +258,7 @@
     actors(F, 1);
     lowres(() => front(t, F, x0, x1));
     Kit.camEnd();
+    fg(t);
     finish(t);
   }
 
