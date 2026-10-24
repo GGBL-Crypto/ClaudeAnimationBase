@@ -12,7 +12,9 @@ export const DEPENDENCY_ROUTES = Object.freeze([
   'node_modules/three/examples/jsm/loaders/GLTFLoader.js',
   'node_modules/three/examples/jsm/environments/RoomEnvironment.js',
   'node_modules/three/examples/jsm/utils/BufferGeometryUtils.js',
-  'node_modules/three/examples/jsm/utils/SkeletonUtils.js'
+  'node_modules/three/examples/jsm/utils/SkeletonUtils.js',
+  // exp/visual-rico: pós-processo da variante E3.
+  ...['postprocessing/EffectComposer', 'postprocessing/Pass', 'postprocessing/RenderPass', 'postprocessing/ShaderPass', 'postprocessing/MaskPass', 'postprocessing/UnrealBloomPass', 'postprocessing/OutputPass', 'shaders/CopyShader', 'shaders/LuminosityHighPassShader', 'shaders/OutputShader'].map(f => `node_modules/three/examples/jsm/${f}.js`)
 ]);
 const within = (root, file) => { const rel = relative(root, file); return rel !== '..' && !rel.startsWith('..' + sep) && !isAbsolute(rel); };
 export async function startStudioServer({ port = 0, root = ROOT } = {}) {

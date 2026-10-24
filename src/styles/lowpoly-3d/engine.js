@@ -71,7 +71,8 @@ export function createLowpolyEngine(canvas, config) {
       if(internal.width!==w||internal.height!==h)renderer.setSize(w,h,false);
       renderer.shadowMap.enabled=settings.shadows==='on'&&!preview;renderer.shadowMap.needsUpdate=true;
       drawWorld(t);scene.updateMatrixWorld(true);camera.updateMatrixWorld(true);camera.updateProjectionMatrix();
-      renderer.clear(true,true,true);renderer.render(scene,camera);assertLive();
+      // art.post: a cena pode trocar o render final por uma cadeia de pós-processo (exp/visual-rico).
+      renderer.clear(true,true,true);if(art.post)await art.post(renderer,camera);else renderer.render(scene,camera);assertLive();
       output.clearRect(0,0,width,height);output.imageSmoothingEnabled=true;output.drawImage(internal,0,0,width,height);
     },
     worldToScreen(x,y,z=0){

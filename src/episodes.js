@@ -1384,13 +1384,14 @@ AnimationPlatform.registerProject({
   ]
 });
 // Experimento visual (branch exp/visual-rico, não promover): variantes do trecho 0–20 s do c01. C2 e D rodam o código
-// do episódio, que escolhe a variante por PROJECT.id; D carrega o p5.brush standalone (sem p5). E é a cena 3D.
+// do episódio, que escolhe a variante por PROJECT.id; D carrega o p5.brush standalone (sem p5). E é a cena 3D; E2 (cores)
+// e E3 (cores e vida) são a mesma cena, que também escolhe pelo PROJECT.id.
 (() => {
   const base = AnimationPlatform.projects['sauva-operaria'], cut = 20;
   for (const v of ['c2', 'd']) AnimationPlatform.registerProject({ ...base, id: 'sauva-exp-' + v, compatibleStyles: ['cartoon'], scripts: v === 'd' ? ['node_modules/p5.brush/dist/brush.js', ...base.scripts] : base.scripts });
   const storyboard = base.storyboard.filter(s => s.start < cut).map(s => ({ ...s, end: Math.min(s.end, cut), reads: s.reads.filter(r => r.start < cut).map(r => ({ ...r, end: Math.min(r.end, cut) })) }));
-  AnimationPlatform.registerProject({
-    ...base, id: 'sauva-exp-e', duration: cut, style: 'lowpoly-3d', compatibleStyles: ['lowpoly-3d'], storyboard, reviewTimes: undefined,
+  for (const v of ['e', 'e2', 'e3']) AnimationPlatform.registerProject({
+    ...base, id: 'sauva-exp-' + v, duration: cut, style: 'lowpoly-3d', compatibleStyles: ['lowpoly-3d'], storyboard, reviewTimes: undefined,
     scripts: ['src/nature/noise.js', 'src/nature/path.js', 'src/nature/gait.js', 'src/nature/creature.js', 'src/nature/specs.js', 'src/nature/env.js', 'src/scenes/exp-sauva-3d.js'],
     styleOptions: { 'lowpoly-3d': { effects: { shadowSize: 1024 } } },
   });
