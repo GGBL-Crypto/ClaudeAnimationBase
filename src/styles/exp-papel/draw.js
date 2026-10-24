@@ -21,7 +21,7 @@ window.ExpStyle = (() => {
     // Repete o traço em (x, y) de alcance r nos ladrilhos vizinhos que ele invade.
     const tile = (x, y, r, fn) => { for (const dx of [-256, 0, 256]) for (const dy of [-256, 0, 256]) if (x + dx + r > 0 && x + dx - r < 256 && y + dy + r > 0 && y + dy - r < 256) fn(dx, dy); };
     for (let i = 0; i < 12; i++) {
-      const x = hash(S + i * 7.1) * 256, y = hash(S + i * 3.3 + 1) * 256, r = 40 + 70 * hash(S + i * 9.7), a = (hash(S + i * 5.3) - .5) * .14;
+      const x = hash(S + i * 7.1) * 256, y = hash(S + i * 3.3 + 1) * 256, r = 40 + 70 * hash(S + i * 9.7), a = (hash(S + i * 5.3) - .5) * .05;  // manchas fracas: fortes viram ladrilho sujo
       tile(x, y, r, (dx, dy) => { const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r); gr.addColorStop(0, a > 0 ? `rgba(255,250,235,${a})` : `rgba(60,40,20,${-a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x + dx - r, y + dy - r, 2 * r, 2 * r); });
     }
     g.lineCap = 'round';
@@ -131,10 +131,10 @@ window.ExpStyle = (() => {
     }
   }
   // Árvore: tronco em tira e copa em três papéis rasgados.
-  function tree(x, y, h, seed) {
+  function tree(x, y, h, seed, col = P.canopy) {
     SD = 4; SB = 8;
     piece(strip([x, y + 10], [x + 6, y - h * .55], h * .09, h * .06), P.trunk, seed);
-    for (const [u, v, r] of [[-.18, -.62, .3], [.2, -.66, .28], [0, -.85, .33]]) ripped(blob(fr0, x + u * h, y + v * h, r * h, r * h * .85, 16, seed + u * 10), P.canopy, seed + u * 10 + v, h * .04, h * .012);
+    for (const [u, v, r] of [[-.18, -.62, .3], [.2, -.66, .28], [0, -.85, .33]]) ripped(blob(fr0, x + u * h, y + v * h, r * h, r * h * .85, 16, seed + u * 10), col, seed + u * 10 + v, h * .04, h * .012);
   }
   // Subsolo do plano aberto: camadas de solo, pedras, raízes, túneis, câmaras com fungo e o monte do ninho.
   function underground(w) {
@@ -142,6 +142,14 @@ window.ExpStyle = (() => {
     band(1, x => Math.max(g(x) + 20, w.soilTop + 4), P.soil, 21, { st: 8, amp: 4 });
     band(1, deep(1150, 40, 1), P.soilDk, 22, { st: 10, amp: 5 });
     band(1, deep(1640, 50, 3), P.soilDp, 23, { st: 10, amp: 5 });
+    // Pedras e raízes cortadas presas aos rasgos das faixas (quebram as listras vazias); posição por x da grade.
+    at(1); const [x0, x1] = span(1);
+    for (let x = Math.floor(x0 / 90) * 90; x <= x1 + 90; x += 90) {
+      const h1 = hash(x * .0131), h2 = hash(x * .0277 + 3), soil = Math.max(g(x) + 20, w.soilTop + 4);
+      SD = 2; SB = 1;
+      if (h1 < .45) { const y = [soil + 30, deep(1150, 40, 1)(x), deep(1640, 50, 3)(x)][Math.floor(h2 * 3)], r = 8 + 18 * h2; ripped(blob(fr0, x + 40 * h1, y + r * .3, r * 1.4, r, 9, x), mixCol(P.stone, P.soilDp, .3 * h1), x, 6, 1.5); }
+      else if (h1 > .7) { const a = Math.PI / 2 + (h2 - .5), l = 50 + 90 * h2, b = [x + l * Math.cos(a), soil + l * Math.sin(a)]; piece(strip([x, soil - 4], b, 7, 2), P.trunk, x); piece(strip([x + (b[0] - x) * .5, soil + (b[1] - soil) * .5], [b[0] + 30 * (h1 - .85) * 4, b[1] - 10], 3, 1.5), P.trunk, x + 1); }
+    }
     at(1); SD = 2; SB = 4;
     for (let i = 0; i < 22; i++) { const x = -200 + 2700 * hash(i * 3.1), y = 950 + 1050 * hash(i * 5.7), r = 6 + 26 * hash(i * 1.3) ** 2; ripped(blob(fr0, x, y, r * 1.4, r, 9, 300 + i), P.stone, 300 + i, 6, 1.5); }
     if (w.roots) { SD = 2; SB = 4; const { x, y, h } = w.roots; for (let i = 0; i < 4; i++) { const a = Math.PI / 2 + (i - 1.5) * .5, b = [x + h * .45 * Math.cos(a), y + h * .45 * Math.sin(a)]; piece(strip([x, y - 10], b, 16, 3), P.trunk, 70 + i); piece(strip(b, [b[0] + 60 * (i - 1.5), b[1] + 70], 4, 2), P.trunk, 80 + i); } }
@@ -190,7 +198,7 @@ window.ExpStyle = (() => {
   }
   function ant(a, F) {
     const p = a.pose, S = p.size, [col, dk] = ANT[a.role] || [P.ant, P.antDk], fy = p.facing, seed = sid(a.id), px = S * Z, w = Math.max(S * .035, 1.4 / Z);
-    const legs = far => { for (const l of Object.values(p.limbs)) if (l.far === far) { piece(strip(l.root, l.mid, w * 1.1, w), far ? dk : col, seed + 3); piece(strip(l.mid, l.end, w, w * .6), far ? dk : col, seed + 4); if (px > 300) pin(l.mid, w * .22); } };
+    const legs = far => { for (const l of Object.values(p.limbs)) if (l.far === far) { piece(strip(l.root, l.mid, w * 1.9, w * 1.4), far ? dk : col, seed + 3); piece(strip(l.mid, l.end, w * 1.4, w * .8), far ? dk : col, seed + 4); if (px > 120) pin(l.mid, w * .45); } };
     legs(true);
     const [g, pe, th] = [p.spine[2], p.spine[1], p.spine[0]], n = px > 60 ? 16 : 10;
     piece(blob(frame(g.x, g.y, g.angle, fy), -g.r * .15, 0, g.r * 1.3, g.r * .95, n, seed + 5), col, seed + 5);
@@ -275,7 +283,7 @@ window.ExpStyle = (() => {
     c.globalAlpha *= e.a; SD = 3; SB = 4;
     ripped(blob(fr0, x, y, r, r * 1.1, 14, 950, j), P.label, 950, r * .15, r * .05);
     c.save(); c.translate(x, y); c.rotate(j); c.font = `900 ${r * 1.5}px Georgia, serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
-    shadow(2, 2); c.fillStyle = paper(P.pack, 0); c.fillText(e.sym, 0, r * .08); noShadow(); c.restore();
+    shadow(2, 2); c.fillStyle = paper('#C0442E', 0); c.fillText(e.sym, 0, r * .08); noShadow(); c.restore();
     c.globalAlpha /= e.a;
   }
   // Ator: camada, tremor de recolocação do desenho (px de tela, por ator), alpha e flip em torno do meio do corpo.
@@ -319,7 +327,7 @@ window.ExpStyle = (() => {
     sky(F); clouds(F);
     if (F.scene === 'H') {
       band(.3, farH, P.far, 31, { st: 12 });
-      at(.6); for (let x = -600; x < 2600; x += 330) tree(x + 120 * hash(x), hillH(x) + 20, 220 + 90 * hash(x * .3), x);
+      at(.6); for (let x = -600; x < 2600; x += 330) tree(x + 120 * hash(x), hillH(x) + 20, 220 + 90 * hash(x * .3), x, P.canopyLt);  // claras e frias: o boneco quente fica à frente
       band(.6, hillH, P.hill, 32);
       band(1, x => w.ground(x) - 40, P.grass, 33);
       band(1, x => w.ground(x) - 12, P.path, 34, { amp: 5 });
@@ -332,6 +340,7 @@ window.ExpStyle = (() => {
       band(w.hill.f, w.hill.prof, P.hill, 42);
       if (w.tree) { at(1); tree(w.tree.x, w.ground(w.tree.x), w.tree.h, 43); }
       band(1, w.ground, P.grass, 44, { st: 7 });
+      tufts(x => w.ground(x) + 12, 45, 26);
       underground(w);
       A.forEach(a => actor(a, F));
     } else {
@@ -342,6 +351,7 @@ window.ExpStyle = (() => {
       band(1, x => w.ground(x) + 70, P.grassDk, 54, { st: 8, amp: 5 });
       if (w.rock) { at(1); SD = 5; SB = 8; const [x, y, r] = w.rock; ripped(blob(fr0, x, y - r * .4, r * 1.5, r, 14, 55), P.stone, 55, 8, 3); }
       front.forEach(a => actor(a, F));
+      tufts(x => w.ground(x) + 74, 57, 40);
       tufts(w.front, 56, 90);
     }
     for (const s of F.texts) if (s.k > 0) label(s);
