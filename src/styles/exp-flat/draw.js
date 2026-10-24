@@ -172,17 +172,20 @@ window.ExpStyle = (() => {
   function ant(p, K) {
     const S = p.size, dir = p.facing, hr = SPECS[p.spec].head.r * S, [th, pe, ga] = p.spine, L = Object.values(p.limbs);
     const leg = (l, col, w) => { line([l.root, l.mid], col, w); line([l.mid, l.end], col, .7 * w); ell(l.end[0], l.end[1], .45 * w, .45 * w, 0, col); };  // afila para o pé
-    for (const l of L) if (l.far) leg(l, K.far, .02 * S);
+    for (const l of L) if (l.far) leg(l, K.far, .018 * S);  // lado de lá: atrás do corpo e mais escuras
     blob(ga.x, ga.y, ga.r * 1.28, ga.r * .95, ga.angle, K);
     blob(pe.x, pe.y, pe.r * 1.2, pe.r, pe.angle, K, false);
+    for (const l of L) if (!l.far) leg(l, K.leg, .022 * S);  // lado de cá: nascem sob o tórax
     blob(th.x, th.y, th.r * 1.45, th.r * .82, th.angle, K);
     blob(p.head.x, p.head.y, hr * 1.06, hr * .92, p.head.angle, K);
     local(p.head.x, p.head.y, p.head.angle, dir, () => {
       c.beginPath(); c.moveTo(.75 * hr, .2 * hr); c.lineTo(1.3 * hr, .5 * hr); c.lineTo(.8 * hr, .62 * hr); c.closePath(); c.fillStyle = K.dk; c.fill();
-      ell(.42 * hr, -.18 * hr, .2 * hr, .2 * hr, 0, K.eye);
-      if (hr * cam.z > 6) ell(.36 * hr, -.25 * hr, .07 * hr, .07 * hr, 0, '#FFFFFF');
+      if (hr * cam.z > 6) {  // olho grande: elipse clara, pupila voltada para a frente, brilho
+        ell(.34 * hr, -.16 * hr, .3 * hr, .34 * hr, -.2, K === MONO ? K.dk : '#FFF4E4');
+        ell(.44 * hr, -.14 * hr, .17 * hr, .2 * hr, -.2, K.eye); ell(.38 * hr, -.24 * hr, .06 * hr, .06 * hr, 0, K === MONO ? K.dk : '#FFFFFF');
+        line([[.08 * hr, -.5 * hr], [.55 * hr, -.56 * hr]], K.dk, .07 * hr);
+      } else ell(.42 * hr, -.18 * hr, .2 * hr, .2 * hr, 0, K.eye);
     });
-    for (const l of L) if (!l.far) leg(l, K.leg, .025 * S);
     if (p.carry) leaf(p.carry, K);
     for (const ap of Object.values(p.appendages)) { line(ap, K.leg, .013 * S); const e = ap.at(-1); ell(e[0], e[1], .016 * S, .016 * S, 0, K.leg); }
   }
@@ -215,16 +218,22 @@ window.ExpStyle = (() => {
     };
     for (const l of Ls) if (l.far) (l.foot ? leg : arm)(l, true);
     // mochila nas costas
-    local(ch.x, ch.y, 0, 1, () => {
-      c.beginPath(); c.roundRect(-dir * .2 * S - .08 * S, -.06 * S, .16 * S, .28 * S, .045 * S); c.fillStyle = K.packDk; c.fill();
-      c.beginPath(); c.roundRect(-dir * .2 * S - .07 * S - dir * .01 * S, -.07 * S, .15 * S, .26 * S, .04 * S); c.fillStyle = K.pack; c.fill();
-      c.beginPath(); c.roundRect(-dir * .2 * S - .05 * S, .07 * S, .1 * S, .08 * S, .02 * S); c.fillStyle = K.packDk; c.fill();
+    const ta = Math.atan2(ch.y - pv.y, ch.x - pv.x) + Math.PI / 2;  // inclinação do tronco: a mochila acompanha
+    local(ch.x, ch.y, ta, 1, () => {  // colada às costas: a borda da frente entra sob o tronco
+      const bx = -dir * .16 * S;
+      c.beginPath(); c.roundRect(bx - .075 * S, -.07 * S, .15 * S, .27 * S, .045 * S); c.fillStyle = K.packDk; c.fill();
+      c.beginPath(); c.roundRect(bx - .07 * S - dir * .012 * S, -.08 * S, .14 * S, .25 * S, .04 * S); c.fillStyle = K.pack; c.fill();
+      c.beginPath(); c.roundRect(bx - dir * .03 * S - .04 * S, .07 * S, .08 * S, .08 * S, .02 * S); c.fillStyle = K.packDk; c.fill();
     });
     for (const l of Ls) if (!l.far && l.foot) leg(l, false);
     line([[pv.x, pv.y], [ch.x, ch.y]], K.shirtDk, .21 * S); line([[pv.x - .01 * S, pv.y - .01 * S], [ch.x - .012 * S, ch.y - .012 * S]], K.shirt, .18 * S);
     ell(pv.x, pv.y + .03 * S, .1 * S, .065 * S, 0, K.pants);
     line([[pv.x - .1 * S, pv.y - .025 * S], [pv.x + .1 * S, pv.y - .025 * S]], K.boot, .022 * S);
-    line([[ch.x + dir * .04 * S, ch.y - .1 * S], [ch.x - dir * .06 * S, ch.y + .12 * S]], K.packDk, .024 * S);  // alça
+    local(ch.x, ch.y, ta, 1, () => {  // alça sobre o ombro, da mochila ao peito, e a da cintura
+      c.beginPath(); c.moveTo(-dir * .1 * S, -.06 * S); c.quadraticCurveTo(-dir * .02 * S, -.15 * S, dir * .06 * S, -.06 * S); c.quadraticCurveTo(dir * .09 * S, .04 * S, dir * .05 * S, .13 * S);
+      c.strokeStyle = K.packDk; c.lineWidth = .026 * S; c.lineCap = 'round'; c.stroke();
+      line([[-dir * .09 * S, .17 * S], [dir * .06 * S, .19 * S]], K.packDk, .02 * S);
+    });
     line([[ch.x, ch.y - .1 * S], [p.head.x, p.head.y]], K.skinDk, .06 * S);
     if (p.appendages.hair) line(p.appendages.hair, K.hair, .05 * S);
     local(p.head.x, p.head.y, p.head.angle, dir, () => {
@@ -232,6 +241,8 @@ window.ExpStyle = (() => {
       ell(-.2 * R, .08 * R, .15 * R, .2 * R, 0, K.skinDk);  // orelha
       if (!mono) face(p, R);
       // chapéu de explorador: copa, faixa e aba
+      const jolt = p.face.expression === 'surprised' ? clamp(p.emote ? p.emote.k : 1, 0, 1.3) : 0;  // susto: o chapéu salta e inclina para trás
+      c.translate(-.6 * R, -(.5 + .35 * jolt) * R); c.rotate(-.32 * jolt); c.translate(.6 * R, .5 * R);
       c.beginPath(); c.ellipse(-.05 * R, -.5 * R, .98 * R, .85 * R, 0, Math.PI, TAU); c.fillStyle = K.hat; c.fill();
       c.beginPath(); c.ellipse(-.05 * R, -.5 * R, .98 * R, .26 * R, 0, Math.PI, TAU); c.fillStyle = K.pants; c.fill();
       ell(.05 * R, -.5 * R, 1.42 * R, .19 * R, 0, K.hatDk);
@@ -247,9 +258,9 @@ window.ExpStyle = (() => {
     ell(.55 * R, .3 * R, .14 * R, .1 * R, 0, rgba('#F08A7A', .45));
     for (const [ex, ey, k, near] of [[.4 * R, -.06 * R, 1, true], [.78 * R, -.08 * R, .78, false]]) {
       if (b > .7) line([[ex - .08 * R * k, ey], [ex + .08 * R * k, ey]], P.ink, .045 * R);
-      else if (sur) { ell(ex, ey, .14 * R * k, .17 * R * k * (1 - b), 0, '#FFFFFF'); ell(ex + .03 * R, ey, .065 * R * k, .075 * R * k * (1 - b), 0, P.ink); }
+      else if (sur) { ell(ex, ey - .04 * R, .2 * R * k, .25 * R * k * (1 - b), 0, '#FFFFFF'); ell(ex + .04 * R, ey - .04 * R, .07 * R * k, .08 * R * k * (1 - b), 0, P.ink); }
       else ell(ex, ey, .075 * R * k, .1 * R * k * (1 - b), 0, P.ink);
-      const lift = sur ? .2 : cur && near ? .15 : 0, tilt = cur && near ? -.06 : sur ? -.03 : .02;
+      const lift = sur ? .36 : cur && near ? .15 : 0, tilt = cur && near ? -.06 : sur ? -.03 : .02;
       line([[ex - .11 * R * k, -.3 * R - lift * R + tilt * R], [ex + .11 * R * k, -.32 * R - lift * R - tilt * R]], P.hair, .055 * R);
     }
     if (sur) ell(.6 * R, .5 * R, .1 * R, .14 * R, 0, '#6A2B2B');
@@ -291,15 +302,22 @@ window.ExpStyle = (() => {
     for (const a of list) actor(a, F, false);
   }
 
-  // Partículas: pólen no ar e esporos no subsolo, com brilho; posição pura de t e da câmera (paralaxe por partícula).
+  // Partículas (1/3 da densidade antiga): pólen só junto do capim da superfície; esporos só dentro e em volta das
+  // câmaras. Posição pura de t e da câmera.
   function motes(F) {
-    c.resetTransform(); const { cx, cy, z } = cam, gy = F.world.ground ? (F.world.ground(cx) - cy) * z + 540 : H;
-    for (let i = 0; i < 46; i++) {
-      const pf = .5 + .7 * hash(i + 400), X = ((hash(i) * 2300 + 16 * F.t * (1 + hash(i + 7)) + 70 * noise1(i, F.t * .22) - cx * z * pf * .5) % 2300 + 2300) % 2300 - 190;
-      const Y = ((hash(i + 3) * 1400 - 9 * F.t + 50 * noise1(i + 50, F.t * .27) - cy * z * pf * .5) % 1400 + 1400) % 1400 - 160, spore = Y > gy + 30;
-      if (!spore && Y > gy - 10) continue;
-      const r = (1.6 + 2.6 * hash(i + 9)) * (.6 + .6 * pf), tw = .55 + .45 * Math.sin(F.t * 1.6 + i * 2.3);
-      glow(X, Y, r * 7, spore ? '#FFE9B0' : '#FFF2C0', .3 * tw); ell(X, Y, r, r, 0, rgba(spore ? '#FFF4D6' : '#FFFBEA', .75 * tw));
+    const { cx, cy, z } = cam, g = F.world.ground, wide = F.shot === 'wide';
+    c.resetTransform();
+    for (let i = 0; i < 16; i++) {
+      const pf = .8 + .4 * hash(i + 400), X = ((hash(i) * 2300 + 16 * F.t * (1 + hash(i + 7)) + 70 * noise1(i, F.t * .22) - cx * z * pf * .5) % 2300 + 2300) % 2300 - 190;
+      const hgt = wide ? 8 + 80 * hash(i + 3) : -150 + 280 * hash(i + 3), Y = (g((X - 960) / z + cx) - hgt - cy) * z + 540 + 18 * noise1(i + 50, F.t * .27) * z;
+      const r = (1.4 + 2.2 * hash(i + 9)) * Math.min(1.4, Math.sqrt(z)), tw = .55 + .45 * Math.sin(F.t * 1.6 + i * 2.3);
+      glow(X, Y, r * 6, '#FFF2C0', .26 * tw); ell(X, Y, r, r, 0, rgba('#FFFBEA', .7 * tw));
+    }
+    if (!F.world.chambers) return;
+    at(1);
+    for (const [x, y, w, h, sd] of F.world.chambers) for (let k = 0; k < 5; k++) {
+      const s = sd * 31 + k, px = x + (hash(s) - .5) * w * 1.1 + 14 * noise1(s, F.t * .3), py = y - ((hash(s + 1) * h * 1.3 + 9 * F.t) % (h * 1.3)), tw = .55 + .45 * Math.sin(F.t * 1.3 + s);
+      glow(px, py, 16, '#FFE9B0', .3 * tw); ell(px, py, 2.4, 2.4, 0, rgba('#FFF4D6', .75 * tw));
     }
   }
   function title(s) {
