@@ -145,6 +145,15 @@ window.ExpStyle = (() => {
     c.globalAlpha = .7 * A; c.strokeStyle = rim; c.lineWidth = w + 2 * lw; c.stroke();
     c.globalAlpha = .95 * A; c.strokeStyle = col; c.lineWidth = w; c.stroke(); c.globalAlpha = 1;
   }
+  function taper(pts, ws, col, lw) {
+    const L = [], R = [];
+    pts.forEach(([x, y], i) => {
+      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy) || 1, w = ws[i] / 2;
+      L.push([x - dy / d * w, y + dx / d * w]); R.push([x + dy / d * w, y - dx / d * w]);
+    });
+    c.beginPath(); [...L, ...R.reverse()].forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); c.lineJoin = 'round';
+    c.globalAlpha = .55 * A; c.fillStyle = col; c.fill(); c.globalAlpha = .75 * A; c.strokeStyle = dk(col, .45); c.lineWidth = lw; c.stroke(); c.globalAlpha = 1;
+  }
   function line(pts, w, col, a = 1) { c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.lineCap = c.lineJoin = 'round'; c.globalAlpha = a * A; c.strokeStyle = col; c.lineWidth = w; c.stroke(); c.globalAlpha = 1; }
   // Quadro local da cabeça: x à frente, y para baixo, girado pela inclinação (sem virar de cabeça para baixo à esquerda).
   function headFrame(p) { c.translate(p.head.x, p.head.y); c.scale(p.facing, 1); c.rotate(p.facing > 0 ? p.head.angle : Math.PI - p.head.angle); }
@@ -153,9 +162,10 @@ window.ExpStyle = (() => {
     const p = a.pose, S = p.size, sd = sid(a.id), f = p.facing, hero = a.role === 'hero', px = S * cam.z;
     const col = hero ? P.hero : a.role === 'back' ? mixCol(P.ant, P.far, .4) : a.role === 'tunnel' || a.role === 'garden' ? mixCol(P.ant, P.soil, .15) : P.ant;
     const lw = Math.max(1 / cam.z, .01 * S), legW = (l, k) => Math.max(1.1 / cam.z, k * S), farAnt = f > 0 ? 'antennaR' : 'antennaL';
-    const legs = far => { for (const l of Object.values(p.limbs)) if (l.far === far) { const cl = far ? dk(col, .45) : dk(col, .2); line([l.root, l.mid], legW(l, .032), cl); line([l.mid, l.end], legW(l, .022), cl); } };
+    // Pata: fita que afina da raiz à ponta em dois segmentos, aguada transparente com a borda acumulando pigmento.
+    const legs = far => { for (const l of Object.values(p.limbs)) if (l.far === far) taper([l.root, l.mid, l.end], [legW(l, .045), legW(l, .03), legW(l, .012)], far ? dk(col, .4) : dk(col, .15), lw * .8); };
     const antenna = n => p.appendages[n] && line(p.appendages[n], Math.max(1 / cam.z, .016 * S), dk(col, n === farAnt ? .45 : .25));
-    legs(true); antenna(farAnt);
+    legs(true); legs(false); antenna(farAnt);
     if (p.carry) leaf(p.carry, sd, a.role === 'back' ? mixCol(P.leaf, P.far, .4) : P.leaf, lw);
     const [th, pt, gs] = p.spine;
     blot(oval(gs.x, gs.y, 1.2 * gs.r, .95 * gs.r, gs.angle, sd), col, lw, { light: px > 25 });
@@ -166,13 +176,14 @@ window.ExpStyle = (() => {
     c.save(); headFrame(p);
     limb([[.75 * R, .3 * R], [1.25 * R, .55 * R], [1.05 * R, .7 * R]], .12 * R, dk(col, .5), lw * .5);  // mandíbula
     blot(oval(0, 0, 1.05 * R, .95 * R, 0, sd + 60), col, lw, { light: px > 25 });
-    trace(oval(.38 * R, -.12 * R, .2 * R, .17 * R, 0, sd + 80, 8)); c.globalAlpha = A; c.fillStyle = dk(col, .7); c.fill();
-    if (px > 60) { c.beginPath(); c.arc(.32 * R, -.18 * R, .06 * R, 0, TAU); c.globalAlpha = .8 * A; c.fillStyle = P.paper; c.fill(); }
+    trace(oval(.4 * R, -.14 * R, .42 * R, .36 * R, -.2, sd + 80, 9)); c.globalAlpha = .95 * A; c.fillStyle = mixCol(P.ink, col, .15); c.fill();
+    c.globalAlpha = .8 * A; c.strokeStyle = P.ink; c.lineWidth = Math.max(lw, .05 * R); c.stroke();
+    if (px > 30) { c.beginPath(); c.arc(.28 * R, -.26 * R, .12 * R, 0, TAU); c.globalAlpha = .9 * A; c.fillStyle = P.paper; c.fill(); }
     if (px > 300) {  // nanquim leve na nuca e na fronte (só de perto)
       c.globalAlpha = .55 * A; c.strokeStyle = P.ink; c.lineWidth = 1.6 / cam.z; c.beginPath(); c.arc(0, 0, 1.02 * R, 3.6, 4.6); c.stroke(); c.beginPath(); c.arc(0, 0, 1.02 * R, 5.2, 5.8); c.stroke();
     }
     c.restore(); c.globalAlpha = 1;
-    legs(false); antenna(f > 0 ? 'antennaL' : 'antennaR');
+    antenna(f > 0 ? 'antennaL' : 'antennaR');
   }
   // Pedaço de folha cortado em meia-lua: aguada verde, nervura e a borda mais escura.
   function leaf({ x, y, w, h, angle }, sd, col, lw) {
@@ -241,27 +252,28 @@ window.ExpStyle = (() => {
     blot(oval(.97 * R, .12 * R, .2 * R, .17 * R, 0, sd + 55, 9), P.skin, lw, { shade: false });  // nariz
     blot(oval(-.15 * R, .1 * R, .17 * R, .23 * R, 0, sd + 57, 9), dk(P.skin, .12), lw, { shade: false });  // orelha
     trace(oval(.4 * R, .38 * R, .2 * R, .13 * R, 0, sd + 59, 9)); c.globalAlpha = .25 * A; c.fillStyle = P.red; c.fill(); c.globalAlpha = 1;  // bochecha
-    // Olho, sobrancelha e boca por expressão.
-    const eye = [.45 * R, -.08 * R], ink = P.ink;
-    if (shut) { c.beginPath(); c.arc(eye[0], eye[1] - .05 * R, .12 * R, .3, Math.PI - .3); c.globalAlpha = .9 * A; c.strokeStyle = ink; c.lineWidth = .05 * R; c.stroke(); }
+    // Olho, sobrancelha e boca por expressão, em nanquim sépia (olho grande o bastante para atuar).
+    const eye = [.45 * R, .02 * R], ink = P.ink, stroke = (w, a = .9) => { c.globalAlpha = a * A; c.strokeStyle = ink; c.lineWidth = w; c.lineCap = 'round'; c.stroke(); };
+    if (shut) { c.beginPath(); c.arc(eye[0], eye[1] - .1 * R, .2 * R, .35, Math.PI - .35); stroke(.08 * R); }
     else if (ex === 'surprised') {
-      trace(oval(eye[0], eye[1] - .03 * R, .17 * R, .23 * R, 0, sd + 61, 10)); c.globalAlpha = A; c.fillStyle = '#FFFDF6'; c.fill(); c.globalAlpha = .7 * A; c.strokeStyle = ink; c.lineWidth = .035 * R; c.stroke();
-      c.beginPath(); c.arc(eye[0] + .05 * R, eye[1], .085 * R, 0, TAU); c.globalAlpha = A; c.fillStyle = ink; c.fill();
+      trace(oval(eye[0], eye[1] - .04 * R, .27 * R, .36 * R, 0, sd + 61, 10)); c.globalAlpha = A; c.fillStyle = '#FFFDF6'; c.fill(); stroke(.06 * R);
+      c.beginPath(); c.arc(eye[0] + .06 * R, eye[1], .11 * R, 0, TAU); c.globalAlpha = A; c.fillStyle = ink; c.fill();
     } else {
-      const k = ex === 'curious' ? 1.25 : 1; trace(oval(eye[0], eye[1], .1 * R * k, .14 * R * k, 0, sd + 61, 8)); c.globalAlpha = A; c.fillStyle = ink; c.fill();
-      c.beginPath(); c.arc(eye[0] - .02 * R, eye[1] - .05 * R, .035 * R * k, 0, TAU); c.fillStyle = '#FFFDF6'; c.fill();
+      const k = ex === 'curious' ? 1.2 : 1; trace(oval(eye[0], eye[1], .17 * R * k, .24 * R * k, 0, sd + 61, 8)); c.globalAlpha = A; c.fillStyle = ink; c.fill();
+      c.beginPath(); c.arc(eye[0] - .04 * R, eye[1] - .08 * R, .06 * R * k, 0, TAU); c.fillStyle = '#FFFDF6'; c.fill();
     }
-    const brow = { neutral: [[.28, -.32], [.45, -.36], [.62, -.33]], curious: [[.26, -.38], [.45, -.5], [.64, -.42]], surprised: [[.26, -.46], [.46, -.58], [.66, -.5]] }[ex] || [];
-    line(brow.map(([u, v]) => [u * R, v * R]), .07 * R, P.hair, .9);
-    if (ex === 'surprised') { trace(oval(.68 * R, .55 * R, .11 * R, .16 * R, 0, sd + 63, 9)); c.globalAlpha = .9 * A; c.fillStyle = '#6A2A22'; c.fill(); c.globalAlpha = 1; }
-    else if (ex === 'curious') { trace(oval(.7 * R, .52 * R, .06 * R, .065 * R, 0, sd + 63, 8)); c.globalAlpha = .85 * A; c.fillStyle = '#6A2A22'; c.fill(); c.globalAlpha = 1; }
-    else line([[.52 * R, .5 * R], [.66 * R, .53 * R], [.8 * R, .48 * R]], .045 * R, dk(P.skin, .55), .9);
+    const brow = { neutral: [[.24, -.24], [.45, -.28], [.66, -.24]], curious: [[.22, -.3], [.45, -.42], [.68, -.34]], surprised: [[.22, -.42], [.46, -.56], [.7, -.46]] }[ex] || [];
+    c.beginPath(); brow.forEach(([u, v], i) => i ? c.lineTo(u * R, v * R) : c.moveTo(u * R, v * R)); stroke(.1 * R);
+    if (ex === 'surprised') { trace(oval(.62 * R, .6 * R, .17 * R, .26 * R, 0, sd + 63, 10)); c.globalAlpha = A; c.fillStyle = '#5A2420'; c.fill(); stroke(.05 * R); trace(oval(.62 * R, .74 * R, .1 * R, .07 * R, 0, sd + 64, 8)); c.globalAlpha = .8 * A; c.fillStyle = '#C8664E'; c.fill(); }
+    else if (ex === 'curious') { trace(oval(.68 * R, .56 * R, .09 * R, .1 * R, 0, sd + 63, 8)); c.globalAlpha = A; c.fillStyle = '#5A2420'; c.fill(); stroke(.04 * R); }
+    else { c.beginPath(); c.moveTo(.5 * R, .52 * R); c.quadraticCurveTo(.66 * R, .58 * R, .8 * R, .5 * R); stroke(.06 * R, .8); }
+    c.globalAlpha = 1;
     // Nanquim leve: nuca e queixo.
     c.globalAlpha = .5 * A; c.strokeStyle = P.ink; c.lineWidth = lw; c.beginPath(); c.ellipse(0, 0, .97 * R, 1.07 * R, 0, 1.9, 2.9); c.stroke(); c.beginPath(); c.ellipse(0, 0, .97 * R, 1.07 * R, 0, .5, 1.2); c.stroke(); c.globalAlpha = 1;
     // Chapéu de explorador: copa, fita e aba.
-    blot([[-.78, -.5], [-.72, -1.05], [-.45, -1.3], [.1, -1.36], [.55, -1.2], [.74, -.9], [.8, -.5]].map(([u, v]) => [u * R, v * R]), P.hat, lw);
-    blot([[-.78, -.5], [-.76, -.72], [.78, -.72], [.8, -.5]].map(([u, v]) => [u * R, v * R]), P.band, lw, { shade: false });
-    blot(oval(.05 * R, -.5 * R, 1.6 * R, .2 * R, -.04, sd + 65, 16, .05), dk(P.hat, .08), lw, { light: false });
+    blot([[-.78, -.62], [-.72, -1.17], [-.45, -1.42], [.1, -1.48], [.55, -1.32], [.74, -1.02], [.8, -.62]].map(([u, v]) => [u * R, v * R]), P.hat, lw);
+    blot([[-.78, -.62], [-.76, -.84], [.78, -.84], [.8, -.62]].map(([u, v]) => [u * R, v * R]), P.band, lw, { shade: false });
+    blot(oval(.05 * R, -.64 * R, 1.6 * R, .17 * R, -.04, sd + 65, 16, .05), dk(P.hat, .08), lw, { light: false });
   }
   // Emote (? ou !) pintado sobre a cabeça: borrão amarelo-pálido por baixo e a letra em vermelho-terra com borda.
   function emote(p, S) {
@@ -325,6 +337,20 @@ window.ExpStyle = (() => {
     for (let b = 0; b < 5; b++) {
       const yb0 = w.soilTop + 140 + 220 * b, wave = []; for (let x = x0 - 40; x <= x1 + 80; x += 60) wave.push([x, yb0 + 30 * Math.sin(x * .004 + b) + 10 * Math.sin(x * .013 + b)]);
       wc([...wave, [x1 + 80, yb + 20], [x0 - 40, yb + 20]], b % 2 ? dk(P.soil, .12 + .08 * b) : mixCol(dk(P.soil, .06 * b), P.path, .3), 120, .2, .6);
+    }
+    // Três aguadas largas e inclinadas por cima (cor sobre cor) e flores de água (backruns): miolo claro, borda escura.
+    for (let b = 0; b < 3; b++) {
+      const y0 = w.soilTop + 60 + 260 * b, sl = b % 2 ? -.08 : .08, up = [], dn = []; for (let x = x0 - 40; x <= x1 + 80; x += 70) { up.push([x, y0 + sl * (x - x0) + 40 * Math.sin(x * .006 + b)]); dn.push([x, y0 + 190 + sl * (x - x0) + 50 * Math.sin(x * .005 + 2 * b)]); }
+      wc([...up, ...dn.reverse()], b === 1 ? mixCol(P.soil, P.red, .2) : dk(P.soil, .2), 90, .3, .7);
+    }
+    for (let i = 0; i < 26; i++) {
+      const x = lerp(x0, x1, hash(i * 9.3 + 2)), y = lerp(w.soilTop + 80, yb - 80, hash(i * 4.1 + 7)), r = 50 + 90 * hash(i * 6.7);
+      const o = Array.from({ length: 24 }, (_, j) => { const a = j * TAU / 24, k = .75 + .4 * hash(i * 31 + j) + .15 * Math.sin(a * 5 + i); return [x + 1.4 * r * k * Math.cos(a), y + r * k * Math.sin(a)]; });
+      wc(o, dk(P.soil, .3), 60, .35, .7); wc(o.map(([u, v]) => [x + .82 * (u - x), y + .82 * (v - y)]), mixCol(P.soil, P.paper, .55), 110, .3, .6);
+    }
+    for (let i = 0; i < 40; i++) {  // seixos com contorno a sépia
+      const x = lerp(x0, x1, hash(i * 2.9 + 11)), y = lerp(w.soilTop + 50, yb, hash(i * 6.1 + 3)), r = 8 + 14 * hash(i * 1.3 + 5), e = ell(x, y, 1.3 * r, r, 10, i + 300);
+      wc(e, mixCol(P.stone, P.soil, .3), 200, .05, .4); nibBroken([...e, e[0]], .3, i * 5, .8, 4, dk(P.soil, .65));
     }
     for (let i = 0; i < 110; i++) { const x = lerp(x0, x1, hash(i * 3.7)), y = lerp(w.soilTop + 60, yb, hash(i * 5.3 + 1)), r = 4 + 10 * hash(i * 2.1); wc(ell(x, y, 1.4 * r, r, 9, i), i % 3 ? dk(P.soil, .35) : P.stone, 150, .05, .3); }
     // Raízes da árvore: fios de nanquim que descem e se abrem.
