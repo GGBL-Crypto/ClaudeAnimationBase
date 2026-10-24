@@ -70,6 +70,7 @@ AnimationPlatform.registerProject({
     "src/nature/creature.js",
     "src/nature/specs.js",
     "src/nature/env.js",
+    "src/episodes/sauva-operaria/c01_revoada.js",
     "src/episodes/placeholder.js"
   ],
   "reviewTimes": [
