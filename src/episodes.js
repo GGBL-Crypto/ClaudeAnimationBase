@@ -71,6 +71,13 @@ AnimationPlatform.registerProject({
     "src/nature/specs.js",
     "src/nature/env.js",
     "src/episodes/sauva-operaria/c01_revoada.js",
+    "src/episodes/sauva-operaria/c02_cidade.js",
+    "src/episodes/sauva-operaria/c03_crescimento.js",
+    "src/episodes/sauva-operaria/c04_trabalhos.js",
+    "src/episodes/sauva-operaria/c05_trilha.js",
+    "src/episodes/sauva-operaria/c06_ataque.js",
+    "src/episodes/sauva-operaria/c07_dentes.js",
+    "src/episodes/sauva-operaria/c08_fim.js",
     "src/episodes/placeholder.js"
   ],
   "reviewTimes": [
