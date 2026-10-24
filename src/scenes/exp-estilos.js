@@ -124,7 +124,7 @@ var EST = (() => {
   // Explorador (1 BL = 500 px de altura) entra pela esquerda a .7 BL/s, para (3,4 s), se agacha (3,7–4,6 s), olha para
   // baixo e leva o susto (5,3 s). A fila de formigas anda para a esquerda, à frente dele, a vida toda do plano.
   const gH = x => 905 + 8 * Math.sin(x * .0035 + .5), gA = x => gH(x) + 45, HSH = 500, HPH = makePath([[-800, 0], [3200, 0]]);
-  const ANTS_H = makeCrowd([lane([[2400, 0], [-500, 0]], 26, 1.3, 2.2, { id: 'line', ground: gA, role: 'line', carry: .4, seed: 90, t1: 8, depth: 45 })]);
+  const ANTS_H = makeCrowd([lane([[2400, 0], [-500, 0]], 34, 1.1, 2.2, { id: 'line', ground: gA, role: 'line', carry: .4, seed: 90, t1: 8, depth: 45 })]);
   const sHum = t => stopAt(t, 1, 0, .7, 2.63, .8), crouch = t => ease(seg(t, 3.7, 4.6)) + .06 * spring(t, 4.6, 6, 12);
   const MOOD = [[0, 'neutral'], [3.2, 'curious', '?'], [5.3, 'surprised', '!']];
   function human(t, gesture) {
