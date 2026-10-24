@@ -6,7 +6,7 @@
   const HA = [Math.cos(-1), Math.sin(-1)], HB = [Math.cos(.55), Math.sin(.55)];  // hachura e contra-hachura
   const TH = [[.1, .34, .22, .44], [.55, .72, .63, .8]];  // tom mínimo de cada fileira (ciclo de 4): densidade pelo tom
   const FONT = '"Ink Free", "Segoe Print", "Comic Sans MS", cursive';
-  let c, B = 0, bv = 0, pat, paper;
+  let c, B = 0, bv = 0, pat, paper, blank;
   const pats = new WeakMap(), pool = [];
   const rs = (s, i = 0) => hash(s * 7.31 + i * 1.97);              // sorteio fixo
   const rb = (s, i = 0) => hash(s * 7.31 + i * 1.97 + bv * 3.17);  // sorteio que ferve (bv = versão do boil)
@@ -40,16 +40,17 @@
       g.strokeStyle = i % 3 ? 'rgba(130,105,60,.13)' : 'rgba(255,255,250,.4)';
       g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + l * .5 * Math.cos(a + .6), y + l * .5 * Math.sin(a + .6), x + l * Math.cos(a), y + l * Math.sin(a)); g.stroke();
     }
+    const rg = g.createRadialGradient(W / 2, H / 2, H * .45, W / 2, H / 2, W * .62);  // bordas manuseadas
+    rg.addColorStop(0, 'rgba(120,90,40,0)'); rg.addColorStop(1, 'rgba(120,90,40,.16)');
+    g.fillStyle = rg; g.fillRect(0, 0, W, H);
+    blank = Object.assign(document.createElement('canvas'), { width: W, height: H }); blank.getContext('2d').drawImage(cv, 0, 0);  // papel sem pauta: recheio dos seres
     g.strokeStyle = P.rule; g.lineWidth = 1.6;
     for (let y = 132; y < H; y += 52) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y + .8); g.stroke(); }
     g.strokeStyle = P.margin; g.lineWidth = 2; g.beginPath(); g.moveTo(196, 0); g.lineTo(197, H); g.stroke();
     g.lineWidth = 1; g.beginPath(); g.moveTo(202, 0); g.lineTo(203, H); g.stroke();
-    const rg = g.createRadialGradient(W / 2, H / 2, H * .45, W / 2, H / 2, W * .62);  // bordas manuseadas
-    rg.addColorStop(0, 'rgba(120,90,40,0)'); rg.addColorStop(1, 'rgba(120,90,40,.16)');
-    g.fillStyle = rg; g.fillRect(0, 0, W, H);
     return cv;
   }
-  const patOf = g => { if (!pats.has(g)) pats.set(g, g.createPattern(paper, 'no-repeat')); return pats.get(g); };
+  const patOf = g => { if (!pats.has(g)) pats.set(g, g.createPattern(blank, 'no-repeat')); return pats.get(g); };
 
   // Traço de caneta: polilinha subdividida, tremor suave que ferve (bv), sobra nas pontas e pressão (cheio no meio,
   // fino nas pontas; o.tip = só a ponta final afina). Um fill por traço. o.ov = sobra (px), o.j = tremor (px).
@@ -118,15 +119,15 @@
   // Hachura: fileiras paralelas (2 direções) cortadas no polígono; cada fileira só entra quando o tom passa do seu
   // limiar, e os trechos seguem o tom ao longo dela, quebrados em lances curtos. Âncora presa ao objeto.
   function hatch(poly, tone, o) {
-    const sp = o.sp || 5, [ax, ay] = o.anchor || [0, 0], s = o.seed || 0;
+    const sp = o.sp || 5, [ax, ay] = o.anchor || [0, 0], s = o.seed || 0, TT = o.th || TH, ro = o.rot || 0;
     c.beginPath();
-    [HA, HB].forEach((d, ps) => {
-      if (ps && o.max !== undefined && o.max < TH[1][0]) return;
+    [HA, HB].forEach((d0, ps) => {
+      const d = ro ? [d0[0] * Math.cos(ro) - d0[1] * Math.sin(ro), d0[0] * Math.sin(ro) + d0[1] * Math.cos(ro)] : d0;
       const nx = -d[1], ny = d[0], av = ax * nx + ay * ny;
       let v0 = 1e9, v1 = -1e9;
       for (const [x, y] of poly) { const v = x * nx + y * ny; v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
       for (let k = Math.ceil((v0 - av) / sp); av + k * sp < v1; k++) {
-        const th = TH[ps][(k % 4 + 4) % 4], v = av + k * sp + .8 * (rb(s + k, ps) - .5), us = [], lmax = 40 + 100 * rs(s + k, 7 + ps);
+        const th = TT[ps][(k % 4 + 4) % 4], v = av + k * sp + sp * .4 * (rs(s + k, 11 + ps) - .5) + .8 * (rb(s + k, ps) - .5), us = [], lmax = 40 + 100 * rs(s + k, 7 + ps);
         for (let i = 0, m = poly.length; i < m; i++) {
           const [x0, y0] = poly[i], [x1, y1] = poly[(i + 1) % m], e0 = x0 * nx + y0 * ny - v, e1 = x1 * nx + y1 * ny - v;
           if ((e0 < 0) !== (e1 < 0)) { const f = e0 / (e0 - e1); us.push((x0 + (x1 - x0) * f) * d[0] + (y0 + (y1 - y0) * f) * d[1]); }
@@ -181,20 +182,29 @@
         if (dc < 1 || dt < TW) return 0;
         if (dc < 1.15 || dt < TW + 8) return .9;
       }
-      return .26 + .45 * clamp((Y - yg) / z / 600) + .1 * noise1(11 + Math.floor(y / 70), x / 160);
+      return .1 + .5 * clamp((Y - yg) / z / 650) + .2 * noise1(11 + Math.floor(y / 90), x / 210);
     };
     const tone = (X, Y) => {
       const i = clamp(Math.round(X / 4), 0, 481);
-      for (let k = L.length - 1; k >= 0; k--) if (Y > L[k].ys[i]) return L[k].tone < 0 ? soil(X, Y, L[k].ys[i]) : L[k].tone;
+      for (let k = L.length - 1; k >= 0; k--) if (Y > L[k].ys[i]) return L[k].tone < 0 ? soil(X, Y, L[k].ys[i]) : -L[k].tone;
       return 0;
-    };
+    };  // < 0: camada distante (só pontilhado)
     // Toque de azul no céu (aguada), atrás das nuvens.
     const sky = F.scene === 'H' ? [[700, 260, 1]] : F.shot === 'wide' ? w.clouds.list.slice(0, 1) : [];
     for (const [x0, y0, k] of sky) { const X = sx(x0, .1), Y = sy(y0), r = 60 * k * z; wash(ellPoly(X - .6 * r, Y - .7 * r, 3.4 * r, .9 * r, -.08, 36), P.sky); }
-    hatch([[-10, -10], [W + 10, -10], [W + 10, H + 10], [-10, H + 10]], tone, { sp: 5, w: 1.15, anchor: S1(0, 0), seed: 5 });
-    // Pontilhado na crista da camada mais distante.
-    { const l = L[0], ox = frac(sx(0, l.f) / 7) * 7; c.beginPath();
-      for (let X = ox - 7; X < W; X += 7) { const yl = l.ys[clamp(Math.round(X / 4), 0, 481)]; for (let j = 0; j < 9; j++) { const Y = yl + j * 7 + 3, i = Math.round((X - ox) / 7) * 31 + j; if (rs(i + Math.round(sx(0, l.f) / 7) * 31, 8) < .55 - j * .06) c.rect(X + 2 * rb(i, 9), Y, 1.7, 1.7); } }
+    // Terra: hachura em faixas (estratos de 240 px do mundo), cada uma com ângulo e espaçamento próprios; contra-hachura
+    // só nas sombras fundas. Céu e camadas distantes: papel, com pontilhado leve que adensa na crista.
+    const top = Math.min(...L.at(-1).ys), y0 = wy(Math.max(0, top)), ST = 240, SOIL = [[.12, .36, .24, .48], [.66, .82, .74, .9]];
+    for (let b = Math.floor(y0 / ST); sy(b * ST) < H; b++) {
+      const Y0 = Math.max(top - 2, sy(b * ST)), Y1 = Math.min(H + 10, sy((b + 1) * ST) + 1), q = ((b % 3) + 3) % 3;
+      if (Y1 > Y0) hatch([[-10, Y0], [W + 10, Y0], [W + 10, Y1], [-10, Y1]], (X, Y) => Math.max(0, tone(X, Y)), { sp: [5, 6.5, 5.6][q], rot: [0, .38, -.3][q], th: SOIL, w: 1.15, anchor: S1(0, b * ST), seed: 5 + b * 13 });
+    }
+    { const ox = frac(sx(0, .5) / 6) * 6, oi = Math.round(sx(0, .5) / 6); c.beginPath();
+      for (let X = ox - 6; X < W; X += 6) for (let Y = 2, j = 0; Y < Math.min(H, top + 40); Y += 6, j++) {
+        const t2 = -tone(X, Y); if (t2 <= 0) continue;
+        const i = clamp(Math.round(X / 4), 0, 481), l = L.find((m, k) => Y > m.ys[i] && !(L[k + 1] && Y > L[k + 1].ys[i])), cr = l ? 1.9 - 1.2 * clamp((Y - l.ys[i]) / 110) : 1, n = (Math.round((X - ox) / 6) - oi) * 131 + j;
+        if (rs(n, 8) < t2 * 2.2 * cr) c.rect(X + 3 * rs(n, 9), Y + 3 * rs(n, 10), 1.6, 1.6);
+      }
       c.fillStyle = INK; c.fill(); }
     // Linhas dos perfis, em lances de 300 a 550 px (ninguém traça a tela inteira de uma vez).
     L.forEach((l, li) => {
@@ -326,13 +336,12 @@
       return;
     }
     const w = clamp(S * .0055, 1.1, 4), o = { sp: clamp(S * .012, 3, 5.5), w: clamp(S * .0022, .8, 1.5), anchor: M(sp[0].x, sp[0].y), seed: sid }, big = S > 170;
-    const base = hero ? .06 : .42, amt = hero ? .5 : .45, washed = [];
+    const base = hero ? .06 : .42, amt = hero ? .5 : .45;
     if (hero) contact(M, sp[0].x, a.ground ? a.ground(sp[0].x) : sp[0].y + .17 * s, .45 * s, .045 * s, o);
     if (p.carry) leaf(p.carry, M, w, o, false, hero);
     const limb = (l, k) => {
       const q = [l.root, l.mid, l.end].map(([x, y]) => M(x, y));
-      if (!big) return pen(q, w * (l.far ? 1 : 1.3), sid + k, { col: l.far ? P.hatch : INK });
-      const r = [.02, .016, .01].map(v => v * S), tp = tube(q, r); if (!l.far) washed.push(tp); part(tp, tubeShade(q, r, base + (l.far ? .25 : 0), amt), w * (l.far ? .7 : .9), o, sid + k);
+      pen(q, w * (big ? 2.6 : 1.3) * (l.far ? .75 : 1), sid + k, { col: l.far ? P.hatch : INK, tip: 1, ov: 0 });  // traço de pena que afina
     };
     legs.forEach((l, k) => l.far && limb(l, k));
     ants.forEach((an, k) => an.far && pen(an.pts, w * .7, sid + 40 + k, { col: P.hatch }));
@@ -348,8 +357,6 @@
     if (hero) {  // aguada laranja: um pouco maior e deslocada, por cima de tudo (multiplica: a tinta continua preta)
       const dx = (rb(sid, 31) - .3) * .015 * S, dy = (rb(sid, 32) - .6) * .015 * S;
       c.globalCompositeOperation = 'multiply'; c.beginPath();
-      for (const b of washed) sub(b, true);
-      c.fillStyle = P.hero; c.fill(); c.beginPath();  // patas à parte: o sentido do tubo cancelaria a união com o corpo
       for (const b of body) { let mx = 0, my = 0; b.forEach(([x, y]) => { mx += x / b.length; my += y / b.length; }); sub(b.map(([x, y]) => [mx + (x - mx) * 1.07 + dx, my + (y - my) * 1.07 + dy]), true); }
       c.fillStyle = P.hero; c.fill(); c.globalCompositeOperation = 'source-over';
     }
@@ -381,12 +388,12 @@
   // Explorador: tubos (pernas, braços, tronco), botas, mochila com saco de dormir, cabeça grande com rosto e chapéu.
   function human(a, M, z, sid) {
     const p = a.pose, s = p.size, S = s * z, f = p.facing, C = p.spine[0], Pv = p.spine[1], Lm = p.limbs, gear = a.gear || [];
-    const w = clamp(S * .0072, 1.3, 4), o = { sp: 5, w: clamp(S * .0026, .9, 1.5), anchor: M(C.x, C.y), seed: sid };
+    const w = clamp(S * .0095, 2, 5.5), o = { sp: 4.5, rot: .5, w: clamp(S * .0024, .9, 1.4), anchor: M(C.x, C.y), seed: sid };
     let ux = C.x - Pv.x, uy = C.y - Pv.y; const ul = Math.hypot(ux, uy) || 1; ux /= ul; uy /= ul;  // eixo do tronco (para cima)
     const fx = -uy * f, fy = ux * f, T = (u, v) => [C.x + (fx * u + ux * v) * s, C.y + (fy * u + uy * v) * s], TM = (u, v) => M(...T(u, v));
     const Ms = pts => pts.map(([x, y]) => M(x, y)), R = r => r.map(v => v * S);
     contact(M, Pv.x + f * .02 * s, (a.ground ? a.ground(Pv.x) : Pv.y + .48 * s) + .005 * s, .2 * s, .022 * s, o);
-    const limb = (l, r, k) => { const b = Ms([l.root, l.mid, l.end]), rr = R(r); part(tube(b, rr), tubeShade(b, rr, .06 + (l.far ? .3 : 0), .5), w * (l.far ? .8 : 1), o, sid + k); return b; };
+    const limb = (l, r, k) => { const b = Ms([l.root, l.mid, l.end]), rr = R(r); part(tube(b, rr), tubeShade(b, rr, -.3 + (l.far ? .25 : 0), .85), w * (l.far ? .8 : 1), o, sid + k); return b; };
     const leg = (l, k) => {
       limb({ ...l, end: [l.end[0], l.end[1] - .06 * s] }, [.058, .05, .043], k);
       const [x, y] = l.end, Bt = (u, v) => M(x + f * u * s, y + v * s), poly = [Bt(-.04, -.09), Bt(.035, -.09), Bt(.05, -.05), Bt(.1, -.032), Bt(.118, -.008), Bt(.1, .006), Bt(-.045, .006), Bt(-.052, -.03)];
@@ -409,7 +416,7 @@
     }
     leg(lF, 2); leg(lN, 3);
     const tb = Ms([T(0, .1), [C.x, C.y], [Pv.x - ux * .03 * s, Pv.y - uy * .03 * s]]), tr = R([.075, .105, .096]);
-    part(tube(tb, tr), tubeShade(tb, tr, .05, .5), w, o, sid + 40);
+    part(tube(tb, tr), tubeShade(tb, tr, -.3, .85), w, o, sid + 40);
     const bc = [Pv.x + fx * .09 * s, Pv.y + fy * .09 * s];
     pen([M(Pv.x - fx * .094 * s, Pv.y - fy * .094 * s), M(...bc)], w * 1.2, sid + 41);  // cinto e fivela
     c.fillStyle = INK; const [bx, by] = M(...bc); c.fillRect(bx - .012 * S, by - .012 * S, .016 * S, .024 * S);
@@ -422,7 +429,7 @@
     const hw = (lx, ly) => [Hc[0] + f * (lx * co - ly * si) * rh, Hc[1] + (lx * si + ly * co) * rh], hl = (lx, ly) => M(...hw(lx, ly));
     const nb = Ms([Nk, hw(-.1, .75)]), nr = R([.034, .03]); part(tube(nb, nr), tubeShade(nb, nr, .15, .5), w * .9, o, sid + 45);
     const head = Array.from({ length: 28 }, (_, i) => { const t = i / 28 * TAU; return hl(.92 * Math.cos(t) + .12 * Math.max(0, Math.cos(t)) * Math.max(0, Math.sin(t)), 1.03 * Math.sin(t)); });
-    part(head, shade(head, -.05, .35), w, o, sid + 46);
+    part(head, shade(head, -.25, .55), w, o, sid + 46);
     const ear = Array.from({ length: 12 }, (_, i) => { const t = i / 12 * TAU; return hl(-.14 + .13 * Math.cos(t), .1 + .19 * Math.sin(t)); }); part(ear, null, w * .8, o, sid + 47);
     pen([hl(-.1, .02), hl(-.17, .1), hl(-.1, .17)], w * .6, sid + 48);
     const dh = [Hc[0] - hd.x, Hc[1] - hd.y];
