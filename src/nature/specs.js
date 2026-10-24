@@ -127,6 +127,17 @@ var SPECS = {
   });
 })();
 
+// Besouro (exp/visual-rico): pronoto e élitros largos e baixos; pernas no tórax, as de trás sob os élitros; tripé.
+SPECS.beetle = {
+  id: 'beetle', gait: 'tripod', views: ['side', 'top'], stride: .2, lift: .035,
+  spine: [{ offset: 0, r: .11, h: .13 }, { offset: .3, r: .21, h: .15 }],  // pronoto, élitros
+  head: { offset: -.16, r: .08, h: .11 },
+  limbs: [[1, .07, [.2, .2]], [2, -.07, [0, .24]], [3, -.2, [-.2, .22]]].flatMap(([i, along, rest]) => [1, -1].map(side => ({
+    name: (side > 0 ? 'L' : 'R') + i, foot: true, attach: 0, along, side, l1: .17, l2: .2, rest, bend: i < 3 ? -1 : 1,
+  }))),
+  appendages: [1, -1].map(side => ({ name: side > 0 ? 'antennaL' : 'antennaR', attach: 'head', side, at: [.06, -.03], angle: -.5, lengths: [.08, .06, .06], motion: { amp: .2, freq: 1.2 } })),
+};
+
 // Mosca forídea: corcunda, sem pernas na pose; voa sempre (gait 'fly'), com a deriva do pairar (flyer.hover, em BL).
 // Mergulho: o caminho desce e s acelera (ver modelos.js).
 SPECS.fly = {

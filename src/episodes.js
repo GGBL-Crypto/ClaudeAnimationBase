@@ -1395,4 +1395,10 @@ AnimationPlatform.registerProject({
     scripts: ['src/nature/noise.js', 'src/nature/path.js', 'src/nature/gait.js', 'src/nature/creature.js', 'src/nature/specs.js', 'src/nature/env.js', 'src/scenes/exp-sauva-3d.js'],
     styleOptions: { 'lowpoly-3d': { effects: { shadowSize: 1024 } } },
   });
+  // E4 e B: o kit 3D genérico (src/styles/toon3d). E4 = o mesmo trecho; B = outra espécie em outro bioma, sem narração.
+  const kit = [...['noise', 'path', 'gait', 'creature', 'specs', 'env'].map(f => `src/nature/${f}.js`), ...['creature', 'face', 'textures', 'flora', 'stage', 'ambient'].map(f => `src/styles/toon3d/${f}.js`)];
+  const toon3d = { style: 'lowpoly-3d', compatibleStyles: ['lowpoly-3d'], reviewTimes: undefined, styleOptions: { 'lowpoly-3d': { effects: { shadowSize: 1024 } } } };
+  for (const id of ['sauva-exp-e4', 'sauva-exp-e4c']) AnimationPlatform.registerProject({ ...base, ...toon3d, id, duration: cut, storyboard, scripts: [...kit, 'src/scenes/exp-sauva-e4.js'] });  // e4c: close dos rostos
+  AnimationPlatform.registerProject({ ...base, ...toon3d, id: 'toon3d-b', title: 'Kit toon3d: besouro na mata', duration: 10, audio: undefined, chapters: undefined, scripts: [...kit, 'src/scenes/exp-toon3d-b.js'],
+    storyboard: [{ id: 'b1', start: 0, end: 10, event: 'besouro atravessa o chão da mata', transition: 'cut', reads: [{ start: 0, end: 10, text: '(sem narração)' }] }] });
 })();
