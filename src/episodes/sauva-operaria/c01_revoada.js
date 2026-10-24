@@ -5,7 +5,7 @@
   const P = STYLE.palette, A = () => NatureArt;
   // Protagonista: mesmas constantes em todos os capítulos (copie sem mudar).
   const at = id => PROJECT.storyboard.find(s => s.id === id).start;
-  const SEED = 7, LOOK = { color: P.hero, dark: mixCol(P.hero, P.ink, .35) };
+  const SEED = 7, LOOK = { color: P.sauvaHero, dark: mixCol(P.sauvaHero, P.ink, .35) };
   const BORN = at('c3s04'), DIES = at('c8s01'), age = t => clamp((t - BORN) / (DIES - BORN));
   const her = o => creaturePose(SPECS.ant, { seed: SEED, age: age(o.t), ...o });
   // Início da fala j do plano: os momentos-chave caem aqui.
@@ -72,9 +72,48 @@
   ].map(makePath);
   const CH1 = [[860, 1500, 460, 240, 1], [1700, 1700, 330, 180, 2], [390, 1860, 320, 170, 3]];
   const heroX1 = t => 640 + 60 * t;
-  const fly1At = t => rd('c1s01', 0) + .1;
+  // Abertura em close (até CUT1): a cabeça dela e a forídea pairando enquanto soa "desta formiga"; a câmera recua
+  // depressa e corta, no mesmo movimento, para a trilha em plano aberto.
+  const FLY_IN = rd('c1s01', 0) + .1, OUT1 = rd('c1s01', 0) + 3.3, CUT1 = OUT1 + .55;
+  const gC = x => 900 + 10 * Math.sin(x * .003), HSC = 1300, HPC = makePath([[-3000, 900], [12000, 900]]), FSC = 300;
+  // A folha dela, em pé na mandíbula e inclinada para a frente, para não esconder a cabeça (close e plano aberto).
+  function leaf1(p, S) {
+    const a = -Math.PI / 2 + .35 * p.facing, w = .95 * S, bx = p.head.x + p.facing * .13 * S, by = p.head.y + .03 * S;
+    return { x: bx + w / 2 * Math.cos(a), y: by + w / 2 * Math.sin(a), w, h: .42 * S, angle: a, top: [bx + w * Math.cos(a), by + w * Math.sin(a)] };
+  }
+  const drawLeaf = l => A().leafPiece(l.x, l.y, l.w, l.h, l.angle, P.leaf);
+  function close1(t) {
+    const hp = her({ path: HPC, s: (3000 + 700) / HSC + 1.1 * t, size: HSC, ground: x => gC(x) + 60, t }), lf = leaf1(hp, HSC);
+    const z = lerp(1, 1.06, ease(seg(t, 0, OUT1))) * lerp(1, .25, easeIn(seg(t, OUT1, CUT1))), cx = hp.head.x - 120, cy = hp.head.y - 110;
+    Kit.gradient();
+    // Fundo macro (como c1s02): capim gigante enevoado e irmãs com folhas numa trilha de trás.
+    layer(cx, cy, z, .35, t, (a, b) => {
+      for (let i = Math.floor(a / 70); i * 70 < b; i++) { const x = i * 70 + 40 * hash(i + 200); A().blade(x, 700, 220 + 280 * hash(i + 201), .12 * wind(t, x, 7), mixCol(P.grass, P.skyLow, .55)); }
+      A().ground(x => 690 + 12 * Math.sin(x * .004), a, b, mixCol(P.grassDk, P.skyLow, .5));
+    });
+    layer(cx, cy, z, .7, t, (a, b) => {
+      const gb = x => 770 + 8 * Math.sin(x * .004), SIS = makePath([[a - 600, 0], [b + 600, 0]]);
+      for (const s of crowd(SIS, t, 8, 8, { speed: 120, spacing: 420, carryEvery: 1, sizeVar: .1 })) { const sz = 150 * s.size; A().creature(creaturePose(SPECS.ant, { path: SIS, s: s.s / sz, size: sz, ground: gb, t, seed: s.seed, carry: { w: 1.1, h: .7 } })); }
+      for (let i = Math.floor(a / 150); i * 150 < b; i++) { const x = i * 150 + 80 * hash(i + 3); A().blade(x, gb(x) + 30, 260 + 300 * hash(i), .14 * wind(t, x, 5), mixCol(P.grassDk, P.skyLow, .25)); }
+    });
+    Kit.cam(cx, cy, z, 0, hand(t));
+    const [x0, x1] = view(cx, z);
+    A().ground(gC, x0, x1);
+    A().props(x => gC(x) + 10, x0, x1, 8, 2.4, 0, 'sm');
+    drawLeaf(lf);
+    A().creature(hp, LOOK);
+    // Forídea (asas lentas no close): chega de cima e paira sobre a cabeça dela, derivando um pouco.
+    if (t > FLY_IN) {
+      const hx = hp.head.x - .06 * HSC + 30 * noise1(41, t * 1.1), hy = hp.head.y - .3 * HSC + 20 * noise1(42, t * 1.3);
+      const path = makePath([[hx + 700, hy - 450], [hx + 250, hy - 100], [hx, hy]]);
+      A().creature(creaturePose(FLY, { path, s: easeOut(seg(t, FLY_IN, FLY_IN + .8)) * path.length / FSC, size: FSC, t, seed: 4, gait: 'fly' }));
+    }
+    grass(t, x0, x1, x => gC(x) + 140, 60, 120, 260, null);
+    Kit.camEnd();
+  }
   function c1s01(t) {
-    const cam = kf(t, [[0, [960, 460, 1]], [1.2, [960, 470, 1.03]], [2.7, [840, 795, 3.4]], [4.5, [940, 795, 3.5]], [5.8, [980, 780, 2.6]], [8.6, [1150, 1330, .85]], [9.9, [1100, 1330, .85]], [12.3, [880, 1420, 1.7]], [14.1, [880, 1425, 1.78]]]);
+    if (t < CUT1) return close1(t);
+    const cam = kf(t, [[CUT1, [heroX1(CUT1), 800, 3.8]], [5.8, [980, 780, 2.6]], [8.6, [1150, 1330, .85]], [9.9, [1100, 1330, .85]], [12.3, [880, 1420, 1.7]], [14.1, [880, 1425, 1.78]]]);
     const [cx, cy, z] = cam, [x0, x1] = view(cx, z);
     Kit.gradient();
     layer(cx, cy, z, .1, t, () => { A().cloud(380 + 6 * t, 160, .8, 1); A().cloud(1450 + 4 * t, 110, .6, 2); A().cloud(2300 + 5 * t, 220, .7, 3); });
@@ -105,16 +144,14 @@
       if (Math.abs(T1.at(a.s).x - heroX1(t)) < 75) continue;  // a irmã que a encobriria sai da fila
       const sz = AS1 * a.size; A().creature(creaturePose(SPECS.ant, { path: T1, s: a.s / sz, size: sz, ground: g1, t, seed: a.seed, carry: a.carry ? { w: 1.1, h: .7 } : null }));
     }
-    const hp = her({ path: HL1, s: (heroX1(t) + 400) / AS1, size: AS1, ground: x => g1(x) + 14, t, carry: { w: 1, h: .45 } });
+    const hp = her({ path: HL1, s: (heroX1(t) + 400) / AS1, size: AS1, ground: x => g1(x) + 14, t });
+    drawLeaf(leaf1(hp, AS1));
     A().creature(hp, LOOK);
-    // Forídea: chega em fly1At, paira sobre a folha dela e some para o alto às 4,4 s.
-    const tf = fly1At(t), hx = hp.carry.x, hy = hp.carry.y - hp.carry.h - 10;
-    if (t > tf && t < 5.1) {
-      const FS = 30; let path, s;
-      if (t < tf + 1.1) { path = makePath([[hx + 420, hy - 320], [hx + 160, hy - 60], [hx, hy]]); s = easeOut(seg(t, tf, tf + 1.1)) * path.length / FS; }
-      else if (t < 4.4) { path = makePath([[hx + 1, hy], [hx, hy]]); s = 1 / FS; }
-      else { path = makePath([[hx, hy], [hx - 120, hy - 160], [hx - 200, hy - 800]]); s = easeIn(seg(t, 4.4, 5.1)) * path.length / FS; }
-      A().creature(creaturePose(FLY, { path, s, size: FS, t, seed: 4 }));
+    // Forídea: continua pairando sobre a cabeça dela depois do corte e some para o alto.
+    const hx = hp.head.x - .06 * AS1, hy = hp.head.y - .3 * AS1, tl = CUT1 + .6;
+    if (t < tl + .7) {
+      const FS = 16, path = t < tl ? makePath([[hx + 1, hy], [hx, hy]]) : makePath([[hx, hy], [hx - 120, hy - 160], [hx - 200, hy - 800]]);
+      A().creature(creaturePose(FLY, { path, s: t < tl ? 1 / FS : easeIn(seg(t, tl, tl + .7)) * path.length / FS, size: FS, t, seed: 4 }));
     }
     Kit.poly([[NEST1 - 70, g1(NEST1) + 8], [NEST1 - 30, g1(NEST1) - 20], [NEST1 + 25, g1(NEST1) - 24], [NEST1 + 75, g1(NEST1) + 8]], EARTH, { smooth: true, weight: 4 });
     Kit.ellipse(NEST1 + 5, g1(NEST1) - 6, 22, 7, P.line);

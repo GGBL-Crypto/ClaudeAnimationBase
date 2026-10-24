@@ -211,7 +211,7 @@
       // scale each form by their segment or head radius against the worker's. Winged specs (flyer) carry two pale wings:
       // folded along the back while walking, beating by wings.phase in flight (the far one behind the body).
       // Look options: wings (false: shed, a queen after the nuptial flight), jaws (0..1, mandibles open), eyes (false: none).
-      look: { color: P.purple, dark: P.purpleDk, wing: mixCol(P.cloud, P.water, .25) },
+      look: { color: P.sauva, dark: P.sauvaDk, wing: mixCol(P.cloud, P.water, .25) },
       build(p, L) {
         const top = p.view !== 'side', Q = pieces(p, L), G = [], o = { L }, [th, pe, ga] = p.spine, hd = [p.head.x, p.head.y], S = p.size;
         const Z = SPECS[p.spec], A = SPECS.ant, sc = i => ({ L, sc: Z.spine[i].r / A.spine[i].r }), kh = Z.head.r / A.head.r;

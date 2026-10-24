@@ -33,7 +33,7 @@ Esqueleto mínimo que funciona (`c01_revoada.js`):
   const P = STYLE.palette, A = () => NatureArt;
   // Protagonista: mesmas constantes em todos os capítulos (copie sem mudar).
   const at = id => PROJECT.storyboard.find(s => s.id === id).start;
-  const SEED = 7, LOOK = { color: P.hero, dark: mixCol(P.hero, P.ink, .35) };
+  const SEED = 7, LOOK = { color: P.sauvaHero, dark: mixCol(P.sauvaHero, P.ink, .35) };
   const BORN = at('c3s04'), DIES = at('c8s01'), age = t => clamp((t - BORN) / (DIES - BORN));
   const her = o => creaturePose(SPECS.ant, { seed: SEED, age: age(o.t), ...o });
 
@@ -60,7 +60,7 @@ Esqueleto mínimo que funciona (`c01_revoada.js`):
 
 ## Protagonista e continuidade
 
-- **Uma operária só**, sempre `SPECS.ant`, `seed: 7` e `LOOK = { color: P.hero, dark: mixCol(P.hero, P.ink, .35) }` (bloco do esqueleto, copiado igual em todo capítulo). O vermelho `P.hero` aparece só nela: irmãs, rainha, soldada, caroneira e mosca usam o `look` padrão do `decor` (sem segundo argumento).
+- **Uma operária só**, sempre `SPECS.ant`, `seed: 7` e `LOOK = { color: P.sauvaHero, dark: mixCol(P.sauvaHero, P.ink, .35) }` (bloco do esqueleto, copiado igual em todo capítulo). O vermelho-alaranjado `P.sauvaHero` aparece só nela: irmãs, rainha, alados, soldada e caroneira usam o `look` padrão do `decor` `ant` (marrom-avermelhado `P.sauva`/`P.sauvaDk`, sem segundo argumento); a mosca, o dela.
 - Antes de nascer (c2s05–c3s04) ela é o ovo, a larva e a pupa de `seed: 7`, no centro do quadro e com a câmera nela; esses desenhos não têm `look`.
 - **Idade derivada de t:** `age(t)` = 0 no nascimento (início de c3s04) e 1 no último dia (início de c8s01). Passe sempre por `her({...})`: `creaturePose` usa `age` para encurtar passada, levantar menos os pés e acalmar antenas (`ageK = 1 − .5·age`). Outros estados contínuos seguem o mesmo padrão, por ID de plano e nunca por constante solta: o ovo eclode em `hatch = clamp((t − at('c3s01')) / 3)`; a vida acaba com `alive: 1 − ease(seg(t, at('c8s01') + 3, at('c8s01') + 6))`.
 - Leitura de tamanho: operária média = 1 BL; jardineira/mínima ≈ .45 BL (`SPECS.minima`), soldada ≈ 1,4 BL (`SPECS.soldier`), rainha ≈ 2 BL (`SPECS.queen`), mosca ≈ .5 BL (`SPECS.fly`). Num plano em que ela é o assunto, ela ocupa ao menos 1/3 da altura do quadro.
@@ -91,7 +91,7 @@ Notas da Task 13b:
 - Algo novo a cada 2 a 4 s: movimento, revelação, corte ou reação. Plano parado só com vida (antenas, respiração, capim ao vento, fundo andando).
 - 3 ou mais detalhes de vida de fundo por quadro que não carregam o enredo: irmãs passando ao fundo, capim (`blade` + `wind`), nuvem andando, grão de terra caindo, fungo respirando.
 - Câmera com intenção: cada plano diz por que a câmera se move (seguir, revelar, aproximar). Movimento por `springMove`/`ease` sobre `Kit.cam`; nenhum plano totalmente parado nem câmera tremendo à toa.
-- Mostre a ideia em vez de rotular: "noite" é céu escuro com lua e silhuetas, não um texto. Os textos de tela do roteiro (nomes, números) entram com `Kit.text(..., { k })` (k de 0 a 1 em ~.4 s) perto do assunto, nunca centralizados sobre gradiente nem como rótulo de canto.
+- Mostre a ideia em vez de rotular: "noite" é céu escuro com lua e silhuetas, não um texto. Texto de tela só para nome de espécie e número marcante, curto, perto do assunto e com entrada animada `Kit.text(..., { k })` (k de 0 a 1 em ~.4 s); nunca centralizado sobre gradiente nem como rótulo de canto.
 - Escala variada: geral, médio e ao menos um close extremo por capítulo.
 - Causa antes da reação: a mosca mergulha, depois ela se assusta (`flinch` com `anticipate`, emote `!`).
 - Transição de saída motivada: corte seco na continuidade da ação, match cut (forma ou movimento igual dos dois lados) ou íris onde o roteiro marca (c1s09 fecha, c2s01 abre, c8s01 abre, c8s06 fecha). Íris: `Kit.iris(x, y, r)` centrada na protagonista ou no assunto, r de ~2300 a 0.
