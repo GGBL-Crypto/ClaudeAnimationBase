@@ -38,6 +38,7 @@ Este repositório produz vídeos animados longos para um canal do YouTube, de fo
 - Eidoverse é AGPLv3: aproveite ideias e reescreva. Não copie código.
 - Piper TTS é GPL e é usado só como ferramenta externa (subprocesso). Confirme a licença de cada voz no model card antes de publicar.
 - Fatos de qualquer roteiro precisam de fonte registrada. Não invente números.
+- Nunca envie e-mail, nome ou outro dado pessoal do usuário a serviços externos (APIs de pesquisa, Unpaywall, formulários). Quando um serviço exigir e-mail, pare e pergunte.
 
 ## Estilo de sessão
 
