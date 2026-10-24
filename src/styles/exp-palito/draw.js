@@ -27,7 +27,7 @@
   function brush(pts, w, o = {}) {
     const s = o.raw ? pts : smooth(pts), n = s.length;
     if (n < 2) return;
-    const sd = (o.seed ?? 1) * 7.3 + boil * 13.7, t0 = o.t0 ?? .35, t1 = o.t1 ?? .35, wob = (o.wob ?? .7) / z, acc = [0];
+    const sd = (o.seed ?? 1) * 7.3 + boil * 13.7, pr = o.pr ?? .22, t0 = o.t0 ?? .35, t1 = o.t1 ?? .35, wob = (o.wob ?? .7) / z, acc = [0];
     for (let i = 1; i < n; i++) acc.push(acc[i - 1] + Math.hypot(s[i][0] - s[i - 1][0], s[i][1] - s[i - 1][1]));
     const len = acc[n - 1] || 1, L = [], R = [];
     for (let i = 0; i < n; i++) {
@@ -36,7 +36,7 @@
       let bend = 0;
       if (i > 0 && i < n - 1) { const a1 = Math.atan2(s[i][1] - a[1], s[i][0] - a[0]), a2 = Math.atan2(b[1] - s[i][1], b[0] - s[i][0]); bend = Math.abs(Math.atan2(Math.sin(a2 - a1), Math.cos(a2 - a1))); }
       const u = acc[i] / len, tp = Math.max(.12, (t0 ? ease(u / t0) : 1) * (t1 ? ease((1 - u) / t1) : 1));
-      const hw = w / z / 2 * tp * (1 + .22 * noise1(sd, u * 3)) * (1 + Math.min(.6, 2.2 * bend));
+      const hw = w / z / 2 * tp * (1 + pr * noise1(sd, u * 3)) * (1 + Math.min(.6, 2.2 * bend));
       const off = wob * noise1(sd + 5, acc[i] * z / 60), x = s[i][0] - dy * off, y = s[i][1] + dx * off;
       L.push([x - dy * hw, y + dx * hw]); R.push([x + dy * hw, y - dx * hw]);
     }
@@ -68,8 +68,9 @@
     const pts = [], n = 48, a0 = o.half ? Math.PI : 0, a1 = o.half ? TAU : TAU * 1.06;
     for (let i = 0; i <= n; i++) { const a = lerp(a0, a1, i / n), r = k(a); pts.push([x + rx * r * Math.cos(a), y + ry * r * Math.sin(a) * (o.flat && Math.sin(a) > 0 ? .35 : 1)]); }
     if (o.fill) { c.beginPath(); for (const q of pts) c.lineTo(q[0], q[1]); c.closePath(); c.fillStyle = o.fill; c.fill(); }
-    brush(pts, w, { raw: true, t0: .08, t1: .12, seed: o.seed, col: o.col });
-    if (o.half) brush([[x - rx, y], [x + rx, y]], w, { seed: o.seed + 1, t0: .1, t1: .1, col: o.col });
+    if (w <= 0) return;
+    brush(pts, w, { raw: true, t0: .08, t1: .12, seed: o.seed, col: o.col, pr: o.pr });
+    if (o.half) brush([[x - rx, y], [x + rx, y]], w, { seed: o.seed + 1, t0: .1, t1: .1, col: o.col, pr: o.pr });
   }
   function tuft(x, y, s, sd, w, col = P.ink) {
     for (let i = -1; i <= 1; i++) {
@@ -100,16 +101,20 @@
     if (Wd.soilTop) {  // solo em tom de papel mais escuro; túneis e câmaras escavados em papel, contornados a pincel
       c.beginPath(); for (const q of gp) c.lineTo(q[0], q[1]); c.lineTo(x1 + 50, 6000); c.lineTo(x0 - 50, 6000); c.closePath(); c.fillStyle = P.soil; c.fill();
       if (Wd.roots) { const { x, y, h } = Wd.roots; for (let i = 0; i < 4; i++) { const a = .5 + i * .7 + .3 * hash(i + 3), l = h * (.25 + .15 * hash(i)); brush([[x, y], [x + Math.cos(a) * l * .5, y + .4 * l], [x + Math.cos(a) * l, y + Math.sin(a) * .5 * l + .5 * l]], 3, { seed: 30 + i, t0: 0, t1: .9, col: mid }); } }
-      const TW = 13, wt = 2.4;
+      const TW = 13, wt = 4.2;  // contorno de pincel com pressão forte: o solo não pode parecer planta de CAD
       for (const pts of Wd.tunnels) { c.beginPath(); pts.forEach(([x, y]) => c.lineTo(x, y)); c.lineWidth = 2 * TW; c.lineCap = c.lineJoin = 'round'; c.strokeStyle = P.paper; c.stroke(); }
       Wd.tunnels.forEach((pts, i) => {
         const s = smooth(pts);
-        for (const sg of [-1, 1]) brush(s.map((q, j) => { const a = s[Math.max(0, j - 1)], b = s[Math.min(s.length - 1, j + 1)], d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [q[0] - sg * TW * (b[1] - a[1]) / d, q[1] + sg * TW * (b[0] - a[0]) / d]; }), wt, { raw: true, seed: 40 + i * 2 + sg, t0: .05, t1: .05 });
+        for (const sg of [-1, 1]) brush(s.map((q, j) => { const a = s[Math.max(0, j - 1)], b = s[Math.min(s.length - 1, j + 1)], d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [q[0] - sg * TW * (b[1] - a[1]) / d, q[1] + sg * TW * (b[0] - a[0]) / d]; }), wt, { raw: true, seed: 40 + i * 2 + sg, t0: .05, t1: .05, pr: .55 });
       });
-      for (const [x, y, w, h, sd] of Wd.chambers) blob(x, y, w / 2, h, a => 1 + .03 * Math.sin(a * 5 + sd), wt * 1.2, { half: true, fill: P.paper, seed: 60 + sd });
-      for (const [x, y, w, h, sd] of Wd.fungus) {  // fungo: couve-flor de contorno com espirais dentro
-        blob(x, y, w / 2 * .8, h * .55, a => 1 + .14 * Math.abs(Math.sin(a * 6 + sd)), wt, { half: true, fill: P.paper, seed: 80 + sd });
-        for (let i = 0; i < 4; i++) { const px = x + (hash(sd + i) - .5) * w * .5, py = y - h * (.12 + .2 * hash(sd + i + 5)), r = w * .045, sp = []; for (let k = 0; k <= 14; k++) { const a = k / 14 * TAU * 1.6; sp.push([px + r * (1 - k / 20) * Math.cos(a), py + r * (1 - k / 20) * Math.sin(a)]); } brush(sp, 1.6, { raw: true, seed: sd + i, col: mid }); }
+      for (const [x, y, w, h, sd] of Wd.chambers) blob(x, y, w / 2, h, a => 1 + .03 * Math.sin(a * 5 + sd), wt * 1.3, { half: true, fill: P.paper, seed: 60 + sd, pr: .55 });
+      for (const [x, y, w, h, sd] of Wd.fungus) {  // fungo: nuvem de laços sobre o chão da câmara
+        blob(x, y, w / 2 * .92, h * .8, a => 1 + .16 * Math.abs(Math.sin(a * 6 + sd)), 0, { half: true, fill: P.paper, seed: 80 + sd });
+        for (let i = 0; i < 11; i++) {
+          const a = Math.PI * (1.04 + .92 * i / 10), r = w * (.07 + .03 * hash(sd + i)), row = i % 2 ? .55 : 1;
+          loop(x + Math.cos(a) * w / 2 * .85 * row, y + Math.sin(a) * h * .72 * row + r * .5, r, r * .9, 0, i % 2 ? 2.4 : 3.4, { fill: P.paper, seed: sd * 20 + i, col: i % 2 ? mid : P.ink });
+        }
+        brush([[x - w / 2 * .95, y], [x + w / 2 * .95, y]], wt, { seed: 81 + sd, t0: .1, t1: .1 });
       }
     }
     if (Wd.tree) {  // árvore de palito: tronco de um traço, copa num contorno de nuvem
@@ -145,15 +150,24 @@
   // de destaque; as do fundo, em tinta clara.
   function ant(a, F) {
     const p = a.pose, S = p.size, hero = a.role === 'hero', back = a.role === 'back', sd = sid(a.id) * 10;
-    const w = lw(S * z) * (hero ? 1.2 : 1), ink = back ? P.faint : P.ink, far = back ? mixCol(P.faint, P.paper, .4) : mixCol(P.ink, P.paper, .45);
+    const k = clamp((90 - S * z) / 45), small = k > .5, w = Math.max(lw(S * z) * (hero ? 1.2 : 1), 1.4 + 1.2 * k), ink = back ? P.faint : P.ink, far = back ? mixCol(P.faint, P.paper, .4) : mixCol(P.ink, P.paper, .45);
     const fill = hero ? P.accent : P.paper, hr = SPECS[p.spec].head.r * S, [th, pe, ga] = p.spine, limbs = Object.values(p.limbs);
-    const leg = (l, col, k, i) => brush([l.root, l.mid, l.end], w * k * 1.2, { col, seed: sd + i, t0: .12, t1: .6 });
+    const leg = (l, col, m, i) => brush([l.root, l.mid, l.end], w * m * (hero ? 1.7 : 1.2), { col, seed: sd + i, t0: .12, t1: .6 });
     if (hero) speed(a, F, ga.x - p.facing * ga.r * 1.5, [th.y, ga.y - .3 * ga.r, ga.y + .4 * ga.r], w * .7);
     limbs.forEach((l, i) => l.far && leg(l, far, .8, i));
-    brush(p.appendages.antennaR || [], w * .7, { col: far, seed: sd + 8, t0: .1, t1: .6 });
+    brush(p.appendages.antennaR || [], w * (hero ? 1.1 : .7), { col: far, seed: sd + 8, t0: .1, t1: .6 });
     // Pequena na tela vira bolinhas cheias de tinta (contorno vazio viraria borrão), em transição suave com o tamanho.
-    const k = clamp((90 - S * z) / 45), small = k > .5, fb = hero ? fill : mixCol(P.paper, ink, k);
-    const bub = (q, rx, ry, a, m, s) => loop(q.x, q.y, rx, ry, a, w * m * (1 - .5 * k), { fill: fb, col: ink, seed: sd + s });
+    // Pequenas (túneis, fila) engordam um pouco: silhueta preta legível. A protagonista: papel, aguada laranja parcial
+    // deslocada (não chapada) e o contorno de pincel por cima.
+    const fb = hero ? P.paper : mixCol(P.paper, ink, k), g = 1 + .35 * k;
+    const bub = (q, rx, ry, a, m, s) => {
+      rx *= g; ry *= g;
+      if (!hero) return loop(q.x, q.y, rx, ry, a, w * m * (1 - .5 * k), { fill: fb, col: ink, seed: sd + s });
+      loop(q.x, q.y, rx, ry, a, 0, { fill: P.paper, seed: sd + s });
+      const co = Math.cos(a), si = Math.sin(a), ox = -.14 * rx, oy = -.12 * ry;
+      c.globalAlpha *= .85; loop(q.x + ox * co - oy * si, q.y + ox * si + oy * co, rx * .78, ry * .72, a + .1, 0, { fill: P.accent, seed: sd + s + 5 }); c.globalAlpha = a0;
+      loop(q.x, q.y, rx, ry, a, w * m, { col: ink, seed: sd + s });
+    }, a0 = c.globalAlpha;
     bub(ga, ga.r * 1.25, ga.r * .95, ga.angle, 1, 11); bub(pe, pe.r * 1.2, pe.r * .9, pe.angle, .8, 12);
     bub(th, th.r * 1.4, th.r * .8, th.angle, 1, 13);
     limbs.forEach((l, i) => !l.far && leg(l, ink, 1, i));  // pernas de cá antes da cabeça: não cruzam o olho
@@ -165,8 +179,8 @@
       else dot(.4 * hr, -.18 * hr, .17 * hr, ink);
       c.restore();
     }
-    brush(p.appendages.antennaL || [], w * .8, { col: ink, seed: sd + 9, t0: .1, t1: .6 });
-    if (p.carry) leaf(p.carry, w, hero ? mixCol(P.accent, P.paper, .6) : P.paper, ink, sd + 20);
+    brush(p.appendages.antennaL || [], w * (hero ? 1.3 : .8), { col: ink, seed: sd + 9, t0: .1, t1: .6 });
+    if (p.carry) leaf(p.carry, w, P.paper, hero ? mixCol(P.ink, P.paper, .45) : ink, sd + 20);
   }
   // Folha cortada: gota de contorno com a nervura; gira pelo ângulo do pedaço.
   function leaf(L, w, fill, col, sd) {
@@ -174,6 +188,10 @@
     for (let i = 0; i <= 12; i++) { const u = -1 + 2 * i / 12, v = L.h / 2 * (1 - u * u) ** .7 * (1 + .25 * u); top.push(to([u * L.w / 2, -v])); bot.push(to([u * L.w / 2, v])); }
     const pts = [...top, ...bot.reverse()];
     c.beginPath(); for (const q of pts) c.lineTo(q[0], q[1]); c.closePath(); c.fillStyle = fill; c.fill();
+    if (L.w * z > 60) for (let i = 1; i < 12; i++) {  // hachura leve, inclinada, de borda a borda
+      const u = -1 + 2 * i / 12, v = L.h / 2 * (1 - u * u) ** .7 * (1 + .25 * u) * .8;
+      brush([to([u * L.w / 2 - .08 * L.w, -v]), to([u * L.w / 2 + .04 * L.w, v])], w * .35, { col: mixCol(col, P.paper, .4), seed: sd + 3 + i, t0: .3, t1: .3 });
+    }
     brush(pts, w * .85, { raw: true, col, seed: sd, t0: .05, t1: .05 });
     brush([to([-L.w / 2, 0]), to([0, -.04 * L.h]), to([.38 * L.w, 0])], w * .5, { col, seed: sd + 1 });
   }
