@@ -127,12 +127,22 @@
   // ---------- c7s01: close de perfil da cabeça na trilha; mandíbulas abrem e fecham; brilho no fio ----------
   // Mesmo enquadramento de c3s04b (HC, câmera que avança da cabeça aos dentes); as semanas passam nas nuvens.
   const t1 = at('c7s01'), HC = 1900, G1 = 1500, L1 = makePath([[-3000, G1], [5000, G1]]);
-  const GL1 = [rd('c7s01', 1) + 1.5, rd('c7s01', 1) + 3.2];
+  // Batidas sobre as falas: no respiro, ela mastiga devagar; "as semanas passam" ela ergue a cabeça e varre as antenas;
+  // "cobra o seu preço" fecha a mandíbula de vez; "a mandíbula" a câmera vai ao fio, que abre e brilha duas vezes.
+  const R10 = rd('c7s01', 0), R11 = rd('c7s01', 1), LOOK1 = R10 + .1, SNAP1 = R10 + 2.3, EDGE1 = R11 + .1;
+  const GL1 = [R11 + 1.5, R11 + 3.2];
+  function jaw1(t) {
+    if (t < SNAP1) return .5 - .5 * Math.cos(TAU * (t - t1) / 3.2);
+    if (t < EDGE1 + .3) return clamp(.9 * (1 - anticipate(t, SNAP1, .18, .25)) + .1);  // abre mais, fecha de vez e assenta
+    return .15 + .75 * ease(seg(t, EDGE1 + .3, EDGE1 + 1)) - .25 * ease(seg(t, R11 + 2.3, R11 + 2.8)) + .25 * ease(seg(t, R11 + 2.8, R11 + 3.1));
+  }
   function c7s01(t, lt) {
-    const jaw = .5 - .5 * Math.cos(TAU * (t - t1) / 3.2);
-    const p = nod(her({ path: L1, s: sAt(900, HC), size: HC, ground: () => G1, t, moving: 0, antennae: 'explore' }), 0, 0, .07 * noise1(44, t * .45));
-    const k = ease(seg(t, t1 + 1.2, end('c7s01') - .8)), z = lerp(.88, 1.3, k), cx = p.head.x + lerp(-60, 130, k), cy = p.head.y + lerp(90, 110, k), hy = 900;
-    A().sky(.3);
+    const jaw = jaw1(t), up = ease(seg(t, LOOK1, LOOK1 + .6)) * (1 - ease(seg(t, SNAP1 - .4, SNAP1))), sn = anticipate(t, SNAP1, .18, .25);
+    const p = nod(her({ path: L1, s: sAt(900, HC), size: HC, ground: () => G1, t, moving: 0, antennae: t > LOOK1 && t < SNAP1 ? 'tap' : 'explore' }), 0, -.01 * up - .004 * sn, -.18 * up - .06 * sn + .07 * noise1(44, t * .45));
+    // Câmera: cabeça inteira → sobe com o olhar → assenta no estalo → avança até o fio da mandíbula e corre por ele.
+    const o = kf(t, [[t1, [-60, 90, .88]], [LOOK1, [-60, 90, .9]], [LOOK1 + 1.2, [-20, 20, .96]], [SNAP1 + .2, [20, 100, 1.02]], [EDGE1, [30, 100, 1.05]], [EDGE1 + 1.3, [150, 150, 1.65]], [R11 + 2.6, [190, 160, 1.75]], [end('c7s01'), [120, 140, 1.6]]]);
+    const z = o[2], cx = p.head.x + o[0], cy = p.head.y + o[1], hy = 900;
+    A().sky(.8);
     // Nuvens correndo (o tempo passa), capim gigante enevoado e irmãs com folhas numa trilha de trás.
     layer(cx, cy, z, .1, t, (a, b, lx) => { for (let i = 0; i < 4; i++) A().cloud(lx + (frac(hash(i + 50) + .05 * lt * (1 + .2 * i)) - .5) * (W / z + 900), hy - 380 + 90 * hash(i + 51), 1.1, i); });
     layer(cx, cy, z, .35, t, (a, b) => {
@@ -251,25 +261,38 @@
   }
 
   // ---------- c7s04: começa a chover na trilha; ela anda mais devagar que as outras ----------
-  const S5 = 380, HIT = rd('c7s04', 1) + 2;
-  const keys5 = [[T4, sAtL(1500, S5)], [HIT, sAtL(1500, S5) + .32 * (HIT - T4)], [HIT + .9, sAtL(1500, S5) + .32 * (HIT - T4) + .1], [end('c7s04') + 1, sAtL(1500, S5) + .32 * (end('c7s04') + 1 - T4)]];
-  const MID5 = makePath([[5000, 805], [-3000, 805]]);
+  const S5 = 380, HIT = rd('c7s04', 1) + 2, V5 = .26;
+  const keys5 = [[T4, sAtL(1500, S5)], [HIT, sAtL(1500, S5) + V5 * (HIT - T4)], [HIT + .9, sAtL(1500, S5) + V5 * (HIT - T4) + .08], [end('c7s04') + 1, sAtL(1500, S5) + V5 * (end('c7s04') + 1 - T4)]];
+  // As irmãs vão numa faixa de trás mais alta (gB), longe do corpo dela: passam por ela sem se cruzar.
+  const gB = x => gT(x) - 165, MID5 = makePath([[5000, 0], [-3000, 0]]);
+  // A folha dela, em pé na mandíbula e inclinada para a frente (como leaf1 de c01), para a cabeça e o corpo aparecerem.
+  function leaf5(p, S, dip = 0) {
+    const a = -Math.PI / 2 + (.35 + dip) * p.facing, w = .8 * S, bx = p.head.x + p.facing * .13 * S, by = p.head.y + .03 * S;
+    return { x: bx + w / 2 * Math.cos(a), y: by + w / 2 * Math.sin(a), w, h: .38 * S, a, top: [bx + w * Math.cos(a), by + w * Math.sin(a)] };
+  }
   function c7s04(t, lt) {
     const m = travel(t, keys5, { start: .2, stop: .3, seed: 48 }), fl = anticipate(t, HIT + .05, .05, .3, SPRING.bouncy) * (1 - ease(seg(t, HIT + .6, HIT + 1.3)));
-    const hp = her({ path: LT_L, s: m.s, size: S5, ground: x => gT(x) + 26, t, moving: m.moving, lean: m.lean, drag: m.drag, flinch: .5 * fl, antennae: 'explore', carry: { w: .9, h: .5 } });
-    const rk = rainK(t), hx = hp.spine[0].x, cam = [hx - 100, 640, 1.3];
+    const hp = her({ path: LT_L, s: m.s, size: S5, ground: x => gT(x) + 26, t, moving: m.moving, lean: m.lean, drag: m.drag, flinch: .5 * fl, antennae: 'explore' });
+    const lf = leaf5(hp, S5, .35 * fl), rk = rainK(t), hx = hp.spine[0].x;
+    // Câmera: segue ela; antes da gota, aproxima da folha e da cabeça; depois volta.
+    const zk = ease(seg(t, HIT - 1.4, HIT - .5)) * (1 - ease(seg(t, HIT + 1.3, HIT + 2.3)));
+    const cam = [lerp(hx - 60, hp.head.x - 40, zk), lerp(630, hp.head.y - 140, zk), lerp(1.25, 1.6, zk)];
     outdoors(t, cam, skyK(t), { back: false });
     const [x0, x1] = view(cam[0], cam[2]);
-    // As irmãs da trilha passam por ela (mais depressa), na faixa de trás.
-    for (const s of crowd(MID5, t, 12, 72, { speed: 260, spacing: 520, carryEvery: 1, sizeVar: .08 })) {
-      const sz = 250 * s.size, x = MID5.at(s.s).x;
-      if (x > x0 - 300 && x < x1 + 300) A().creature(creaturePose(SPECS.ant, { path: MID5, s: s.s / sz, size: sz, ground: x => gT(x) - 6, t, seed: s.seed, carry: { w: 1.1, h: .7 } }));
+    // A faixa de trás e as irmãs nela, mais rápidas: ultrapassam a velha.
+    A().ground(gB, x0, x1, mixCol(P.groundDk, P.stone, .25));
+    for (const s of crowd(MID5, t, 18, 72, { speed: 240, spacing: 440, carryEvery: 1, sizeVar: .08 })) {
+      const sz = 210 * s.size, x = MID5.at(s.s).x;
+      if (x > x0 - 300 && x < x1 + 300) A().creature(creaturePose(SPECS.ant, { path: MID5, s: s.s / sz, size: sz, ground: gB, t, seed: s.seed, carry: { w: 1.1, h: .7 } }));
     }
+    A().ground(gT, x0, x1);
+    A().props(gT, x0, x1, 17, 1.2, 0, 'sm');
+    drawLeaf(lf, 0);
     A().creature(hp, LOOK);
-    // Uma gota grande cai na folha dela: ela se encolhe e quase para.
-    if (t > HIT - .5 && t < HIT + .45) {
-      const top = hp.carry.y - .2 * S5, k = seg(t, HIT - .5, HIT);
-      if (k < 1) A().drop(hp.carry.x, lerp(top - 700, top, easeIn(k)), 16); else splash(hp.carry.x, top, seg(t, HIT, HIT + .45), 1.6);
+    // Uma gota grande cai na ponta da folha dela: a folha balança, ela se encolhe e quase para.
+    if (t > HIT - .6 && t < HIT + .6) {
+      const [tx, ty] = lf.top, k = seg(t, HIT - .6, HIT);
+      if (k < 1) A().drop(tx, lerp(ty - 900, ty, easeIn(k)), 36); else splash(tx, ty, seg(t, HIT, HIT + .6), 3);
     }
     grass(t, x0, x1, x => gT(x) + 70, 34, 40, 90, 1, rk);
     showers(t, x0, x1, cam[1] - H / 2 / cam[2] - 60, 90, 11, 8, (x, id) => gT(x) + 10 + 140 * hash(id + 9), 1);
