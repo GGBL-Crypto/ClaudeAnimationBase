@@ -55,7 +55,8 @@ export async function startStudioServer({ port = 0, root = ROOT } = {}) {
         res.writeHead(200,{'Content-Type':'application/json','Content-Length':bytes.length,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Cross-Origin-Resource-Policy':'same-origin'});res.end(req.method==='HEAD'?undefined:bytes);return;
       }
       const actual = await realpath(file),asset=assetRoutes.get(raw);
-      if (!within(root, actual)) return reject(403);
+      // exp/visual-rico: node_modules desta worktree é junção para a pasta principal; as rotas fixas de dependência passam.
+      if (!within(root, actual) && !DEPENDENCY_ROUTES.includes(raw.slice(1))) return reject(403);
       if(asset&&!within(asset.root,actual))return reject(403);
       // Open the verified target itself, so a swapped source symlink is not followed again.
       const bytes = await readFile(actual);

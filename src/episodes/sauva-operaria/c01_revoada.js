@@ -17,12 +17,118 @@
   const EARTH = mixCol(P.wood, P.ground, .2), EARTH_DK = mixCol(P.wood, P.ink, .35);
   // Camada de fundo com paralaxe só horizontal (f): a vertical acompanha a câmera, para o fundo sair do quadro quando
   // ela desce para o solo ou sobe para o céu. draw(x0, x1) recebe a faixa visível em coordenadas da camada.
-  // Variante C: profundidade de campo; o fundo distante (f <= .35) e o capim da frente desfocam (ctx.filter).
-  const dof = (px, fn) => { const c = animationEngine.context; c.save(); c.filter = `blur(${px}px)`; try { fn(); } finally { c.restore(); } };
-  function layer(cx, cy, zoom, f, t, draw) {
-    const lx = lerp(960, cx, f);
-    Kit.cam(lx, cy, zoom, 0, hand(t)); dof(f <= .35 ? 4 : 0, () => draw(lx - W / 2 / zoom - 200, lx + W / 2 / zoom + 200)); Kit.camEnd();
+  // Experimento visual (exp/visual-rico), profundidade de campo: o fundo distante (f <= .35) e o capim da frente desfocam.
+  // C: ctx.filter em todo quadro. C2: camadas paradas desfocadas uma vez (still), as que se movem desenhadas em 1/4 da
+  // resolução e ampliadas (lowres); cor por plano e grão (finish). D: C2 com os fundos parados pintados em p5.brush.
+  const EXP = { 'sauva-exp-c2': 'c2', 'sauva-exp-d': 'd' }[PROJECT.id] || 'c';
+  const LOW = 4, low = document.createElement('canvas'), lowG = low.getContext('2d'); low.width = W / LOW; low.height = H / LOW;
+  function lowres(fn) {
+    const c = animationEngine.context, m = c.getTransform();
+    lowG.resetTransform(); lowG.clearRect(0, 0, low.width, low.height);
+    lowG.setTransform(m.a / LOW, m.b / LOW, m.c / LOW, m.d / LOW, m.e / LOW, m.f / LOW); Kit.into(lowG, fn);
+    c.save(); c.resetTransform(); c.imageSmoothingQuality = 'high'; c.drawImage(low, 0, 0, W, H); c.restore();
   }
+  const dof = (px, fn) => {
+    if (EXP !== 'c') return px ? lowres(fn) : fn();
+    const c = animationEngine.context; c.save(); c.filter = `blur(${px}px)`; try { fn(); } finally { c.restore(); }
+  };
+  // Camada parada desenhada uma vez no retângulo [x, y, w, h] da camada, a k px por unidade, e desfocada r px no cache
+  // (chave: nome, k e r); depois é só copiada na transformação atual. draw(x0, x1, g) desenha no contexto g do cache.
+  // mask (D): pintura sobre papel branco; o caminho mask(c) é preenchido de branco e a pintura entra em multiply.
+  const STILL = new Map();
+  function still(name, [x, y, w, h], k, r, draw, mask) {
+    const key = name + '|' + k + '|' + r; let cv = STILL.get(key);
+    if (!cv) {
+      const a = document.createElement('canvas'), g = a.getContext('2d'); a.width = Math.ceil(w * k); a.height = Math.ceil(h * k);
+      g.scale(k, k); g.translate(-x, -y); Kit.into(g, () => draw(x, x + w, g, [x, y, w, h], k));
+      if (r) { cv = document.createElement('canvas'); cv.width = a.width; cv.height = a.height; const b = cv.getContext('2d'); b.filter = `blur(${r}px)`; b.drawImage(a, 0, 0); } else cv = a;
+      STILL.set(key, cv);
+    }
+    const c = animationEngine.context;
+    if (!mask) return c.drawImage(cv, x, y, w, h);
+    c.save(); c.beginPath(); mask(c); c.fillStyle = '#FFFFFF'; c.fill(); c.globalCompositeOperation = 'multiply'; c.drawImage(cv, x, y, w, h); c.restore();
+  }
+  // box = {name, at: [x, y, w, h], k, paint}: camada parada (C2 e D; paint, se houver, a pinta no D, a k px por unidade).
+  function layer(cx, cy, zoom, f, t, draw, box) {
+    const lx = lerp(960, cx, f);
+    Kit.cam(lx, cy, zoom, 0, hand(t));
+    if (box && EXP === 'd' && box.paint) still(box.name, box.at, box.k || .5, f <= .35 ? 1 : 0, box.paint, box.mask);
+    else if (box && EXP !== 'c') still(box.name, box.at, .5, 2, draw);
+    else dof(f <= .35 ? 4 : 0, () => draw(lx - W / 2 / zoom - 200, lx + W / 2 / zoom + 200));
+    Kit.camEnd();
+  }
+  // Fim do quadro em C2 e D: cor por plano (quente na superfície, fria no subsolo: under 0..1) em soft-light e grão leve,
+  // 4 ladrilhos de ruído por hash alternados pelo número do quadro.
+  const GRAIN = EXP === 'c' ? null : [0, 1, 2, 3].map(n => {
+    const cv = document.createElement('canvas'), g = cv.getContext('2d'); cv.width = cv.height = 256;
+    const id = g.createImageData(256, 256);
+    for (let i = 0; i < 65536; i++) { const v = 128 + 120 * (hash(n * 70001 + i * 1.37) - .5); id.data.fill(v, 4 * i, 4 * i + 3); id.data[4 * i + 3] = 255; }
+    g.putImageData(id, 0, 0); return animationEngine.context.createPattern(cv, 'repeat');
+  });
+  function finish(t, under = 0) {
+    if (EXP === 'c') return;
+    const c = animationEngine.context; c.save(); c.resetTransform(); c.globalCompositeOperation = 'soft-light';
+    if (under < 1) { c.globalAlpha = .4 * (1 - under); c.fillStyle = '#FFB25C'; c.fillRect(0, 0, W, H); }
+    if (under > 0) { c.globalAlpha = .5 * under; c.fillStyle = '#2C4C94'; c.fillRect(0, 0, W, H); }
+    c.globalCompositeOperation = 'overlay'; c.globalAlpha = .1; c.fillStyle = GRAIN[Math.round(t * PROJECT.fps) % 4]; c.fillRect(0, 0, W, H);
+    c.restore();
+  }
+  // D: o p5.brush (build standalone dist/brush.js, sem p5: não disputa nomes globais com motion.js nem com o Canvas2D)
+  // pinta num canvas WebGL2 fora da página; brushInto copia o retângulo box pintado a k px por unidade para o contexto g
+  // do cache. Só roda uma vez por fundo e semente (still). No standalone a origem é o centro do canvas. As manchas do
+  // brush supõem papel claro por baixo (num fundo transparente a borda sai branca e opaca): pinta-se sempre sobre papel
+  // branco opaco, e o que não cobre o quadro inteiro entra em multiply sobre uma máscara (still, mask).
+  let BR = null;
+  const BW = 4096, BH = 2048;
+  function brushInto(g, [x, y, w, h], k, fn, seed) {
+    if (!BR) {
+      BR = brush.createCanvas(BW, BH, { parent: null });
+      // O pincel de nanquim da aquarela (defineBrushes em src/core.js).
+      brush.add('ink', { type: 'default', weight: 5, scatter: .25, sharpness: .8, grain: 40, opacity: 235, spacing: .2, pressure: [1.15, .75], rotate: 'natural', noise: .15 });
+    }
+    brush.clear('#FFFFFF');
+    brush.seed(seed); brush.noiseSeed(7); brush.push(); brush.translate(-BW / 2, -BH / 2); brush.scale(k); brush.translate(-x, -y);
+    try { fn(); } finally { brush.pop(); brush.render(); }
+    g.drawImage(BR, 0, 0, Math.ceil(w * k), Math.ceil(h * k), x, y, w, h);
+  }
+  // Mancha de aquarela (borda que sangra e textura de papel) e traço de nanquim.
+  function wc(pts, col, op = 170, bleed = .15, tex = .5) { brush.noStroke(); brush.noHatch(); brush.noWash(); brush.fill(col, op); brush.fillBleed(bleed); brush.fillTexture(tex, .35); brush.polygon(pts); }
+  function nib(pts, w, col = P.line) { brush.noFill(); brush.noWash(); brush.noHatch(); brush.set('ink', col, w); brush.spline(pts, .5); }
+  const ell = (x, y, rx, ry, n = 20, sd = 0) => Array.from({ length: n }, (_, i) => { const a = i * TAU / n, k = .94 + .12 * hash(sd + i); return [x + rx * k * Math.cos(a), y + ry * k * Math.sin(a)]; });
+  const PAPER = '#F3EBDC';
+  // Céu: papel, aguadas do azul ao creme do horizonte e as fibras do papel da aquarela (makePaper em src/core.js).
+  function paintSky(x0, x1, g, box, k) {
+    const band = (y0, y1, sd) => [...Array.from({ length: 13 }, (_, i) => [-60 + i * 170, y0 + 30 * Math.sin(i * 1.3 + sd)]), ...Array.from({ length: 13 }, (_, i) => [W + 60 - i * 170, y1 + 40 * Math.sin(i * .9 + sd)])];
+    brushInto(g, box, k, () => {
+      brush.noStroke(); brush.noFill(); brush.noHatch(); brush.wash(PAPER, 255); brush.polygon([[-20, -20], [W + 20, -20], [W + 20, H + 20], [-20, H + 20]]);
+      wc(band(-80, 760, 1), P.skyTop, 150, .25, .6);
+      wc(band(-80, 380, 2), mixCol(P.skyTop, P.shade, .25), 70, .3, .6);
+      wc(band(560, H + 80, 3), mixCol(P.skyLow, P.sun, .5), 110, .25, .5);
+    }, 'sky');
+    let s = 11; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    g.lineWidth = 1;
+    for (let i = 0; i < 1400; i++) {
+      const x = rnd() * W, y = rnd() * H, l = 6 + rnd() * 26, a = rnd() * TAU; g.strokeStyle = `rgba(110,88,60,${.035 + rnd() * .06})`;
+      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a + .6) * l * .5, y + Math.sin(a + .6) * l * .5, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
+  }
+  const sky = () => EXP === 'd' ? still('sky', [0, 0, W, H], 1, 0, paintSky) : Kit.gradient();
+  // Máscara da faixa: o perfil prof de x0 a x1 até yb.
+  const stripMask = (prof, [x0, , w, h], yb) => c => { for (let x = x0; x <= x0 + w + 15; x += 16) c.lineTo(x, prof(x) + 2); c.lineTo(x0 + w, yb); c.lineTo(x0, yb); c.closePath(); };
+  // Faixa de terreno ao fundo: perfil prof até o pé do retângulo, duas aguadas e a crista a nanquim.
+  const strip = (prof, col, seed) => (x0, x1, g, box, k) => brushInto(g, box, k, () => {
+    const yb = box[1] + box[3] + 20, top = []; for (let x = x0 - 20; x <= x1 + 60; x += 40) top.push([x, prof(x)]);
+    brush.noStroke(); brush.noFill(); brush.noHatch(); brush.wash(col, 255); brush.polygon([...top.map(([x, y]) => [x, y + 6]), [x1 + 60, yb], [x0 - 20, yb]]);
+    wc([...top, [x1 + 60, yb], [x0 - 20, yb]], col, 200, .1, .55);
+    wc([...top.map(([x, y]) => [x, y + 40 + 15 * Math.sin(x * .01)]), [x1 + 60, yb], [x0 - 20, yb]], mixCol(col, P.shade, .3), 90, .2, .6);
+    nib(top, .6, mixCol(col, P.line, .6));
+  }, seed);
+  // Nuvem: os mesmos cinco gomos de NatureArt.cloud, centrada na origem (a máscara cobre os gomos).
+  const CLOUD = [[-80, 10, 50], [-25, -15, 62], [40, -5, 55], [85, 15, 40], [0, 22, 70]];
+  const cloudMask = (s, sd) => c => CLOUD.forEach(([dx, dy, r], i) => { c.moveTo(dx * s + 1.05 * r * s, dy * s); c.ellipse(dx * s, dy * s, 1.05 * r * s, .8 * r * s, 0, 0, TAU); });
+  const paintCloud = (s, sd) => (x0, x1, g, box, k) => brushInto(g, box, k, () => {
+    CLOUD.forEach(([dx, dy, r], i) => wc(ell(dx * s, (dy + 14) * s, r * s * .9, r * s * .55, 18, sd + i), mixCol(P.cloud, P.skyTop, .5), 110, .2, .5));
+  }, 'cloud' + sd);
   const view = (cx, zoom) => [cx - W / 2 / zoom - 80, cx + W / 2 / zoom + 80];
   const toScreen = (x, y, [cx, cy, z]) => [(x - cx) * z + W / 2, (y - cy) * z + H / 2];
   // Capim entre x0 e x1 sobre gy; odd = 0/1 desenha só metade (atrás / à frente dos seres).
@@ -87,12 +193,9 @@
   function close1(t) {
     const hp = her({ path: HPC, s: (3000 + 700) / HSC + 1.1 * t, size: HSC, ground: x => gC(x) + 60, t }), lf = leaf1(hp, HSC);
     const z = lerp(1, 1.06, ease(seg(t, 0, OUT1))) * lerp(1, .25, easeIn(seg(t, OUT1, CUT1))), cx = hp.head.x - 120, cy = hp.head.y - 110;
-    Kit.gradient();
+    sky();
     // Fundo macro (como c1s02): capim gigante enevoado e irmãs com folhas numa trilha de trás.
-    layer(cx, cy, z, .35, t, (a, b) => {
-      for (let i = Math.floor(a / 70); i * 70 < b; i++) { const x = i * 70 + 40 * hash(i + 200); A().blade(x, 700, 220 + 280 * hash(i + 201), .12 * wind(t, x, 7), mixCol(P.grass, P.skyLow, .55)); }
-      A().ground(x => 690 + 12 * Math.sin(x * .004), a, b, mixCol(P.grassDk, P.skyLow, .5));
-    });
+    mist(cx, cy, z, t, 700, x => 690 + 12 * Math.sin(x * .004), { name: 'mist1', at: [-1000, 560, 9000, 460], k: .4 });
     layer(cx, cy, z, .7, t, (a, b) => {
       const gb = x => 770 + 8 * Math.sin(x * .004), SIS = makePath([[a - 600, 0], [b + 600, 0]]);
       for (const s of crowd(SIS, t, 8, 8, { speed: 120, spacing: 420, carryEvery: 1, sizeVar: .1 })) { const sz = 150 * s.size; A().creature(creaturePose(SPECS.ant, { path: SIS, s: s.s / sz, size: sz, ground: gb, t, seed: s.seed, carry: { w: 1.1, h: .7 } })); }
@@ -112,26 +215,67 @@
     }
     dof(5, () => grass(t, x0, x1, x => gC(x) + 140, 60, 120, 260, null));
     Kit.camEnd();
+    finish(t);
   }
+  // Capim gigante enevoado (raízes em by) e o chão da camada .35 (perfil prof); no D o chão é pintado (box).
+  function mist(cx, cy, z, t, by, prof, box) {
+    const col = mixCol(P.grassDk, P.skyLow, .5);
+    const blades = (a, b) => { for (let i = Math.floor(a / 70); i * 70 < b; i++) { const x = i * 70 + 40 * hash(i + 200); A().blade(x, by, 220 + 280 * hash(i + 201), .12 * wind(t, x, 7), mixCol(P.grass, P.skyLow, .55)); } };
+    if (EXP === 'd') { layer(cx, cy, z, .35, t, blades); layer(cx, cy, z, .35, t, null, { ...box, paint: strip(prof, col, box.name), mask: stripMask(prof, box.at, box.at[1] + box.at[3]) }); }
+    else layer(cx, cy, z, .35, t, (a, b) => { blades(a, b); A().ground(prof, a, b, col); });
+  }
+  // D: o solo do corte, com câmaras e túneis, pintado uma vez (as mesmas formas de NatureArt.soil, chamber e tunnel).
+  const paintSoil = (x0, x1, g, box, k) => brushInto(g, box, k, () => {
+    const [bx, by, bw, bh] = box, x2 = bx + bw, y2 = by + bh + 20;
+    brush.noStroke(); brush.noFill(); brush.noHatch(); brush.wash(mixCol(P.wood, P.ink, .3), 255); brush.polygon([[bx - 20, by], [x2 + 20, by], [x2 + 20, y2], [bx - 20, y2]]);
+    for (let b = 0; b < 4; b++) {
+      const yb = by + bh * (.12 + .22 * b), wave = []; for (let x = bx - 20; x <= x2 + 60; x += 60) wave.push([x, yb + 22 * Math.sin(x * .004 + b) + 8 * Math.sin(x * .013)]);
+      wc([...wave, [x2 + 60, y2], [bx - 20, y2]], b === 1 ? mixCol(P.wood, P.mustard, .3) : mixCol(P.wood, P.ink, .45 + .08 * b), b === 1 ? 70 : 90, .2, .6);
+    }
+    for (let i = 0; i < 90; i++) { const r = 5 + 9 * hash(i * 3 + 2); wc(ell(bx + bw * hash(i * 3), by + bh * hash(i * 3 + 1), 1.3 * r, r, 10, i), i % 3 ? mixCol(P.wood, P.ink, .5) : mixCol(P.stone, P.wood, .3), 200, .05, .3); }
+    for (const p of TUN1) {
+      const mid = []; for (let d = 0; d <= p.length; d += 12) { const q = p.at(d); mid.push([q.x, q.y, q.angle]); }
+      const side = (o, sg) => mid.map(([x, y, a]) => [x - sg * o * Math.sin(a), y + sg * o * Math.cos(a)]);
+      wc([...side(22, 1), ...side(22, -1).reverse()], mixCol(P.wood, P.ink, .62), 230, .05, .4);
+      wc([...side(14, 1), ...side(14, -1).reverse()], mixCol(P.wood, P.ink, .3), 200, .08, .5);
+      nib(side(22, 1), .45); nib(side(22, -1), .45);
+    }
+    for (const [x, y, w, h, sd] of CH1) {
+      const pts = Array.from({ length: 14 }, (_, i) => { const a = i * TAU / 14, k = .9 + .18 * hash(sd + i * 2.3); return [x + Math.cos(a) * w / 2 * k, Math.min(y + 6, y - h / 2 + Math.sin(a) * h / 2 * k)]; });
+      wc(pts, mixCol(P.wood, P.ink, .5), 240, .08, .5);
+      wc(ell(x, y - .2 * h, .38 * w, .28 * h, 16, sd), mixCol(P.wood, P.sun, .15), 140, .3, .5);
+      nib([...pts, pts[0]], .6);
+    }
+  }, 'soil1');
   function c1s01(t) {
     if (t < CUT1) return close1(t);
     const cam = kf(t, [[CUT1, [heroX1(CUT1), 800, 3.8]], [5.8, [980, 780, 2.6]], [8.6, [1150, 1330, .85]], [9.9, [1100, 1330, .85]], [12.3, [880, 1420, 1.7]], [14.1, [880, 1425, 1.78]]]);
     const [cx, cy, z] = cam, [x0, x1] = view(cx, z);
-    Kit.gradient();
-    layer(cx, cy, z, .1, t, () => { A().cloud(380 + 6 * t, 160, .8, 1); A().cloud(1450 + 4 * t, 110, .6, 2); A().cloud(2300 + 5 * t, 220, .7, 3); });
-    layer(cx, cy, z, .3, t, (a, b) => A().ground(x => 640 + 40 * Math.sin(x * .002 + 1) + 18 * Math.sin(x * .006), a, b, mixCol(P.foliage, P.skyLow, .4)));
+    sky();
+    const clouds = [[380 + 6 * t, 160, .8, 1], [1450 + 4 * t, 110, .6, 2], [2300 + 5 * t, 220, .7, 3]];
+    if (EXP === 'd') {  // nuvens pintadas uma vez, como sprites que andam
+      const c = animationEngine.context; Kit.cam(lerp(960, cx, .1), cy, z, 0, hand(t));
+      for (const [x, y, s, sd] of clouds) { c.save(); c.translate(x, y); still('cloud' + sd, [-170 * s, -110 * s, 340 * s, 220 * s], 1, 1, paintCloud(s, sd), cloudMask(s, sd)); c.restore(); }
+      Kit.camEnd();
+    } else layer(cx, cy, z, .1, t, () => clouds.forEach(([x, y, s, sd]) => A().cloud(x, y, s, sd)));
+    const far1 = x => 640 + 40 * Math.sin(x * .002 + 1) + 18 * Math.sin(x * .006), farCol = mixCol(P.foliage, P.skyLow, .4);
+    layer(cx, cy, z, .3, t, (a, b) => A().ground(far1, a, b, farCol), { name: 'hills1', at: [-700, 450, 3400, 650], k: 1, paint: strip(far1, farCol, 'hills1'), mask: stripMask(far1, [-700, 450, 3400, 650], 1100) });
+    const hill = x => 740 + 20 * Math.sin(x * .0035 + 2), hillCol = mixCol(P.leafDk, P.skyLow, .2);
     layer(cx, cy, z, .6, t, (a, b) => {
-      const hill = x => 740 + 20 * Math.sin(x * .0035 + 2);
       for (let k = Math.floor(a / 160); k * 160 < b; k++) if (hash(k + 70) < .6) { const x = k * 160 + 60 * hash(k + 71); A().tree(x, hill(x) + 10, 120 + 90 * hash(k + 72), .05 * wind(t, x), k + 30, .3); }
-      A().ground(hill, a, b, mixCol(P.leafDk, P.skyLow, .2));
+      if (EXP === 'd') still('hill1', [-700, 680, 3400, 420], 1, 0, strip(hill, hillCol, 'hill1'), stripMask(hill, [-700, 680, 3400, 420], 1100));
+      else A().ground(hill, a, b, hillCol);
     });
     Kit.cam(cx, cy, z, 0, hand(t));
     A().tree(260, g1(260) + 10, 420, .04 * wind(t, 260), 4);
     A().ground(g1, x0, x1);
     // Corte do solo: terra, túneis, câmaras, raízes, depois quem mora lá.
-    A().soil(x0, 846, x1 - x0, 1300, 11);
-    for (const p of TUN1) A().tunnel(p, 34);
-    for (const [x, y, w, h, sd] of CH1) A().chamber(x, y, w, h, sd);
+    if (EXP === 'd') still('soil1', [-700, 846, 3400, 1300], 1, 0, paintSoil);
+    else {
+      A().soil(x0, 846, x1 - x0, 1300, 11);
+      for (const p of TUN1) A().tunnel(p, 34);
+      for (const [x, y, w, h, sd] of CH1) A().chamber(x, y, w, h, sd);
+    }
     A().roots(260, 850, 420, 1, 5);
     A().fungus(860, 1500, 360, 200, t, 3);
     A().fungus(1700, 1700, 250, 140, t, 4);
@@ -159,6 +303,7 @@
     Kit.ellipse(NEST1 + 5, g1(NEST1) - 6, 22, 7, P.line);
     dof(5, () => grass(t, x0, x1, g1, 18, 16, 34, 1, [[hp.head.x, hp.head.y]]));
     Kit.camEnd();
+    finish(t, seg(cy, 900, 1250));
   }
 
   // ---------- c1s02: ela para, olha para trás e varre o ar; nome e cheiro de limão ----------
@@ -167,12 +312,9 @@
   const SIS2 = makePath([[-600, 0], [2800, 0]]);
   function c1s02(t, lt) {
     const m = travel(t, HK2, HO2), thx = -3000 + m.s * HS2, cx = 960 + .6 * (thx - 980), z = 1 + .08 * ease(seg(lt, 2, 12));
-    Kit.gradient();
+    sky();
     // Fundo macro: capim gigante enevoado e as irmãs com folhas numa trilha de trás.
-    layer(cx, 540, z, .35, t, (a, b) => {
-      for (let i = Math.floor(a / 70); i * 70 < b; i++) { const x = i * 70 + 40 * hash(i + 200); A().blade(x, 640, 220 + 280 * hash(i + 201), .12 * wind(t, x, 7), mixCol(P.grass, P.skyLow, .55)); }
-      A().ground(x => 630 + 12 * Math.sin(x * .004), a, b, mixCol(P.grassDk, P.skyLow, .5));
-    });
+    mist(cx, 540, z, t, 640, x => 630 + 12 * Math.sin(x * .004), { name: 'mist2', at: [-1000, 500, 3500, 500], k: 1 });
     layer(cx, 540, z, .7, t, (a, b) => {
       const gb = x => 720 + 8 * Math.sin(x * .004);
       for (const s of crowd(SIS2, t, 7, 8, { speed: 110, spacing: 480, carryEvery: 1, sizeVar: .1 })) { const sz = 150 * s.size; A().creature(creaturePose(SPECS.ant, { path: SIS2, s: s.s / sz, size: sz, ground: gb, t, seed: s.seed, carry: { w: 1.1, h: .7 } })); }
@@ -203,6 +345,7 @@
     }
     grass(t, cx - W / z, cx + W / z, x => g2(x) + 140, 60, 120, 260, null);
     Kit.camEnd();
+    finish(t);
     const nk = Math.min(seg(t, rd('c1s02', 1), rd('c1s02', 1) + .4), 1 - seg(t, rd('c1s02', 2) - .3, rd('c1s02', 2)));
     const [tx, ty] = toScreen(980, 300, [cx, 540, z]);
     Kit.text('Saúva-limão (Atta sexdens)', tx, ty, 62, P.ink, { k: nk });

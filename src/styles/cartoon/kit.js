@@ -1,6 +1,6 @@
 // General Canvas2D drawing kit for nature/creature scenes. Pure functions of their arguments; no state between calls.
 (() => {
-  const c = window.animationEngine.context, P = STYLE.palette;
+  let c = window.animationEngine.context; const P = STYLE.palette;
   const mids = (pts, closed) => {
     const n = pts.length, m = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
     if (closed) { const s = m(pts[n - 1], pts[0]); c.moveTo(s[0], s[1]); for (let i = 0; i < n; i++) { const q = m(pts[i], pts[(i + 1) % n]); c.quadraticCurveTo(pts[i][0], pts[i][1], q[0], q[1]); } c.closePath(); return; }
@@ -26,6 +26,8 @@
   // Labels queued by text() this frame, drawn by post() over everything in the safe band at the top.
   const LABELS = [];
   window.Kit = {
+    // Runs fn with Kit and NatureArt drawing into the context g (offscreen layers), then restores the main one.
+    into(g, fn) { const k = c, n = NatureArt.use(g); c = g; try { fn(); } finally { c = k; NatureArt.use(n); } },
     // shake = null | {t, k = 1, seed = 0}: tremor de mão por noise1 (src/nature/noise.js), até 0,3% do quadro com k = 1.
     cam(cx, cy, zoom = 1, rot = 0, shake = null) {
       c.save(); c.translate(W / 2, H / 2);

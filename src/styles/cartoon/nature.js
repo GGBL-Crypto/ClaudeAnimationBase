@@ -4,7 +4,8 @@
 // drawn as one flat silhouette per group with a thick black outline (2000s TV cartoon: flat colour, no gradient, no
 // paper grain). Below 28 px a flat simplified form.
 (() => {
-  const c = window.animationEngine.context, P = STYLE.palette, PI2 = Math.PI / 2, PARTS = CARTOON_PARTS;
+  let c = window.animationEngine.context;  // swapped by Kit.into (drawing into an offscreen canvas)
+  const P = STYLE.palette, PI2 = Math.PI / 2, PARTS = CARTOON_PARTS;
   const dark = (col, k = .3) => mixCol(col, P.ink, k);
   const pale = col => mixCol(col, P.skyLow, .4);
   const BROOD = mixCol(P.cream, P.cloud, .4);  // eggs, larvae and pupae
@@ -421,6 +422,7 @@
 
   window.NatureArt = {
     creature, decor, loading,
+    use(g) { const o = c; c = g; return o; },  // Kit.into: draw into another context
     // Loads the imported character assets/characters/<name>/ (call while the scene script loads); then
     // creature(pose, {rig: name}) uses its pieces in place of the authored ones of the same name.
     load(name, root) { const job = PARTS.load(name, root); loading.push(job); return job; },
