@@ -1,0 +1,45 @@
+ANTES (commit 3138b33, estilos-h, pose antiga, modo legado sem geometria de estilo)
+  movimento: 0 violações
+  esqueleto: 7946 violações, todas "osso varia" (44 seres)
+    explorador: 237 de 240 quadros; pescoço -16% a +25%; coluna ~1%
+    formigas: pescoço (spine0 a cabeça) até ~10%
+  ângulo: 0
+
+DEPOIS (commit 94a1197, banco de frente e tronco, 6 estilos x cenas H, P, N, 30 fps)
+  movimento (camada 1): 0 violações; esqueleto (osso varia, solto da junta, passa da junta, ângulo): 0 violações
+  estilos-h camada 1 (240 quadros, 40 seres no máximo): 0 violações
+  estilos-h esqueleto exp-palito (240 quadros): 0 violações
+  estilos-p camada 1 (900 quadros, 6 seres no máximo): 0 violações
+  estilos-p esqueleto exp-palito (900 quadros): 0 violações
+  estilos-n camada 1 (900 quadros, 43 seres no máximo): 0 violações
+  estilos-n esqueleto exp-palito (900 quadros): 0 violações
+  estilos-h camada 1 (240 quadros, 40 seres no máximo): 0 violações
+  estilos-h esqueleto exp-tv (240 quadros): 0 violações
+  estilos-p camada 1 (900 quadros, 6 seres no máximo): 0 violações
+  estilos-p esqueleto exp-tv (900 quadros): 0 violações
+  estilos-n camada 1 (900 quadros, 43 seres no máximo): 0 violações
+  estilos-n esqueleto exp-tv (900 quadros): 0 violações
+  estilos-h camada 1 (240 quadros, 40 seres no máximo): 0 violações
+  estilos-h esqueleto exp-flat (240 quadros): 0 violações
+  estilos-p camada 1 (900 quadros, 6 seres no máximo): 0 violações
+  estilos-p esqueleto exp-flat (900 quadros): 0 violações
+  estilos-n camada 1 (900 quadros, 43 seres no máximo): 0 violações
+  estilos-n esqueleto exp-flat (900 quadros): 0 violações
+  estilos-h camada 1 (240 quadros, 40 seres no máximo): 0 violações
+  estilos-h esqueleto exp-papel (240 quadros): 0 violações
+  estilos-p camada 1 (900 quadros, 6 seres no máximo): 0 violações
+  estilos-p esqueleto exp-papel (900 quadros): 0 violações
+  estilos-n camada 1 (900 quadros, 43 seres no máximo): 0 violações
+  estilos-n esqueleto exp-papel (900 quadros): 0 violações
+  estilos-h camada 1 (240 quadros, 40 seres no máximo): 0 violações
+  estilos-h esqueleto exp-nanquim (240 quadros): 0 violações
+  estilos-p camada 1 (900 quadros, 6 seres no máximo): 0 violações
+  estilos-p esqueleto exp-nanquim (900 quadros): 0 violações
+  estilos-n camada 1 (900 quadros, 43 seres no máximo): 0 violações
+  estilos-n esqueleto exp-nanquim (900 quadros): 0 violações
+  estilos-h camada 1 (240 quadros, 40 seres no máximo): 0 violações
+  estilos-h esqueleto exp-aquarela (240 quadros): 0 violações
+  estilos-p camada 1 (900 quadros, 6 seres no máximo): 0 violações
+  estilos-p esqueleto exp-aquarela (900 quadros): 0 violações
+  estilos-n camada 1 (900 quadros, 43 seres no máximo): 0 violações
+  estilos-n esqueleto exp-aquarela (900 quadros): 0 violações
