@@ -566,16 +566,19 @@ window.ExpStyle = (() => {
     ell(x + .09 * h, y - 1.01 * h, .025 * h, .014 * h, 0, '#FFE7A8'); glow(x + .09 * h, y - 1.0 * h, .12 * h, '#FFD27A', .25);
   }
   const LAMPK = { post: '#3D4756' };
-  // Banco de perfil: pés de ferro, assento de ripa com topo em seatY e encosto na ponta de trás (bench.back).
+  // Banco de frente: encosto de duas ripas atrás do assento em toda a largura (seatY − backH até seatY), assento de ripa
+  // com topo em seatY e pés de ferro até o chão.
   function bench(b, gy, K) {
-    const x0 = b.x - b.w / 2, th = .1 * b.w, xb = b.x + b.back * b.w / 2, pw = .06 * b.w;
+    const x0 = b.x - b.w / 2, th = .08 * b.w, pw = .05 * b.w, bh = .16 * b.backH;
     c.fillStyle = K.iron;
+    for (const lx of [x0 + .06 * b.w, x0 + .94 * b.w]) c.fillRect(lx - pw / 2, b.seatY - b.backH, pw, b.backH + th);  // postes do encosto
     for (const lx of [x0 + .1 * b.w, x0 + .9 * b.w]) c.fillRect(lx - pw / 2, b.seatY, pw, gy - b.seatY);
-    c.beginPath(); c.moveTo(xb - pw / 2, b.seatY + th); c.lineTo(xb + b.back * .06 * b.w - pw / 2, b.seatY - b.backH); c.lineTo(xb + b.back * .06 * b.w + pw / 2, b.seatY - b.backH); c.lineTo(xb + pw / 2, b.seatY + th); c.closePath(); c.fill();
-    c.fillStyle = K.wood; c.beginPath(); c.roundRect(x0 - .04 * b.w, b.seatY, 1.08 * b.w, th, th / 2); c.fill();
-    for (const k of [.4, .8]) { const h = .14 * b.backH, x = xb + b.back * .06 * b.w * k; c.beginPath(); c.roundRect(x - h * .7, b.seatY - b.backH * k - h / 2, 1.4 * h, h, h / 2); c.fill(); }  // ripas do encosto vistas de lado
+    c.fillStyle = K.wood;
+    for (const k of [.15, .55]) { c.beginPath(); c.roundRect(x0, b.seatY - b.backH * (1 - k), b.w, bh, bh / 2); c.fill(); }  // ripas do encosto
+    c.beginPath(); c.roundRect(x0 - .03 * b.w, b.seatY, 1.06 * b.w, th, th / 2); c.fill();
     if (K === SHK) return;
-    c.fillStyle = K.woodLt; c.fillRect(x0, b.seatY + .015 * b.w, b.w, .025 * b.w);
+    c.fillStyle = K.woodLt; c.fillRect(x0, b.seatY + .012 * b.w, b.w, .02 * b.w);
+    for (const k of [.15, .55]) c.fillRect(x0, b.seatY - b.backH * (1 - k) + .15 * bh, b.w, .2 * bh);
   }
   const BENCHK = { iron: '#3D4756', wood: '#B07A4A', woodLt: '#D8A26A' };
   // Chafariz: bacia de pedra, água na bacia, pedestal com prato e jatos em arco; gotas descem pelo arco (puras de t).
@@ -596,6 +599,18 @@ window.ExpStyle = (() => {
     c.fillStyle = K.stoneDk; c.fillRect(x + .55 * r, top + .05 * r, .45 * r, .27 * r);
   }
   const STONEK = { stone: '#B4BEC2', stoneLt: '#DCE3E4', stoneDk: '#97A3A8' };
+  // Tronco caído (N): corpo do topo (log.top) ao chão, casca em riscos e anel do corte na ponta da direita.
+  function fallen(Lg, g, K) {
+    const n = 24, top = [], bot = [];
+    for (let i = 0; i <= n; i++) { const x = Lg.x0 + (Lg.x1 - Lg.x0) * i / n; top.push([x, Lg.top(x)]); bot.push([x, g(x) + 3]); }
+    c.fillStyle = K.bark; c.beginPath(); [...top, ...bot.reverse()].forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); c.fill();
+    if (K === SHK) return;
+    line(top, K.barkLt, 6);
+    for (let i = 1; i < 10; i++) { const x = Lg.x0 + (Lg.x1 - Lg.x0 - 60) * (i + .4 * hash(i + 40)) / 10, y0 = Lg.top(x), y1 = g(x); line([[x, y0 + .25 * (y1 - y0)], [x + 16 + 14 * hash(i + 50), y0 + (.45 + .2 * hash(i + 60)) * (y1 - y0)]], K.barkDk, 3.5); }
+    const xm = Lg.x1 - 60, ym = (Lg.top(xm) + g(xm)) / 2, rr = (g(xm) - Lg.top(xm)) / 2;
+    ell(xm, ym, rr * .6, rr * .98, 0, K.barkDk); ell(xm + 3, ym, rr * .5, rr * .86, 0, K.cut); ell(xm + 3, ym, rr * .3, rr * .52, 0, K.cutDk); ell(xm + 3, ym, rr * .1, rr * .18, 0, K.cut);
+  }
+  const LOGK = { bark: '#6B4A32', barkLt: '#8A6446', barkDk: '#4A3222', cut: '#D9B98A', cutDk: '#B8935F' };
   // Flor: no chão, deitada (caule para trás); na mão, o punho segura o caule e a flor sobe acima dele (k de 0 a 1 em .3 s).
   function flower(it, t, grab) {
     const r = it.r, k = it.held ? ease(seg(t, grab, grab + .3)) : 0, bx = it.x, by = it.y - 2.2 * r * k, e = lerp2([it.x - 1.8 * r, it.y + r], [it.x + .2 * r, it.y + 1.1 * r], k);
@@ -692,7 +707,9 @@ window.ExpStyle = (() => {
     if (pts.length > 1) line(pts, P.grassLt, 5 / Math.sqrt(cam.z));
     tufts(1, x => x < L.x0 - 60 ? g(x) : 1e5, 44, 18, mixCol(P.grassDk, P.grass, .3), F.t, 23);
     if (w.nest) { const k = w.nest.r / 150; c.save(); c.translate(w.nest.x, w.nest.y); c.scale(k, k); mound(0, 0); c.restore(); }
-    group(F, F.actors, w.plants.map(q => ({ depth: q.depth, draw: () => plant(q, F.t) })));
+    const Lg = w.log, props = w.plants.map(q => ({ depth: q.depth, draw: () => plant(q, F.t) }));
+    if (Lg) props.push({ depth: Lg.depth, gy: g((Lg.x0 + Lg.x1) / 2), draw: () => fallen(Lg, g, LOGK), shadow: () => fallen(Lg, g, SHK) });
+    group(F, F.actors, props);
     water(L, g, F.t); at(1); ripples(w.ripples, F.t); splashes(w.splashes, F.t);
   }
 
