@@ -166,7 +166,7 @@ window.ExpStyle = (() => {
   // hind = traseiras do cão, mais grossas).
   const KW = {
     ant: { neck: .03, head: .92, leg: [.011, .0077, .0099] }, fly: { neck: .0225, head: .95 }, beetle: { neck: .03, head: .9, leg: [.015, .01, .012] },
-    dog: { neck: .058, head: .8, leg: [.045, .026, .028], hind: [.06, .028, .028] }, bird: { neck: .07, head: 1, leg: [.024, .011, .01] },
+    dog: { neck: .062, head: 1.1, leg: [.045, .026, .019], hind: [.06, .028, .019] }, bird: { neck: .07, head: 1, leg: [.024, .011, .01] },
     fish: { neck: .09, head: .9 }, butterfly: { neck: .03, head: 1 },
   };
   // Ponta redonda que termina no dedo, com a sola rente: recua r no eixo e sobe r na normal de cima.
@@ -268,24 +268,32 @@ window.ExpStyle = (() => {
   const FOXK = { body: '#D9662B', dk: '#A8461E', lt: '#F2A061', white: '#FBF3E4', sock: '#3E2A24', far: '#8E3C1C', eye: P.ink };
   function dog(a, K) {
     const p = a.pose, S = p.size, dir = p.facing, Q = byName(a), J = p.joints, mono = K === MONO, L = Object.entries(p.limbs), sp = p.spine;
-    const leg = (n, far) => { stroke(Q[n + '.upper'], far ? K.far : K.body); stroke(Q[n + '.lower'], far ? mixCol(K.sock, P.ink, .3) : K.sock); stroke(Q[n + '.tip'], far ? mixCol(K.sock, P.ink, .3) : K.sock); };
+    // Pata: coxa e canela afinando (dentro do r de cada parte), meia escura na metade de baixo da canela e pata pequena.
+    const taper = (A, B, ra, rb, col) => { const u = unit2(A, B), nn = [-u[1] * ra, u[0] * ra], mm = [-u[1] * rb, u[0] * rb]; c.beginPath(); c.moveTo(A[0] + nn[0], A[1] + nn[1]); c.lineTo(B[0] + mm[0], B[1] + mm[1]); c.lineTo(B[0] - mm[0], B[1] - mm[1]); c.lineTo(A[0] - nn[0], A[1] - nn[1]); c.closePath(); c.fillStyle = col; c.fill(); };
+    const leg = (n, far) => {
+      const up = Q[n + '.upper'], lo = Q[n + '.lower'], [R0, M] = up.pts, E = lo.pts[1], col = far ? K.far : K.body, sock = far ? mixCol(K.sock, P.ink, .3) : K.sock, S0 = lerp2(M, E, .45);
+      ell(R0[0], R0[1], up.r, up.r, 0, col); taper(R0, M, up.r, lo.r, col); ell(M[0], M[1], lo.r, lo.r, 0, col);
+      taper(M, S0, lo.r, .8 * lo.r, col); taper(S0, E, .8 * lo.r, .62 * lo.r, sock); stroke(Q[n + '.tip'], sock);
+    };
     for (const [n, l] of L) if (l.far) leg(n, true);
     const tail = p.appendages.tail;
     if (tail) { line(tail, K.dk, .1 * S); line(tail.slice(0, -1), K.body, .085 * S); line(tail.slice(-2), K.white, .075 * S); }
     const pts = sp.map(q => [q.x, q.y]);
     line(pts, K.dk, 2 * sp[1].r); line(pts.map(([x, y]) => [x - .01 * S, y - .015 * S]), K.body, 1.75 * sp[1].r);
-    ell(sp[0].x + dir * .04 * S, sp[0].y + .05 * S, .1 * S, .08 * S, 0, K.white);  // peito claro
     if (!mono) line(pts.map(([x, y]) => [x - .02 * S, y - .07 * S]).slice(0, 2), K.lt, .05 * S);
     for (const [n, l] of L) if (!l.far) leg(n, false);
-    stroke(Q.neck, K.dk); stroke(Q.neck, K.body, .8, -.008 * S, -.008 * S);
+    // Pescoço na cor do corpo: um cone do peito (largura do tronco) à base da cabeça, sem costura no ombro; garganta clara.
+    const s0 = [sp[0].x, sp[0].y], hb = Q.head.pts[0], nu = unit2(s0, hb), dn = upN(nu, dir), gm = lerp2(s0, hb, .5);
+    stroke(Q.neck, K.body); taper(s0, hb, .85 * sp[0].r, Q.neck.r, K.body);
+    ell(gm[0] - .45 * Q.neck.r * dn[0], gm[1] - .45 * Q.neck.r * dn[1], .32 * d2(s0, hb), .55 * Q.neck.r, Math.atan2(nu[1], nu[0]), K.white);
     const [B, T] = Q.head.pts, hl = d2(B, T) / 2, u = unit2(B, T), n = upN(u, dir), r = Q.head.r, at2 = (s, h) => [B[0] + s * u[0] + h * n[0], B[1] + s * u[1] + h * n[1]];
-    const sk = at2(.5 * hl, 0), ear = (k, col) => { c.beginPath(); c.moveTo(...at2(.35 * hl + k, .55 * r)); c.lineTo(...at2(.25 * hl + k, 1.75 * r)); c.lineTo(...at2(.95 * hl + k, .6 * r)); c.closePath(); c.fillStyle = col; c.fill(); };
+    const sk = at2(.42 * hl, 0), ear = (k, col) => { c.beginPath(); c.moveTo(...at2(.05 * hl + k, .7 * r)); c.lineTo(...at2(.05 * hl + k, 1.75 * r)); c.lineTo(...at2(.8 * hl + k, .75 * r)); c.closePath(); c.fillStyle = col; c.fill(); };
     ear(-.25 * hl, K.far);
     c.beginPath(); c.arc(sk[0], sk[1], r, 0, TAU); c.fillStyle = K.dk; c.fill();
     c.beginPath(); c.moveTo(...at2(.45 * hl, .95 * r)); c.quadraticCurveTo(...at2(1.4 * hl, .6 * r), ...T); c.quadraticCurveTo(...at2(1.3 * hl, -.55 * r), ...at2(.45 * hl, -.98 * r)); c.closePath(); c.fillStyle = K.body; c.fill();
     c.beginPath(); c.arc(sk[0], sk[1], .9 * r, 0, TAU); c.fillStyle = K.body; c.fill();
     c.beginPath(); c.moveTo(...at2(.55 * hl, -.85 * r)); c.quadraticCurveTo(...at2(1.4 * hl, -.45 * r), ...T); c.quadraticCurveTo(...at2(1.3 * hl, -.1 * r), ...at2(.7 * hl, -.15 * r)); c.closePath(); c.fillStyle = K.white; c.fill();  // focinho e bochecha brancos
-    ear(0, K.body); if (!mono) { const e = at2(.62 * hl, .42 * r); ell(e[0], e[1], .2 * r, .12 * r, Math.atan2(u[1], u[0]), K.sock); }  // miolo da orelha
+    ear(0, K.body); if (!mono) { const e = at2(.3 * hl, 1.05 * r); ell(e[0], e[1], .2 * r, .12 * r, Math.atan2(u[1], u[0]), K.sock); }  // miolo da orelha
     const nose = at2(2 * hl - .13 * r, .02 * r); ell(nose[0], nose[1], .13 * r, .11 * r, 0, K.sock);  // a ponta do nariz fica em headTop
     if (!mono) {
       const e = at2(.95 * hl, .35 * r), b = clamp(p.face.blink), sur = p.face.expression === 'surprised';
@@ -371,9 +379,9 @@ window.ExpStyle = (() => {
   // Roupas de cada pessoa de P (o explorador de H usa a paleta); shorts = canela de pele; hair = cor do cabelo.
   const OUTFIT = {
     corredor: { shirt: '#3E8FB0', shirtDk: '#2A6A86', pants: '#2A3F52', pantsDk: '#1E2E3C', boot: '#E9E4D8', skin: '#C68A5E', skinDk: '#A06A44', hair: '#2A1E1A', shorts: 1 },
-    marta: { shirt: '#B5536B', shirtDk: '#8A3A50', pants: '#4A3A5A', pantsDk: '#352A42', boot: '#3A2A2E', skin: '#8D5A3B', skinDk: '#6E4229', hair: '#1E1614' },
+    marta: { shirt: '#B5536B', shirtDk: '#8A3A50', pants: '#6F6292', pantsDk: '#564A78', boot: '#2A2224', skin: '#8D5A3B', skinDk: '#6E4229', hair: '#1E1614' },
     joao: { shirt: '#5E9C84', shirtDk: '#3F7A64', pants: '#3D5A73', pantsDk: '#2A3F52', boot: '#5A3A2E', skin: '#F0B48A', skinDk: '#D08A64', hair: '#7A4A2A' },
-    lia: { shirt: '#E8D29A', shirtDk: '#C2A866', pants: '#6E4A6E', pantsDk: '#523652', boot: '#3D3340', skin: '#F3C9A5', skinDk: '#D6A07A', hair: '#B5652E' },
+    lia: { shirt: '#E8D29A', shirtDk: '#C2A866', pants: '#946AA0', pantsDk: '#755084', boot: '#4A3226', skin: '#F3C9A5', skinDk: '#D6A07A', hair: '#B5652E' },
     bia: { shirt: '#E07A5F', shirtDk: '#B85A42', pants: '#3D5A73', pantsDk: '#2A3F52', boot: '#D8603E', skin: '#C68A5E', skinDk: '#A06A44', hair: '#2A1E1A' },
     avo: { shirt: '#8C9DA6', shirtDk: '#677A84', pants: '#5A4A3E', pantsDk: '#45382E', boot: '#3A2A22', skin: '#F0B48A', skinDk: '#D08A64', hair: '#E8E4DC' },
   };
@@ -383,8 +391,13 @@ window.ExpStyle = (() => {
   function human(a, K, mode = 'all') {
     const p = a.pose, S = p.size, dir = p.facing, J = p.joints, Q = byName(a), R = Q.head.r, [hx, hy] = mid(Q.head.pts), mono = K === MONO, Ls = Object.entries(p.limbs);
     const ch = { x: J.chest[0], y: J.chest[1] }, pv = { x: J.pelvis[0], y: J.pelvis[1] }, gear = a.gear || [], T = Q.torso, g = T.r, hat = gear.includes('hat');
-    const leg = (s, far) => { stroke(Q['thigh' + s], far ? K.pantsDk : K.pants); stroke(Q['shin' + s], K.shorts ? (far ? K.skinDk : K.skin) : far ? K.pantsDk : K.pants); stroke(Q['foot' + s], far ? mixCol(K.boot, P.ink, .4) : K.boot); };
-    const arm = (s, far) => { stroke(Q['upperArm' + s], far ? K.shirtDk : K.shirt); stroke(Q['forearm' + s], far ? K.skinDk : K.skin); stroke(Q['hand' + s], far ? K.skinDk : K.skin); };
+    // Perna: pé, canela e, por cima, a coxa com contorno mais escuro: o fim redondo dela sobre a canela marca o joelho.
+    const leg = (s, far) => {
+      const pc = far ? K.pantsDk : K.pants, th = Q['thigh' + s];
+      stroke(Q['foot' + s], far ? mixCol(K.boot, P.ink, .4) : K.boot); stroke(Q['shin' + s], K.shorts ? (far ? K.skinDk : K.skin) : pc);
+      stroke(th, mixCol(pc, P.ink, .35), 1 + .1 * Math.min(1, 30 / th.r)); stroke(th, pc);
+    };
+    const arm = (s, far) => { stroke(Q['upperArm' + s], far ? K.shirtDk : K.shirt); stroke(Q['forearm' + s], far ? K.skinDk : K.skin); hand(Q['hand' + s], p.limbs['arm' + s].hand, far ? K.skinDk : K.skin, far ? mixCol(K.skinDk, P.ink, .25) : K.skinDk); };
     const front = new Set(mode === 'all' ? [] : a.front || []);
     if (mode === 'front') { for (const n of front) arm(n.slice(-1), p.limbs[n].far); return; }
     for (const [n, l] of [...Ls].sort((u, v) => u[1].foot - v[1].foot)) if (l.far && !front.has(n)) (l.foot ? leg : arm)(n.slice(-1), true);  // o braço de lá fica atrás da perna de lá
@@ -400,8 +413,10 @@ window.ExpStyle = (() => {
     local(pv.x, pv.y, ta, 1, () => ell(0, 0, .92 * g, .05 * S, 0, K.pants));
     // Tronco: faixa do peito à pelve com o ombro redondo em cima (disco de raio r no peito), sombra e cor por dentro.
     stroke(T, K.shirtDk); ell(ch.x, ch.y, g, g, 0, K.shirtDk);
+    if (!gear.length) local(pv.x, pv.y, ta, 1, () => ell(0, -.01 * S, g, .06 * S, 0, K.shirtDk));  // barra solta e redonda
     stroke(T, K.shirt, .86, -.011 * S, -.011 * S); ell(ch.x - .011 * S, ch.y - .011 * S, .86 * g, .86 * g, 0, K.shirt);
-    local(pv.x, pv.y, ta, 1, () => line([[-.9 * g, -.012 * S], [.9 * g, -.012 * S]], K.pantsDk, .022 * S));  // cinto
+    if (!gear.length) local(pv.x - .011 * S, pv.y - .011 * S, ta, 1, () => ell(0, -.016 * S, .86 * g, .045 * S, 0, K.shirt));
+    else local(pv.x, pv.y, ta, 1, () => line([[-.9 * g, -.012 * S], [.9 * g, -.012 * S]], K.pantsDk, .022 * S));  // cinto
     if (gear.includes('backpack')) local(ch.x, ch.y, ta, 1, () => {  // alça sobre o ombro, da mochila ao peito
       c.beginPath(); c.moveTo(-dir * .7 * g, -.04 * S); c.quadraticCurveTo(-dir * .1 * g, -1.05 * g, dir * .55 * g, -.4 * g); c.quadraticCurveTo(dir * .8 * g, .3 * g, dir * .5 * g, 1.1 * g);
       c.strokeStyle = K.packDk; c.lineWidth = .026 * S; c.lineCap = 'round'; c.stroke();
@@ -428,18 +443,28 @@ window.ExpStyle = (() => {
     for (const [n, l] of Ls) if (!l.far && !l.foot && !front.has(n)) arm(n.slice(-1), false);
     if (p.emote && !mono) emote(p, .1 * S);  // selo no tamanho de antes da cabeça do esqueleto
   }
+  // Mão (parte hand: eixo do pulso até r antes da ponta): open = luva com polegar; fist = punho redondo e cheio;
+  // point = palma curta e o indicador fino até a ponta.
+  function hand(q, kind, col, dk) {
+    const [a, b] = q.pts, u = unit2(a, b), L = d2(a, b), at3 = k => [a[0] + k * L * u[0], a[1] + k * L * u[1]];
+    if (kind === 'fist') { const m = at3(.55); ell(m[0], m[1], .45 * L + q.r, 1.15 * q.r, Math.atan2(u[1], u[0]), col); ell(m[0] + .3 * q.r * u[1], m[1] - .3 * q.r * u[0], .3 * L, .35 * q.r, Math.atan2(u[1], u[0]), dk); return; }
+    if (kind === 'point') { stroke({ ...q, pts: [a, at3(.45)], r: 1.05 * q.r }, col); stroke({ ...q, pts: [at3(.4), b], r: .42 * q.r }, col); return; }
+    stroke(q, col);
+  }
   // Rosto no quadro local da cabeça (x para a frente): olhos de ponto, sobrancelhas, nariz, bochecha e boca por expressão;
   // na fala, a boca da sílaba (pose.face.mouth: m fechada, e pequena, a aberta, o redonda). happy = olhos em arco.
   function face(p, R, K) {
-    const e = p.face.expression, b = clamp(p.face.blink), sur = e === 'surprised', cur = e === 'curious', hap = e === 'happy', mo = p.face.mouth, lip = '#6A2B2B';
+    const e = p.face.expression, b = clamp(p.face.blink), shock = e === 'surprised' && p.emote?.sym === '!', joy = e === 'surprised' && !shock;
+    const sur = shock, cur = e === 'curious', hap = e === 'happy' || joy, mo = p.face.mouth, lip = '#6A2B2B';
     ell(.95 * R, .14 * R, .13 * R, .12 * R, 0, K.skinDk);  // nariz
     ell(.55 * R, .3 * R, .14 * R, .1 * R, 0, rgba('#F08A7A', hap ? .7 : .45));
     for (const [ex, ey, k, near] of [[.4 * R, -.06 * R, 1, true], [.78 * R, -.08 * R, .78, false]]) {
       if (b > .7) line([[ex - .08 * R * k, ey], [ex + .08 * R * k, ey]], P.ink, .045 * R);
       else if (sur) { ell(ex, ey - .04 * R, .2 * R * k, .25 * R * k * (1 - b), 0, '#FFFFFF'); ell(ex + .04 * R, ey - .04 * R, .07 * R * k, .08 * R * k * (1 - b), 0, P.ink); }
+      else if (joy) { ell(ex, ey - .02 * R, .1 * R * k, .12 * R * k * (1 - b), 0, P.ink); ell(ex - .03 * R, ey - .06 * R, .035 * R, .035 * R, 0, '#FFFFFF'); }
       else if (hap) { c.beginPath(); c.moveTo(ex - .1 * R * k, ey + .03 * R); c.quadraticCurveTo(ex, ey - .12 * R, ex + .1 * R * k, ey + .03 * R); c.strokeStyle = P.ink; c.lineWidth = .055 * R; c.lineCap = 'round'; c.stroke(); }
       else ell(ex, ey, .075 * R * k, .1 * R * k * (1 - b), 0, P.ink);
-      const lift = sur ? .36 : hap ? .1 : cur && near ? .15 : 0, tilt = cur && near ? -.06 : sur ? -.03 : .02;
+      const lift = sur ? .36 : joy ? .26 : hap ? .1 : cur && near ? .15 : 0, tilt = cur && near ? -.06 : sur ? -.03 : .02;
       line([[ex - .11 * R * k, -.3 * R - lift * R + tilt * R], [ex + .11 * R * k, -.32 * R - lift * R - tilt * R]], mixCol(K.hair, P.ink, .45), .055 * R);
     }
     const mx = .6 * R, my = .47 * R;
@@ -448,7 +473,7 @@ window.ExpStyle = (() => {
     else if (mo === 'a') { ell(mx, my + .02 * R, .12 * R, .13 * R, 0, lip); ell(mx, my + .09 * R, .07 * R, .04 * R, 0, '#E07A7A'); }
     else if (mo === 'o') ell(mx, my + .01 * R, .07 * R, .09 * R, 0, lip);
     else if (sur) ell(mx, my + .03 * R, .1 * R, .14 * R, 0, lip);
-    else if (cur) ell(mx + .02 * R, my, .06 * R, .05 * R, 0, lip);
+    else if (cur) { c.beginPath(); c.moveTo(mx - .1 * R, my - .01 * R); c.quadraticCurveTo(mx + .02 * R, my + .07 * R, mx + .12 * R, my - .04 * R); c.strokeStyle = lip; c.lineWidth = .05 * R; c.lineCap = 'round'; c.stroke(); }
     else if (hap) { c.beginPath(); c.moveTo(mx - .17 * R, my - .04 * R); c.quadraticCurveTo(mx, my + .26 * R, mx + .15 * R, my - .05 * R); c.closePath(); c.fillStyle = lip; c.fill(); }
     else { c.beginPath(); c.moveTo(mx - .15 * R, my - .02 * R); c.quadraticCurveTo(mx, my + .05 * R, mx + .12 * R, my - .03 * R); c.strokeStyle = lip; c.lineWidth = .05 * R; c.lineCap = 'round'; c.stroke(); }
   }
@@ -548,7 +573,7 @@ window.ExpStyle = (() => {
     for (const lx of [x0 + .1 * b.w, x0 + .9 * b.w]) c.fillRect(lx - pw / 2, b.seatY, pw, gy - b.seatY);
     c.beginPath(); c.moveTo(xb - pw / 2, b.seatY + th); c.lineTo(xb + b.back * .06 * b.w - pw / 2, b.seatY - b.backH); c.lineTo(xb + b.back * .06 * b.w + pw / 2, b.seatY - b.backH); c.lineTo(xb + pw / 2, b.seatY + th); c.closePath(); c.fill();
     c.fillStyle = K.wood; c.beginPath(); c.roundRect(x0 - .04 * b.w, b.seatY, 1.08 * b.w, th, th / 2); c.fill();
-    for (const k of [.35, .75]) { c.beginPath(); c.roundRect(xb + b.back * .04 * b.w * k - .07 * b.w, b.seatY - b.backH * k - .05 * b.w, .14 * b.w, .1 * b.w, .05 * b.w); c.fill(); }
+    for (const k of [.4, .8]) { const h = .14 * b.backH, x = xb + b.back * .06 * b.w * k; c.beginPath(); c.roundRect(x - h * .7, b.seatY - b.backH * k - h / 2, 1.4 * h, h, h / 2); c.fill(); }  // ripas do encosto vistas de lado
     if (K === SHK) return;
     c.fillStyle = K.woodLt; c.fillRect(x0, b.seatY + .015 * b.w, b.w, .025 * b.w);
   }
