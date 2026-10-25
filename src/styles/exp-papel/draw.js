@@ -198,7 +198,7 @@ window.ExpStyle = (() => {
         add('upperArm' + s, 'shoulder' + s, 'elbow' + s, .025 * k, 'square'); add('forearm' + s, 'elbow' + s, 'wrist' + s, .023 * k, 'butt');
         add('hand' + s, 'wrist' + s, null, .034 * k, 'round', [J['wrist' + s], J['hand' + s]]);
       }
-      add('neck', 'neck', 'headBase', .022 * k, 'butt');
+      add('neck', 'neck', 'headBase', .034 * k, 'butt');
     } else {
       const [r1, r2, r3] = lg ? lg.map(v => v * S) : [w * .95, w * .7, w * .4];
       for (const n of Object.keys(p.limbs)) {
@@ -315,24 +315,28 @@ window.ExpStyle = (() => {
       piece(blob(tf, ul * .9, g + S * .01, S * .15, S * .1, 8, seed + 5, 0, .04), P.pack, seed + 5);
       newsPocket(tf(ul * .82, g + S * .04), Math.atan2(uy, ux) + Math.PI / 2, S * .04, seed + 6);
     }
-    for (const s of 'LR') { if (L['leg' + s].far) leg(s); if (L['arm' + s].far && !skip.has('arm' + s)) arm(s); }
-    piece(blob(fr0, pv[0], pv[1], g * .9, g * .78, 10, seed + 7), lk.pants, seed + 7);
+    for (const s of 'LR') if (L['arm' + s].far && !skip.has('arm' + s)) arm(s);  // braço de trás antes da perna de trás: a mão não espia entre as coxas
+    for (const s of 'LR') if (L['leg' + s].far) leg(s);
+    piece(blob(tf, 0, .15 * g, .7 * g, .8 * g, 10, seed + 7), lk.pants, seed + 7);  // quadril, recuado: não faz volume entre as coxas
     for (const s of 'LR') if (!L['leg' + s].far) leg(s);
-    // Tronco: costas retas, peito e barriga à frente (a pessoa pesada tem barriga que passa do peito).
-    piece([tf(-S * .02, .85 * g), tf(U - S * .05, .92 * g), tf(U - S * .01, .2 * g), tf(U - S * .04, -.9 * g), tf(U * .45, heavy ? -1.15 * g : -.9 * g), tf(-S * .02, -.85 * g)], lk.shirt, seed + 8);
+    // Tronco recortado em curva (x para cima da pelve à base do pescoço, y para trás, em g): ombros redondos, peito e,
+    // na pessoa pesada, barriga redonda que passa do peito; a barra cobre o quadril.
+    const bel = heavy ? 1.28 : .95, TOR = [[-.06, .8], [.35, .9], [.75, .92], [.9, .8], [.97, .55], [1, .2], [1, -.2], [.97, -.55], [.9, -.82], [.75, -.95], [.55, -.92 * bel + .05], [.38, -bel], [.2, -.97 * bel], [.04, -.85 * bel], [-.06, -.6], [-.09, 0]];
+    piece(TOR.map(([x, y]) => tf(x * U, y * g)), lk.shirt, seed + 8);
     if (gear.includes('backpack')) piece(strip(tf(ul * .9, .6 * g), tf(-S * .01, -.7 * g), S * .02), P.packDk, seed + 9);  // alça
     cut(Q.neck, 1, shade(lk.skin, .15), seed + 10);  // pescoço: base do pescoço → base da cabeça
+    { const n = d2(...Q.neck.pts), r = Q.neck.r, nf = axis(Q.neck, fy); piece([[-.1 * n, 1.9 * r], [.38 * n, 1.25 * r], [.45 * n, 0], [.38 * n, -1.25 * r], [-.1 * n, -1.9 * r]].map(([x, y]) => nf(x, y)), shade(lk.shirt, .12), seed + 26); }  // gola: cobre a parte de baixo do pescoço
     if (lk.style === 'long') piece(blob(hf, -hr * .5, hr * .35, hr * .62, hr * 1.05, 10, seed + 25, .1), shade(lk.hair, .08), seed + 25);  // cabelo solto até os ombros
     if (lk.style !== 'bald') piece(blob(hf, -hr * .35, -hr * .2, hr * .78, hr * .72, 10, seed + 11), lk.hair, seed + 11);
     piece(blob(hf, 0, 0, hr, hr * 1.02, 14, seed + 12, 0, .04), lk.skin, seed + 12);
-    if (lk.style === 'bald') piece(blob(hf, -hr * .55, hr * .05, hr * .38, hr * .3, 8, seed + 11), lk.hair, seed + 11);  // cabelo branco só dos lados
+    if (lk.style === 'bald') piece(blob(hf, -hr * .5, hr * .05, hr * .28, hr * .28, 8, seed + 11, 0, .03), lk.hair, seed + 11);  // cabelo branco só dos lados
     else piece(blob(hf, hr * .05, -hr * .72, hr * .82, hr * .3, 9, seed + 21, -.15), lk.hair, seed + 21);  // franja no alto da testa
     if (lk.style === 'bun') piece(blob(hf, -hr * .8, -hr * .62, hr * .32, hr * .3, 9, seed + 22), lk.hair, seed + 22);
     if (lk.style === 'tail') piece(blob(hf, -hr * .7, -hr * .35, hr * .14, hr * .14, 7, seed + 23), '#F0D040', seed + 23);  // elástico
     piece([hf(hr * .85, -hr * .2), hf(hr * 1.2, hr * .15), hf(hr * .88, hr * .22)], lk.skin, seed + 13);  // nariz
     piece(blob(hf, -hr * .24, hr * .1, hr * .13, hr * .18, 7, seed + 14), shade(lk.skin, .12), seed + 14);  // orelha
     const ex = face.expression, sur = ex === 'surprised', cur = ex === 'curious', hap = ex === 'happy', bl = Math.max(face.blink || 0, hap ? .35 : 0);
-    eye(hf, hr * .45, -hr * .12, hr * (sur ? .27 : .21), hr * (sur ? .36 : cur ? .3 : .26), cur ? .5 : 1, cur ? .7 : sur ? -.1 : 0, hr * (sur ? .09 : .12), bl, seed + 15);
+    eye(hf, hr * .4, -hr * .12, hr * (sur ? .27 : .21), hr * (sur ? .36 : cur ? .3 : .26), cur ? .5 : 1, cur ? .7 : sur ? -.1 : 0, hr * (sur ? .09 : .12), bl, seed + 15);
     const by = sur ? -.6 : cur ? -.52 : hap ? -.5 : -.42, tilt = cur ? -.18 : hap ? -.06 : 0;
     piece(strip(hf(hr * .26, hr * (by + .04)), hf(hr * .7, hr * (by + tilt)), hr * .09, hr * .07), lk.style === 'bald' ? shade(lk.hair, .3) : lk.hair, seed + 16);  // sobrancelha
     if (lk.style === 'bald') piece(strip(hf(hr * .5, hr * .36), hf(hr * .9, hr * .3), hr * .1, hr * .06), lk.hair, seed + 24);  // bigode do avô
@@ -442,20 +446,23 @@ window.ExpStyle = (() => {
   // fino escuro, antenas em tiras.
   function butterfly(a, F) {
     const p = a.pose, S = p.size, J = p.joints, Q = partsOf(a, F), fy = p.facing, seed = sid(a.id), s0 = p.spine[0], ph = p.wings?.phase || 0;
-    const bf = frame(s0.x, s0.y, s0.angle, fy), FW = [[.02, 0], [.14, .5], [0, .64], [-.2, .56], [-.12, .2]], HW = [[-.04, 0], [-.08, .36], [-.3, .4], [-.33, .2], [-.16, .02]];
-    const wings = (k, f, sd) => {
-      piece(HW.map(([x, y]) => bf(x * S, -y * S * k)), shade('#E4782A', f), sd);
-      piece(FW.map(([x, y]) => bf(x * S, -y * S * k)), shade('#F09A2A', f), sd + 1);
-      piece(blob(bf, -S * .02, -S * .52 * k, S * .09, S * .07 * Math.abs(k) + 1, 8, sd + 2), shade('#3A2A20', f), sd + 2);  // ponta escura
+    // Asas (x à frente, y para cima, em BL): giradas para trás th e encurtadas por k na batida (k .5..1: nunca de perfil).
+    const bf = frame(s0.x, s0.y, s0.angle, fy), FW = [[.04, 0], [.16, .3], [.2, .52], [.12, .68], [0, .72], [-.14, .64], [-.2, .48], [-.12, .16]], HW = [[-.04, 0], [-.04, .22], [-.14, .38], [-.28, .42], [-.4, .34], [-.4, .18], [-.22, .03]];
+    const k = .5 + .25 * (1 + Math.cos(TAU * ph)), th = -.15 + .2 * Math.sin(TAU * ph);
+    const W = (pts, kk, t) => pts.map(([x, y]) => bf((x * Math.cos(t) - y * Math.sin(t)) * S, -(x * Math.sin(t) + y * Math.cos(t)) * S * kk));
+    const wings = (kk, t, f, sd) => {
+      piece(W(HW, kk, t), shade('#F3B04A', f), sd);
+      piece(W(FW, kk, t), shade('#F09A2A', f), sd + 1);
+      piece(W([[.2, .52], [.12, .68], [0, .72], [-.14, .64], [-.2, .48], [-.06, .58], [.1, .58]], kk, t), shade('#3A2A20', f), sd + 2);  // borda escura da ponta
+      for (const [x, y, r] of [[.04, .64, .025], [-.08, .64, .02], [-.28, .3, .035]]) { const [q] = W([[x, y]], kk, t); piece(blob(fr0, q[0], q[1], r * S, r * S, 6, sd + 3), shade(y > .5 ? '#FBF6E4' : '#3A2A20', f), sd + 3); }
     };
-    const k = Math.cos(TAU * ph) * .8 + .2;
-    wings(k * .92 + .05, .3, seed + 1);
+    wings(k * .95, th + .75, .3, seed + 1);
     cut(Q.neck, 1, '#3A2A20', seed + 4);
     piece(hull(p.spine.map(q => [q.x, q.y]), p.spine.map(q => q.r)), '#3A2A20', seed + 5);
     const R = Q.head.r / .92;
     piece(blob(fr0, J.head[0], J.head[1], R, R, 8, seed + 6), '#3A2A20', seed + 6);
     for (const n of ['antennaL', 'antennaR']) { const ap = p.appendages[n]; if (ap) for (let i = 1; i < ap.length; i++) piece(strip(ap[i - 1], ap[i], S * .02, S * .015), '#3A2A20', seed + 7); }
-    wings(k, 0, seed + 8);
+    wings(k, th, 0, seed + 8);
   }
   // Besouro: patas em tiras, pronoto e élitros em cúpula verde escura com brilho, cabeça redonda.
   function beetle(a, F) {
