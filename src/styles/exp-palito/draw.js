@@ -111,7 +111,7 @@
   // Bichos de N: pescoço (spine0 → neck → base da cabeça), pernas de dois ossos e, onde há pé, a ponta (tornozelo → dedo);
   // o tronco (body = largura do traço da coluna, se houver) dos que não têm corpo de contorno. Peixe, borboleta e besouro: pescoço (sob o corpo) e cabeça.
   // Larguras em múltiplos do traço do ser; head = meia largura da cabeça em r (o eixo base → topo é sempre 2r).
-  const BEAST = { dog: { w: 1, neck: 2.2, leg: 1.1, tip: 1.6, head: .58 }, bird: { w: .8, neck: 1.6, leg: .75, tip: .85, head: 1 },
+  const BEAST = { dog: { w: 1, neck: 2.4, leg: 2.2, tip: 2.4, head: .58 }, bird: { w: .8, neck: 1.6, leg: .75, tip: .85, head: 1 },
     beetle: { w: 1, neck: .8, leg: 1.1, head: .9 }, fish: { w: 1, neck: .8, head: 1 }, butterfly: { w: .8, neck: .8, head: 1 } };
   function beastParts(a) {
     if (a.hidden) return [];
@@ -371,32 +371,40 @@
   // Raposa (kind dog): tronco de um traço grosso, pescoço, pernas de três ossos com a pata, cauda cheia na cor de destaque
   // e cabeça comprida (focinho em headTop, na linha d'água quando bebe), orelhas em pé, olho que arregala no susto.
   function dog(a) {
-    const p = a.pose, J = p.joints, f = p.facing, G = byName(beastParts(a)), hd = G.head, R = d2(...hd.pts) / 2, w = G['LF.upper'].w / 1.1, sd = sid(a.id) * 10;
+    const p = a.pose, J = p.joints, f = p.facing, G = byName(beastParts(a)), hd = G.head, R = d2(...hd.pts) / 2, w = lw(p.size * z), sd = sid(a.id) * 10;
     const far = mixCol(P.ink, P.paper, .45), sur = p.face.expression === 'surprised', b = p.face.blink || 0;
-    const leg = (n, col, i) => { stroke([G[n + '.upper'], G[n + '.lower']], { col, seed: sd + i, t0: .12, t1: .05 }); stroke([G[n + '.tip']], { col, seed: sd + i + 10, t0: 0, t1: .5 }); };
+    const leg = (n, col, i) => {  // perna com peso: coxa laranja, canela e pata de meia escura
+      stroke([G[n + '.upper'], G[n + '.lower']], { col, seed: sd + i, t0: .02, t1: .02, pr: .1 });
+      if (col === P.ink) wash(() => stroke([G[n + '.upper']], { col: P.accent, seed: sd + i, t0: .02, t1: .4, pr: .1 }), .9);
+      stroke([G[n + '.tip']], { col, seed: sd + i + 10, t0: 0, t1: .45 });
+    };
     const legs = Object.keys(p.limbs);
     legs.forEach((n, i) => p.limbs[n].far && leg(n, far, i));
     const S = p.size, tail = p.appendages.tail, [s0, , s2] = p.spine.map(q => [q.x, q.y]);
     if (tail) {  // cauda cheia: engrossa e afina na ponta clara; papel, aguada laranja e contorno
-      const tp = tube(tail, u => S * (.018 + .055 * Math.sin(Math.PI * Math.min(1, u * 1.1)) ** .9));
-      fillPts(tp, P.paper); wash(() => fillPts(tube(tail.slice(0, -1).concat([lerp2(tail.at(-2), tail.at(-1), .55)]), u => S * (.012 + .042 * Math.sin(Math.PI * Math.min(1, u * 1.1)))), P.accent));
+      const prof = u => S * (.015 + .075 * Math.sin(Math.PI * u) ** .7 * (u < .6 ? 1 : 1 - .3 * (u - .6)));  // fina na raiz e na ponta
+      const tp = tube(tail, prof);
+      fillPts(tp, P.paper); wash(() => fillPts(tube(tail.slice(0, -1).concat([lerp2(tail.at(-2), tail.at(-1), .4)]), u => .85 * prof(u * .8)), P.accent), .95);
       brush([...tp, tp[0]], w, { raw: true, seed: sd + 21, t0: .05, t1: .05 });
     }
     stroke([G.upperSpine, G.neck], { seed: sd + 31, t0: .1, t1: 0 });
     const L = d2(s0, s2), bc = lerp2(s0, s2, .45), ba = ang(s2, s0);  // corpo: feijão preso no peito e no quadril
     loop(bc[0], bc[1], L / 2 + .13 * S, .12 * S, ba, 0, { fill: P.paper, seed: sd + 30 });
     wash(() => loop(bc[0] - .02 * S, bc[1] - .02 * S, L / 2 + .06 * S, .085 * S, ba + .03, 0, { fill: P.accent, seed: sd + 32 }));
+    loop(lerp(bc[0], s0[0], .7), lerp(bc[1], s0[1], .7) + .06 * S, .1 * S, .055 * S, ba, 0, { fill: P.paper, seed: sd + 33 });  // peito branco
     loop(bc[0], bc[1], L / 2 + .13 * S, .12 * S, ba, w * 1.2, { seed: sd + 30 });
     legs.forEach((n, i) => !p.limbs[n].far && leg(n, P.ink, i));
     const r = hd.r;
     beastHead(J, R, r, ang(...hd.pts), f, w * 1.1, { hero: true, snout: .75, seed: sd + 40, behind: () => {
-      for (const k of [0, 1]) {  // orelhas em pé atrás do olho; no susto, mais altas
-        const x0 = (-.62 + .3 * k) * R, hgt = (sur ? 1.25 : 1) * (.95 - .15 * k) * R;
-        const pts = [[x0 - .18 * R, -.55 * r], [x0 + .02 * R, -r - hgt], [x0 + .22 * R, -.5 * r]];
-        c.beginPath(); for (const q of pts) c.lineTo(...q); c.closePath(); c.fillStyle = k ? mixCol(P.paper, P.ink, .1) : P.paper; c.fill();
+      for (const k of [1, 0]) {  // orelhas grandes em pé, laranja com a ponta escura; no susto, mais altas
+        const x0 = (-.6 + .32 * k) * R, hgt = (sur ? 1.25 : 1) * (1.25 - .2 * k) * R, tip = [x0 + .05 * R, -r - hgt];
+        const pts = [[x0 - .26 * R, -.5 * r], tip, [x0 + .3 * R, -.45 * r]];
+        fillPts(pts, k ? mixCol(P.accent, P.paper, .35) : P.accent);
+        fillPts([tip, lerp2(tip, pts[0], .35), lerp2(tip, pts[2], .35)], P.ink);
         brush(pts, w * .9, { col: k ? far : P.ink, seed: sd + 45 + k, t0: .1, t1: .1 });
       }
     } }, () => {
+      fillPts([[.98 * R, .08 * r], [.4 * R, .62 * r], [-.25 * R, .8 * r], [-.3 * R, .3 * r], [.3 * R, .12 * r]], P.paper);  // focinho e bochecha brancos
       dot(.93 * R, -.05 * r, .2 * r);  // ponta do nariz
       brush([[.9 * R, .3 * r], [.55 * R, .5 * r], [.3 * R, .42 * r]], w * .7, { seed: sd + 50, t0: .2, t1: .6 });
       if (sur) { loop(-.1 * R, -.32 * r, .2 * r, .24 * r, 0, w * .6, { fill: P.paper, seed: sd + 51 }); dot(-.06 * R, -.32 * r, .08 * r); }
@@ -440,15 +448,15 @@
     const cd = p.appendages.caudal, pc = p.appendages.pectoral;
     if (cd) {  // forquilha: da base da cauda a duas pontas que abrem para os lados do último osso
       const [b0, , b2] = cd, e = b2 || cd[1], u = [e[0] - b0[0], e[1] - b0[1]], n = [-u[1] * .55, u[0] * .55], fin = [b0, [e[0] + n[0], e[1] + n[1]], [lerp(b0[0], e[0], .7), lerp(b0[1], e[1], .7)], [e[0] - n[0], e[1] - n[1]]];
-      c.beginPath(); for (const q of fin) c.lineTo(...q); c.closePath(); c.fillStyle = P.paper; c.fill();
+      fillPts(fin, mixCol(P.ink, P.paper, .35));
       brush([...fin, b0], w, { seed: sd + 5, t0: .05, t1: .05 });
     }
     stroke([G.neck], { seed: sd + 6, t0: 0, t1: 0 });
     const out = [...smooth(top), ...smooth(bot).reverse()];
-    c.beginPath(); for (const q of out) c.lineTo(...q); c.closePath(); c.fillStyle = P.paper; c.fill();
+    fillPts(out, mixCol(P.ink, P.paper, .5));  // corpo cheio: destaca na água clara
     for (let i = 2; i < ax.length - 1; i++) for (const k of [-.3, .25]) {  // escamas: meias-luas ao longo do corpo
       const q = lerp2(ax[i], ax[i + 1], .5), r = rs[i] * .32, an = ang(ax[i + 1], ax[i]);
-      brush([0, 1, 2].map(j => { const t = an + Math.PI / 2 + (j - 1) * 1.1; return [q[0] + Math.cos(an + Math.PI / 2) * k * rs[i] * f + Math.cos(t) * r * .3 - Math.cos(an) * r * (j === 1 ? 0 : .6), q[1] + Math.sin(an + Math.PI / 2) * k * rs[i] * f + Math.sin(t) * r * .3 - Math.sin(an) * r * (j === 1 ? 0 : .6)]; }), w * .5, { seed: sd + 10 + i, t0: .3, t1: .3, col: mixCol(P.ink, P.paper, .45) });
+      brush([0, 1, 2].map(j => { const t = an + Math.PI / 2 + (j - 1) * 1.1; return [q[0] + Math.cos(an + Math.PI / 2) * k * rs[i] * f + Math.cos(t) * r * .3 - Math.cos(an) * r * (j === 1 ? 0 : .6), q[1] + Math.sin(an + Math.PI / 2) * k * rs[i] * f + Math.sin(t) * r * .3 - Math.sin(an) * r * (j === 1 ? 0 : .6)]; }), w * .5, { seed: sd + 10 + i, t0: .3, t1: .3, col: P.paper });
     }
     brush(out, w * 1.1, { raw: true, seed: sd + 7, t0: .04, t1: .04 });
     if (pc) brush(pc, w * 1.4, { seed: sd + 8, t0: 0, t1: .7 });
@@ -516,7 +524,7 @@
   // juntas. late: só os braços de actor.front (abraço), desenhados depois de todos os corpos.
   function human(a, F, late) {
     const p = a.pose, J = p.joints, S = p.size, f = p.facing, G = byName(humanParts(a)), w = G.thighL.w, R = d2(J.headBase, J.headTop) / 2, sd = 500 + sid(a.id);
-    const { chest, pelvis, neck } = J, hc = J.head, far = mixCol(P.ink, P.paper, .4), [fs, ns] = f > 0 ? ['R', 'L'] : ['L', 'R'], gear = a.gear || [], front = a.front || [];
+    const { chest, pelvis, neck } = J, hc = J.head, far = mixCol(P.ink, P.paper, .74), [fs, ns] = f > 0 ? ['R', 'L'] : ['L', 'R'], gear = a.gear || [], front = a.front || [];
     const leg = (s, col, i) => { stroke([G['thigh' + s], G['shin' + s]], { col, seed: sd + i, t0: .08, t1: .08 }); stroke([G['foot' + s]], { col, seed: sd + i + 10, t0: 0, t1: .35 }); };
     const arm = (s, col, i) => {
       if (front.includes('arm' + s) !== !!late) return;
@@ -537,9 +545,9 @@
     }
     stroke([G.spine, G.upperSpine], { seed: sd + 32, t0: .15, t1: .12 });
     stroke([G.neck], { seed: sd + 33, t0: 0, t1: 0 });
-    if (p.body === 'heavy') {  // barriga redonda à frente do tronco, da pelve ao peito
-      const gi = BODY.heavy.girth * S, L = d2(pelvis, chest), q = lerp2(pelvis, chest, .4);
-      loop(q[0] - bx * .45 * gi, q[1] - by * .45 * gi, .62 * L, .8 * gi, Math.atan2(uy, ux), w * 1.1, { fill: P.paper, seed: sd + 34 });
+    if (p.body === 'heavy') {  // tronco redondo e cheio, da pelve ao peito, à frente do traço da coluna
+      const gi = BODY.heavy.girth * S, L = d2(pelvis, neck), q = lerp2(pelvis, neck, .44);
+      loop(q[0] - bx * .25 * gi, q[1] - by * .25 * gi, .56 * L, gi, Math.atan2(uy, ux), w * 1.1, { fill: mixCol(P.ink, P.paper, .55), sq: .75, seed: sd + 34 });  // tronco cheio de tinta média: o braço de cá aparece por cima
     }
     leg(ns, P.ink, 3);
     head(a, p, J, R, G.head.r, w, F);
@@ -565,16 +573,24 @@
     const f = p.facing, ux = (J.headTop[0] - J.headBase[0]) / (2 * R), uy = (J.headTop[1] - J.headBase[1]) / (2 * R), sd = sid(a.id), hair = mixCol(P.ink, P.paper, .15);
     c.save(); c.translate(...J.head); c.rotate(Math.atan2(f * ux, -f * uy)); c.scale(1, f);
     const Rp = pts => pts.map(([x, y]) => [x * RX, y * R]);
-    // atrás da cabeça: coque (heavy), maria-chiquinha (child), cabelo comprido (thin)
-    if (p.body === 'heavy') loop(-.62 * RX, -.72 * R, .32 * R, .3 * R, 0, w * .9, { fill: hair, col: P.ink, seed: sd + 1 });
-    if (p.body === 'child') for (const [x, y, s] of [[-.95, -.35, 2], [-.75, .15, 3]]) loop(x * RX, y * R, .26 * R, .2 * R, .6, w * .8, { fill: hair, col: P.ink, seed: sd + s });
-    if (p.body === 'thin') brush(Rp([[.3, -.95], [-.4, -.98], [-.95, -.4], [-1, .35], [-.85, 1.05]]), w * 2.6, { seed: sd + 4, t0: .2, t1: .5, col: hair });
+    // Cabelo cheio por pessoa (silhueta legível no plano aberto): mancha de tinta contornada, presa na cabeça.
+    const mass = (pts, s2) => { const q = smooth(Rp(pts)); fillPts(q, hair); brush([...q, q[1]], w * .7, { raw: true, seed: sd + s2, t0: .05, t1: .05 }); };
+    const hatless = !(a.gear || []).includes('hat');
+    // atrás da cabeça: coque e cachos (heavy), maria-chiquinha com laço (child), cabelo comprido até o ombro (thin)
+    if (p.body === 'heavy') { loop(-.78 * RX, -.82 * R, .36 * R, .33 * R, 0, w * .8, { fill: hair, seed: sd + 1 }); for (let i = 0; i < 6; i++) { const an = -Math.PI * (.35 + .13 * i); loop(Math.cos(an) * .98 * RX, Math.sin(an) * .98 * R, .3 * R, .27 * R, 0, w * .6, { fill: hair, seed: sd + 20 + i }); } }
+    if (p.body === 'child') for (const [x, y, s2] of [[-1.05, -.4, 2], [-.9, .15, 3]]) { loop(x * RX, y * R, .3 * R, .22 * R, .6, w * .7, { fill: hair, seed: sd + s2 }); dot(x * RX + .2 * R, y * R - .12 * R, .11 * R, P.accent); }
+    if (p.body === 'thin') mass([[.5, -.82], [.1, -1.12], [-.5, -1.08], [-1.02, -.62], [-1.16, .2], [-1.05, .95], [-.78, 1.3], [-.52, 1.02], [-.66, .4], [-.6, -.3], [-.2, -.66], [.3, -.62]], 4);
     loop(0, 0, RX, R, 0, w * .85, { fill: P.paper, seed: 510 + sd });
-    // por cima: faixa (corredor), risco de cabelo curto (adulto sem chapéu), cabelo ralo de lado (idoso), franja (heavy, child)
-    if (a.id === 'corredor') brush(Rp([[-.9, -.5], [0, -.62], [.9, -.48]]), w * 1.4, { seed: sd + 5, t0: .1, t1: .1 });
-    else if (p.body === 'adult' && !(a.gear || []).includes('hat')) brush(Rp([[.45, -.82], [0, -1], [-.6, -.82], [-.95, -.25]]), w * 2, { seed: sd + 6, t0: .3, t1: .4, col: hair });
-    else if (p.body === 'elder') for (const k of [0, 1]) brush(Rp([[-.98, -.1 - .25 * k], [-.78, -.5 - .2 * k], [-.5, -.7 - .2 * k]]), w * .7, { seed: sd + 7 + k, t0: .2, t1: .6, col: P.faint });
-    else if (p.body === 'heavy' || p.body === 'child') brush(Rp([[.5, -.8], [0, -.98], [-.7, -.75]]), w * 1.6, { seed: sd + 9, t0: .3, t1: .4, col: hair });
+    // por cima: cabelo curto e faixa (corredor), cabelo curto e cavanhaque (adulto sem chapéu), boné de aba e cabelo
+    // branco de lado (idoso), franja (heavy, child)
+    if (a.id === 'corredor') { mass([[.4, -.78], [0, -1.08], [-.6, -1], [-1.02, -.5], [-.88, -.25], [-.5, -.62], [0, -.74]], 5); brush(Rp([[-.98, -.42], [0, -.6], [.98, -.44]]), w * 1.5, { seed: sd + 6, t0: .05, t1: .05, col: P.accent }); }
+    else if (p.body === 'adult' && hatless) { mass([[.55, -.75], [.2, -1.1], [-.4, -1.07], [-.92, -.7], [-1.1, -.1], [-.88, .18], [-.75, -.22], [-.52, -.56], [0, -.72], [.42, -.6]], 5); mass([[.22, .6], [.5, .92], [.82, .66], [.72, .58], [.5, .72], [.3, .55]], 7); }
+    else if (p.body === 'elder') {
+      for (const k of [0, 1]) brush(Rp([[-1.02, .25 - .25 * k], [-.86, -.15 - .2 * k], [-.66, -.35 - .2 * k]]), w * 1.1, { seed: sd + 7 + k, t0: .2, t1: .5, col: P.faint });
+      mass([[-.98, -.42], [-.85, -.98], [-.1, -1.18], [.62, -1.0], [.92, -.58], [.3, -.55], [-.4, -.5]], 8);
+      brush(Rp([[.4, -.56], [1.05, -.6], [1.45, -.5]]), w * 1.8, { seed: sd + 9, t0: .05, t1: .3 });  // aba do boné
+    }
+    else if (p.body === 'heavy' || p.body === 'child') mass([[.62, -.7], [.3, -1.06], [-.4, -1.06], [-.9, -.62], [-.6, -.55], [-.2, -.78], [.3, -.62]], 10);
     const eyes = [[.3, -.05, 1], [.7, -.08, .8]];
     if (pop > 0) for (const [ex, ey, s] of eyes) {  // olhos saltando: brancos enormes, pupila pequena, passam do contorno
       const er = R * (.15 + .12 * pop) * s, x = (ex + .1 * pop) * R;
@@ -586,6 +602,7 @@
       else if (e === 'happy') brush([[(ex - .08) * R, (ey + .03) * R], [ex * R, (ey - .06) * R], [(ex + .08) * R, (ey + .03) * R]], w * .8, { seed: 535 + s * 10, t0: .2, t1: .2 });  // olho sorrindo
       else { c.beginPath(); c.ellipse(ex * R, ey * R, .09 * R * s * big, .14 * R * s * big * (1 - b), 0, 0, TAU); c.fillStyle = P.ink; c.fill(); }
     }
+    if (p.body === 'elder') { for (const [ex, ey, s2] of eyes) loop(ex * R, ey * R, .2 * R * s2, .18 * R * s2, 0, w * .5, { seed: 570 + s2 * 10 }); brush([[.5 * R, -.07 * R], [.54 * R, -.08 * R]], w * .5, { seed: 575 }); brush([[.1 * R, -.06 * R], [-.5 * R, -.15 * R]], w * .45, { seed: 576 }); }  // óculos redondos e haste
     const BROW = {
       neutral: [[[.16, -.34], [.42, -.38]], [[.58, -.38], [.8, -.34]]],
       happy: [[[.14, -.38], [.3, -.46], [.44, -.4]], [[.58, -.42], [.72, -.48], [.84, -.4]]],
