@@ -103,7 +103,8 @@ window.ExpStyle = (() => {
   function grass(f, gy, step, h0, h1, col, o = {}) {
     at(f); const [x0, x1] = span(f, h1), sd = o.seed || 0, rim = o.rim === false ? null : dk(col, .35);
     for (let k = Math.floor(x0 / step); k * step < x1; k++) {
-      const x = k * step + step * hash(k * 1.3 + sd), h = lerp(h0, h1, hash(k * 2.7 + sd)) * (hash(k * .7 + sd) < (o.gap || 0) ? .3 : 1);
+      const x = k * step + step * hash(k * 1.3 + sd); if (x > (o.xmax ?? Infinity)) continue;
+      const h = lerp(h0, h1, hash(k * 2.7 + sd)) * (hash(k * .7 + sd) < (o.gap || 0) ? .3 : 1);
       blade(x, gy(x) + (o.dy || 3), h, .5 * (hash(k * 5.1 + sd) - .5) + (o.wind ?? .12) * noise1(sd + 3, T * .6 + x * .002), k & 1 ? col : (o.col2 || col), rim, (o.a ?? .85) * A);
     }
     c.globalAlpha = 1;
@@ -145,14 +146,14 @@ window.ExpStyle = (() => {
     c.globalAlpha = .7 * A; c.strokeStyle = rim; c.lineWidth = w + 2 * lw; c.stroke();
     c.globalAlpha = .95 * A; c.strokeStyle = col; c.lineWidth = w; c.stroke(); c.globalAlpha = 1;
   }
-  function taper(pts, ws, col, lw) {
+  function taper(pts, ws, col, lw, a = .55) {
     const L = [], R = [];
     pts.forEach(([x, y], i) => {
       const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy) || 1, w = ws[i] / 2;
       L.push([x - dy / d * w, y + dx / d * w]); R.push([x + dy / d * w, y - dx / d * w]);
     });
     c.beginPath(); [...L, ...R.reverse()].forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); c.lineJoin = 'round';
-    c.globalAlpha = .55 * A; c.fillStyle = col; c.fill(); c.globalAlpha = .75 * A; c.strokeStyle = dk(col, .45); c.lineWidth = lw; c.stroke(); c.globalAlpha = 1;
+    c.globalAlpha = a * A; c.fillStyle = col; c.fill(); c.globalAlpha = .75 * A; c.strokeStyle = dk(col, .45); c.lineWidth = lw; c.stroke(); c.globalAlpha = 1;
   }
   function line(pts, w, col, a = 1) { c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.lineCap = c.lineJoin = 'round'; c.globalAlpha = a * A; c.strokeStyle = col; c.lineWidth = w; c.stroke(); c.globalAlpha = 1; }
   // Quadro local da cabeça: x à frente, y para baixo, girado pela inclinação (sem virar de cabeça para baixo à esquerda).
@@ -162,17 +163,21 @@ window.ExpStyle = (() => {
   // Para d antes de B (no eixo A → B): a ponta redonda de raio d termina na junta, sem passar dela.
   const short = (A0, B0, d) => { const k = Math.max(0, 1 - d / (Math.hypot(B0[0] - A0[0], B0[1] - A0[1]) || 1)); return [A0[0] + (B0[0] - A0[0]) * k, A0[1] + (B0[1] - A0[1]) * k]; };
   // Partes desenhadas de um ser (contrato do verificador, scripts/check-motion.mjs): eixo pts em px do mundo, meia largura
-  // r já com a borda de pigmento, ponta cap; tudo sai das juntas da pose (pose.joints) e o desenho usa só isto. Achatamento
-  // (sq) e flip do ator transformam o ser inteiro, juntas e partes juntas.
+  // r já com a borda de pigmento, ponta cap; tudo sai das juntas da pose (pose.joints) e o desenho usa só isto. O flip do
+  // ator (só em A) transforma o ser inteiro, juntas e partes juntas.
+  // Bichos: [borda lw, meia largura do pescoço, meia largura da cabeça (× raio do eixo), larguras da pata na raiz, no
+  // joelho e na ponta, meia largura do pé ou da mão (osso tip)], em BL.
+  const LOOK = { ant: [.01, .025, .95, [.045, .03, .012]], fly: [.012, .025, .9], dog: [.008, .055, .8, [.1, .065, .045], .028], bird: [.01, .035, .95, [.05, .02, .016], .012],
+    beetle: [.01, .035, .9, [.045, .032, .014]], butterfly: [.012, .02, .9], fish: [.008, .05, 1] };
   function parts(a, F) {
     const p = a.pose, J = p.joints, S = p.size, z = F.cam.z, out = [], Rh = Math.hypot(J.headTop[0] - J.headBase[0], J.headTop[1] - J.headBase[1]) / 2;
     const part = (name, from, to, r, cap, pts = [J[from], J[to]], o) => out.push({ actor: a.id, name, from, to, pts, r, cap, ...o });
     if (a.kind === 'human') {
-      const lw = Math.max(1.1 / z, .004 * S);
-      part('neck', 'neck', 'headBase', .0225 * S + lw, 'butt');
+      // Braços e pernas engrossam com o tipo de corpo (raiz da girth em relação à do adulto).
+      const lw = Math.max(1.1 / z, .004 * S), g = Math.sqrt((BODY[p.body] || BODY.adult).girth / .11), r = k => k * g * S + lw;
+      part('neck', 'neck', 'headBase', .0225 * g * S + lw, 'butt');
       part('head', 'headBase', null, .95 * Rh / 1.05 + lw / 2, 'round', [J.headBase, J.headTop]);
       for (const s of 'LR') {
-        const r = k => k * S + lw;
         part('upperArm' + s, 'shoulder' + s, 'elbow' + s, r(.031), 'round');
         part('forearm' + s, 'elbow' + s, 'wrist' + s, r(.0225), 'round', [J['elbow' + s], short(J['elbow' + s], J['wrist' + s], r(.0225))]);
         part('hand' + s, 'wrist' + s, null, .028 * S + lw / 2, 'round', [J['wrist' + s], J['hand' + s]]);
@@ -182,15 +187,16 @@ window.ExpStyle = (() => {
       }
       return out;
     }
-    // Formiga e mosca: pescoço fino (coberto pelo tórax), cabeça e, na formiga, cada pata em fita que afina (w = larguras
-    // da aguada por ponto; a borda é .8 lw, então o eixo para .4 lw antes da ponta da pata).
-    const ant = a.kind !== 'fly', lw = Math.max(1 / z, (ant ? .01 : .012) * S), legW = k => Math.max(1.1 / z, k * S);
-    part('neck', 'neck', 'headBase', .025 * S + .5 * lw, 'butt');
-    part('head', 'headBase', null, (ant ? .95 : .9) * Rh + lw / 2, 'round', [J.headBase, J.headTop]);
-    if (ant) for (const n of Object.keys(p.limbs)) {
-      const j = k => J[`${n}.${k}`], w = [legW(.045), legW(.03), legW(.012)];
+    // Bichos: pescoço (coberto pelo corpo ou pela cabeça), cabeça e cada pata em fita que afina (w = larguras da aguada por
+    // ponto; a borda é .8 lw, então o eixo para .4 lw antes da ponta) e, se o membro tem pé, o pé da ponta ao dedo.
+    const [lk, nk, hk, legs, tk] = LOOK[a.kind] || LOOK.ant, lw = Math.max(1 / z, lk * S), legW = k => Math.max(1.1 / z, k * S);
+    part('neck', 'neck', 'headBase', nk * S + .5 * lw, 'butt');
+    part('head', 'headBase', null, hk * Rh + lw / 2, 'round', [J.headBase, J.headTop]);
+    if (legs) for (const n of Object.keys(p.limbs)) {
+      const j = k => J[`${n}.${k}`], w = legs.map(legW);
       part(n + '.upper', n + '.root', n + '.mid', w[0] / 2 + .4 * lw, 'butt', undefined, { w: w.slice(0, 2) });
       part(n + '.lower', n + '.mid', n + '.end', w[1] / 2 + .4 * lw, 'butt', [j('mid'), short(j('mid'), j('end'), .4 * lw)], { w: w.slice(1) });
+      if (j('toe')) part(n + '.tip', n + '.end', null, tk * S + lw / 2, 'round', [j('end'), j('toe')]);
     }
     return out;
   }
@@ -247,58 +253,80 @@ window.ExpStyle = (() => {
     wing(false);
   }
 
-  // Explorador de chapéu e mochila, de perfil; 1 BL = altura. O rosto atua (neutral, curious, surprised) e pisca.
+  // Pessoa de perfil; 1 BL = altura. Roupa e cabelo por id (WEAR): camisa, calça, sapato, pele, cabelo e penteado (short |
+  // bun | tail | pigtails | bald); shorts = bermuda (canela de pele), dress = vestido (saia por cima das coxas). Chapéu e
+  // mochila só com actor.gear. O tronco alarga com a girth do tipo de corpo. O rosto atua (expressão, piscada, boca da fala).
+  const WEAR = {
+    human: { shirt: P.shirt, pants: P.pants, shoe: P.boot, skin: P.skin, hair: P.hair, style: 'short' },
+    corredor: { shirt: '#5D8DAF', pants: '#3E4C5E', shoe: '#E6DFD0', skin: '#C08A64', hair: '#2B211C', style: 'short', shorts: true, band: '#C8462E' },
+    marta: { shirt: '#B9566C', pants: '#4D5876', shoe: '#5A3A2E', skin: '#9C6B4E', hair: '#2E211B', style: 'bun' },
+    joao: { shirt: '#7E9F68', pants: '#5E4B3A', shoe: '#3E2E26', skin: '#EDB48E', hair: '#4A3426', style: 'short' },
+    lia: { shirt: '#E2B54E', pants: '#5B6D8C', shoe: '#7A4A30', skin: '#F0C6A4', hair: '#8E4A28', style: 'tail' },
+    bia: { shirt: '#D8735C', pants: '#D8735C', shoe: '#B8402E', skin: '#D39A72', hair: '#3E2A1E', style: 'pigtails', dress: true },
+    avo: { shirt: '#8D7C69', pants: '#4C4B48', shoe: '#3A2E28', skin: '#E8B490', hair: '#E9E4DA', style: 'bald' },
+  };
   // Bota no eixo tornozelo → dedo: (fração do pé, fração da meia largura para o lado do chão); o calcanhar desce até o chão.
   const BOOT = [[-.12, -.9], [.35, -.75], [.85, -.35], [1, .15], [.9, .85], [.3, 1], [-.15, 1], [-.2, .1]];
+  // Membros que passam por cima de outro ser (actor.front, abraço): pintados depois de todos os atores da camada.
+  let LATE = [];
   function human(a, Q) {
     const p = a.pose, S = p.size, sd = sid(a.id), f = p.facing, J = p.joints, [ch, pe] = p.spine, L = p.limbs, lw = Math.max(1.1 / cam.z, .004 * S), q = n => Q.find(x => x.name === n);
-    const gy = Math.max(L.legL.end[1], L.legR.end[1]), sq = p.sq || 0, ta = Math.atan2(ch.y - pe.y, ch.x - pe.x);
-    c.save(); c.translate(pe.x, gy); c.scale(1 + .5 * sq, 1 - sq); c.translate(-pe.x, -gy);
+    const Wr = WEAR[a.id] || WEAR.human, gear = a.gear || [], gk = (BODY[p.body] || BODY.adult).girth / .11, ta = Math.atan2(ch.y - pe.y, ch.x - pe.x), front = a.front || [];
     const bone = (n, col) => { const x = q(n); limb(x.pts, 2 * (x.r - lw), col, lw, undefined, x.cap); };
     const leg = (s, far) => {
-      const cl = far ? dk(P.pants, .3) : P.pants, ft = q('foot' + s), [A0] = ft.pts, h = axis(ft), w = ft.r - lw / 2, u = [Math.cos(h.a), Math.sin(h.a)], n = [-f * u[1], f * u[0]];
-      bone('thigh' + s, cl); bone('shin' + s, cl);
-      blot(BOOT.map(([k, m]) => [A0[0] + u[0] * k * h.L + n[0] * m * w, A0[1] + u[1] * k * h.L + n[1] * m * w]), far ? dk(P.boot, .3) : P.boot, lw);
+      const k = far ? .3 : 0, cl = dk(Wr.dress ? Wr.skin : Wr.pants, k), ft = q('foot' + s), [A0] = ft.pts, h = axis(ft), w = ft.r - lw / 2, u = [Math.cos(h.a), Math.sin(h.a)], n = [-f * u[1], f * u[0]];
+      bone('thigh' + s, cl); bone('shin' + s, Wr.shorts ? dk(Wr.skin, k) : cl);
+      blot(BOOT.map(([b, m]) => [A0[0] + u[0] * b * h.L + n[0] * m * w, A0[1] + u[1] * b * h.L + n[1] * m * w]), dk(Wr.shoe, k), lw);
     };
     const arm = (s, far) => {
-      const hd = q('hand' + s), h = axis(hd), sk = far ? dk(P.skin, .25) : P.skin;
-      bone('upperArm' + s, far ? dk(P.shirt, .3) : P.shirt); bone('forearm' + s, sk);
+      const hd = q('hand' + s), h = axis(hd), sk = dk(Wr.skin, far ? .25 : 0);
+      bone('upperArm' + s, dk(Wr.shirt, far ? .3 : 0)); bone('forearm' + s, sk);
       blot(oval(h.m[0], h.m[1], h.L / 2, hd.r - lw / 2, h.a, sd + (far ? 11 : 13), 9), sk, lw, { shade: false });
     };
+    const armOrLate = (s, far) => { if (!front.includes('arm' + s)) return arm(s, far); const la = a.layer, al = A; LATE.push(() => { at(la); A = al; arm(s, far); A = 1; }); };
     const fl = Object.entries(L).filter(([, l]) => l.far), nr = Object.entries(L).filter(([, l]) => !l.far);
-    for (const [n] of fl) n.startsWith('leg') ? leg(n.slice(-1), true) : arm(n.slice(-1), true);
+    for (const [n] of fl) n.startsWith('leg') ? leg(n.slice(-1), true) : armOrLate(n.slice(-1), true);
     // Eixo do tronco: pelve → base do pescoço (1,2 d); tq(al px ao longo, ac BL à frente). Mochila, camisa, cinto e alça vão nele.
     const d = Math.hypot(J.neck[0] - pe.x, J.neck[1] - pe.y) / 1.2, dc = Math.hypot(ch.x - pe.x, ch.y - pe.y);
     const ux = (J.neck[0] - pe.x) / (1.2 * d || 1), uy = (J.neck[1] - pe.y) / (1.2 * d || 1), tq = (al, ac) => [pe.x + ux * al - uy * ac * f * S, pe.y + uy * al + ux * ac * f * S];
-    // Mochila nas costas, com o saco de dormir enrolado em cima.
-    const [bx, by] = tq(dc - .02 * S, -.14);
-    blot(oval(bx, by, .085 * S, .14 * S, ta + Math.PI / 2, sd + 21), P.pack, lw);
-    blot(oval(...tq(dc + .13 * S, -.145), .07 * S, .035 * S, ta + Math.PI / 2, sd + 23, 10), mixCol(P.pants, P.paper, .3), lw);
-    line([tq(dc, -.16), tq(dc, -.09)], .012 * S, dk(P.pack, .4), .8);
-    // Tronco: camisa do quadril ao ombro; calça no quadril.
+    if (gear.includes('backpack')) {  // mochila nas costas, com o saco de dormir enrolado em cima
+      const [bx, by] = tq(dc - .02 * S, -.14);
+      blot(oval(bx, by, .085 * S, .14 * S, ta + Math.PI / 2, sd + 21), P.pack, lw);
+      blot(oval(...tq(dc + .13 * S, -.145), .07 * S, .035 * S, ta + Math.PI / 2, sd + 23, 10), mixCol(P.pants, P.paper, .3), lw);
+      line([tq(dc, -.16), tq(dc, -.09)], .012 * S, dk(P.pack, .4), .8);
+    }
+    // Rabo de cavalo: fita pelo apêndice hair (balança com a cabeça), atrás da cabeça e do tronco.
+    if (Wr.style === 'tail' && p.appendages.hair) blot(ribbon(chaikin([[p.head.x, p.head.y], ...p.appendages.hair]), .1 * S, .025 * S), Wr.hair, lw, { shade: false });
+    if (!Wr.dress) blot(oval(pe.x, pe.y + .01 * S, .085 * gk * S, .06 * S, ta + Math.PI / 2, sd + 33, 12), Wr.pants, lw, { light: false });  // quadril, entre as coxas
     for (const [n] of nr) if (n.startsWith('leg')) leg(n.slice(-1), false);
-    // Camisa: do quadril (estreito) ao peito e ombros (mais largos); cobre a base do pescoço.
-    blot([[-.03, .085], [.45, .088], [1, .1], [1.12, .075], [1.22, .02], [1.2, -.06], [1.05, -.1], [.45, -.092], [-.03, -.088]].map(([al, ac]) => tq(al * d, ac)), P.shirt, lw);
-    blot(oval(pe.x, pe.y + .02 * S, .1 * S, .07 * S, ta, sd + 33, 12), P.pants, lw, { light: false });
-    line([tq(.035 * S, -.09), tq(.035 * S, .09)], .015 * S, P.band, .8);  // cinto
-    line([tq(dc + .1 * S, .02), tq(dc - .1 * S, .055)], .016 * S, dk(P.pack, .3), .9);  // alça
+    // Camisa: do quadril (estreito) ao peito e ombros (mais largos), na largura do tipo de corpo; cobre a base do pescoço.
+    blot([[-.03, .085], [.45, .088], [1, .1], [1.12, .075], [1.22, .02], [1.2, -.06], [1.05, -.1], [.45, -.092], [-.03, -.088]].map(([al, ac]) => tq(al * d, ac * gk)), Wr.shirt, lw);
+    if (Wr.dress) blot([[.25, .095], [.12, .14], [-.32, .2], [-.36, 0], [-.32, -.17], [.12, -.12], [.25, -.095]].map(([al, ac]) => tq(al * d, ac * gk)), dk(Wr.shirt, .06), lw);  // saia
+    else {
+      line([tq(.035 * S, -.09 * gk), tq(.035 * S, .09 * gk)], .015 * S, P.band, .8);  // cinto
+    }
+    if (gear.includes('backpack')) line([tq(dc + .1 * S, .02), tq(dc - .1 * S, .055)], .016 * S, dk(P.pack, .3), .9);  // alça
     // Cabeça no eixo base → topo (o rosto em y < 0); o eixo inteiro mede 2,1 R.
-    bone('neck', dk(P.skin, .1));
+    bone('neck', dk(Wr.skin, .1));
     const h = axis(q('head'));
-    c.save(); c.translate(...h.m); c.rotate(h.a + Math.PI / 2); c.scale(f, 1); head(p, h.L / 2.1, sd, lw); c.restore();
-    for (const [n] of nr) if (!n.startsWith('leg')) arm(n.slice(-1), false);
-    c.restore();
+    c.save(); c.translate(...h.m); c.rotate(h.a + Math.PI / 2); c.scale(f, 1); head(p, h.L / 2.1, sd, lw, Wr, gear.includes('hat')); c.restore();
+    for (const [n] of nr) if (!n.startsWith('leg')) armOrLate(n.slice(-1), false);
     if (p.emote) emote(p, S);
   }
-  function head(p, R, sd, lw) {
-    const F = p.face || {}, ex = F.expression || 'neutral', shut = (F.blink || 0) > .5;
+  // Cabelo no quadro da cabeça (R): calota de trás e do alto e o penteado; o careca só tem a franja de trás.
+  const CAP = [[.55, -.72], [.3, -1.06], [-.3, -1.1], [-.82, -.78], [-1.02, -.2], [-.96, .3], [-.6, .38], [-.42, -.05], [-.05, -.55], [.32, -.58]];
+  function head(p, R, sd, lw, Wr, hat) {
+    const F = p.face || {}, ex = F.expression || 'neutral', shut = (F.blink || 0) > .5, sk = Wr.skin, hr = Wr.hair, st = Wr.style;
+    const pts = a => a.map(([u, v]) => [u * R, v * R]);
     // Queixo e garganta por baixo do rosto: cobrem o topo do pescoço (que para na base da cabeça), mesmo com a cabeça inclinada.
-    blot(oval(0, .9 * R, .55 * R, .45 * R, 0, sd + 49, 10, .04), P.skin, lw, { shade: false });
-    blot(oval(-.55 * R, -.15 * R, .5 * R, .5 * R, 0, sd + 51, 10), P.hair, lw, { shade: false });
-    blot(oval(0, 0, .95 * R, 1.05 * R, 0, sd + 53), P.skin, lw);
-    blot(oval(.97 * R, .12 * R, .2 * R, .17 * R, 0, sd + 55, 9), P.skin, lw, { shade: false });  // nariz
-    blot(oval(-.15 * R, .1 * R, .17 * R, .23 * R, 0, sd + 57, 9), dk(P.skin, .12), lw, { shade: false });  // orelha
-    trace(oval(.4 * R, .38 * R, .2 * R, .13 * R, 0, sd + 59, 9)); c.globalAlpha = .25 * A; c.fillStyle = P.red; c.fill(); c.globalAlpha = 1;  // bochecha
+    blot(oval(0, .9 * R, .55 * R, .45 * R, 0, sd + 49, 10, .04), sk, lw, { shade: false });
+    if (hat || st === 'bald') blot(oval(-.55 * R, -.1 * R, .48 * R, .48 * R, 0, sd + 51, 10), hr, lw, { shade: false });
+    if (st === 'bun') blot(oval(-.88 * R, -.78 * R, .36 * R, .34 * R, 0, sd + 47, 10), hr, lw);
+    if (st === 'pigtails') for (const v of [-.35, .3]) blot(oval(-1.05 * R, v * R, .26 * R, .32 * R, .3, sd + 45 + v, 9), hr, lw, { shade: false });
+    blot(oval(0, 0, .95 * R, 1.05 * R, 0, sd + 53), sk, lw);
+    blot(oval(.97 * R, .12 * R, .2 * R, .17 * R, 0, sd + 55, 9), sk, lw, { shade: false });  // nariz
+    blot(oval(-.15 * R, .1 * R, .17 * R, .23 * R, 0, sd + 57, 9), dk(sk, .12), lw, { shade: false });  // orelha
+    trace(oval(.4 * R, .38 * R, .2 * R, .13 * R, 0, sd + 59, 9)); c.globalAlpha = (ex === 'happy' ? .42 : .25) * A; c.fillStyle = P.red; c.fill(); c.globalAlpha = 1;  // bochecha
     // Olho, sobrancelha e boca por expressão, em nanquim sépia (olho grande o bastante para atuar).
     const eye = [.45 * R, .02 * R], ink = P.ink, stroke = (w, a = .9) => { c.globalAlpha = a * A; c.strokeStyle = ink; c.lineWidth = w; c.lineCap = 'round'; c.stroke(); };
     if (shut) { c.beginPath(); c.arc(eye[0], eye[1] - .1 * R, .2 * R, .35, Math.PI - .35); stroke(.08 * R); }
@@ -308,19 +336,31 @@ window.ExpStyle = (() => {
     } else {
       const k = ex === 'curious' ? 1.2 : 1; trace(oval(eye[0], eye[1], .17 * R * k, .24 * R * k, 0, sd + 61, 8)); c.globalAlpha = A; c.fillStyle = ink; c.fill();
       c.beginPath(); c.arc(eye[0] - .04 * R, eye[1] - .08 * R, .06 * R * k, 0, TAU); c.fillStyle = '#FFFDF6'; c.fill();
+      if (ex === 'happy') { c.beginPath(); c.arc(eye[0], eye[1] + .36 * R, .24 * R, -2.3, -.84); c.globalAlpha = A; c.strokeStyle = sk; c.lineWidth = .14 * R; c.stroke(); }  // pálpebra de baixo sobe: olho sorri
     }
-    const brow = { neutral: [[.24, -.24], [.45, -.28], [.66, -.24]], curious: [[.22, -.3], [.45, -.42], [.68, -.34]], surprised: [[.22, -.42], [.46, -.56], [.7, -.46]] }[ex] || [];
-    c.beginPath(); brow.forEach(([u, v], i) => i ? c.lineTo(u * R, v * R) : c.moveTo(u * R, v * R)); stroke(.1 * R);
-    if (ex === 'surprised') { trace(oval(.62 * R, .6 * R, .17 * R, .26 * R, 0, sd + 63, 10)); c.globalAlpha = A; c.fillStyle = '#5A2420'; c.fill(); stroke(.05 * R); trace(oval(.62 * R, .74 * R, .1 * R, .07 * R, 0, sd + 64, 8)); c.globalAlpha = .8 * A; c.fillStyle = '#C8664E'; c.fill(); }
-    else if (ex === 'curious') { trace(oval(.68 * R, .56 * R, .09 * R, .1 * R, 0, sd + 63, 8)); c.globalAlpha = A; c.fillStyle = '#5A2420'; c.fill(); stroke(.04 * R); }
+    const brow = { neutral: [[.24, -.24], [.45, -.28], [.66, -.24]], happy: [[.24, -.27], [.45, -.33], [.66, -.27]], curious: [[.22, -.3], [.45, -.42], [.68, -.34]], surprised: [[.22, -.42], [.46, -.56], [.7, -.46]] }[ex] || [];
+    c.beginPath(); brow.forEach(([u, v], i) => i ? c.lineTo(u * R, v * R) : c.moveTo(u * R, v * R)); stroke((st === 'bald' ? .07 : .1) * R);
+    if (st === 'bald') { c.beginPath(); c.moveTo(.5 * R, .4 * R); c.quadraticCurveTo(.7 * R, .34 * R, .9 * R, .42 * R); c.globalAlpha = A; c.strokeStyle = hr; c.lineWidth = .1 * R; c.lineCap = 'round'; c.stroke(); }  // bigode
+    // Boca: a da fala (m fechada, e pequena, a aberta, o redonda) ou a da expressão.
+    const M = F.mouth || (ex === 'surprised' ? 'o' : null), mouthOpen = (rx, ry) => { trace(oval(.64 * R, .6 * R, rx * R, ry * R, 0, sd + 63, 9)); c.globalAlpha = A; c.fillStyle = '#5A2420'; c.fill(); stroke(.045 * R); };
+    if (M === 'a') { mouthOpen(.15, .14); trace(oval(.64 * R, .68 * R, .09 * R, .05 * R, 0, sd + 64, 8)); c.globalAlpha = .8 * A; c.fillStyle = '#C8664E'; c.fill(); }
+    else if (M === 'o') mouthOpen(ex === 'surprised' ? .17 : .1, ex === 'surprised' ? .24 : .12);
+    else if (M === 'e') mouthOpen(.13, .06);
+    else if (M === 'm') { c.beginPath(); c.moveTo(.52 * R, .58 * R); c.lineTo(.78 * R, .57 * R); stroke(.06 * R, .8); }
+    else if (ex === 'curious') mouthOpen(.09, .1);
+    else if (ex === 'happy') { c.beginPath(); c.moveTo(.46 * R, .48 * R); c.quadraticCurveTo(.64 * R, .72 * R, .84 * R, .46 * R); stroke(.07 * R); }
     else { c.beginPath(); c.moveTo(.5 * R, .52 * R); c.quadraticCurveTo(.66 * R, .58 * R, .8 * R, .5 * R); stroke(.06 * R, .8); }
     c.globalAlpha = 1;
     // Nanquim leve: nuca e queixo.
     c.globalAlpha = .5 * A; c.strokeStyle = P.ink; c.lineWidth = lw; c.beginPath(); c.ellipse(0, 0, .97 * R, 1.07 * R, 0, 1.9, 2.9); c.stroke(); c.beginPath(); c.ellipse(0, 0, .97 * R, 1.07 * R, 0, .5, 1.2); c.stroke(); c.globalAlpha = 1;
-    // Chapéu de explorador: copa, fita e aba.
-    blot([[-.78, -.62], [-.72, -1.17], [-.45, -1.42], [.1, -1.48], [.55, -1.32], [.74, -1.02], [.8, -.62]].map(([u, v]) => [u * R, v * R]), P.hat, lw);
-    blot([[-.78, -.62], [-.76, -.84], [.78, -.84], [.8, -.62]].map(([u, v]) => [u * R, v * R]), P.band, lw, { shade: false });
-    blot(oval(.05 * R, -.64 * R, 1.6 * R, .17 * R, -.04, sd + 65, 16, .05), dk(P.hat, .08), lw, { light: false });
+    if (hat) {  // chapéu de explorador: copa, fita e aba
+      blot(pts([[-.78, -.62], [-.72, -1.17], [-.45, -1.42], [.1, -1.48], [.55, -1.32], [.74, -1.02], [.8, -.62]]), P.hat, lw);
+      blot(pts([[-.78, -.62], [-.76, -.84], [.78, -.84], [.8, -.62]]), P.band, lw, { shade: false });
+      blot(oval(.05 * R, -.64 * R, 1.6 * R, .17 * R, -.04, sd + 65, 16, .05), dk(P.hat, .08), lw, { light: false });
+    } else if (st !== 'bald') {
+      blot(pts(CAP), hr, lw, { light: st !== 'short' });
+      if (Wr.band) line(pts([[.62, -.62], [-.95, -.42]]), .16 * R, Wr.band, .9);  // faixa do corredor
+    }
   }
   // Emote (? ou !) pintado sobre a cabeça: borrão amarelo-pálido por baixo e a letra em vermelho-terra com borda.
   function emote(p, S) {
@@ -333,18 +373,144 @@ window.ExpStyle = (() => {
     c.globalAlpha = .92 * a; c.fillStyle = P.red; c.fillText(sym, 0, 0);
     c.restore(); A = 1;
   }
-  // Atores da camada pedida (layer < 1 ou = 1), fora do quadro pulados; alpha e flip aplicados.
-  function actors(F, front) {
+  // Pontos de uma parte de dois pontos em (k ao longo do eixo, em frações do comprimento; m para baixo do ser, em frações de r).
+  const onAxis = (x, f, r) => { const h = axis(x), u = [Math.cos(h.a), Math.sin(h.a)], n = [-f * u[1], f * u[0]], [A0] = x.pts; return ([k, m]) => [A0[0] + u[0] * k * h.L + n[0] * m * r, A0[1] + u[1] * k * h.L + n[1] * m * r]; };
+  // Pata em fita (raiz → joelho → ponta, larguras w das partes) e, se houver, o pé da ponta ao dedo.
+  function legsOf(a, Q, far, col, lw, foot) {
+    const q = n => Q.find(x => x.name === n);
+    for (const [n, l] of Object.entries(a.pose.limbs)) if (l.far === far) {
+      const u = q(n + '.upper'), v = q(n + '.lower'), t = q(n + '.tip'), cl = far ? dk(col, .35) : col;
+      taper([...u.pts, v.pts[1]], [...u.w, v.w[1]], cl, lw * .8, .95);
+      if (t && foot) foot(t, cl, n);
+    }
+  }
+  // Raposa (kind dog): ferrugem com peito, queixo e ponta da cauda cor de creme, meias escuras, orelhas em ponta e focinho
+  // fino até a ponta (joints.headTop). Cabeça em gota no eixo base → ponta; o crânio passa um pouco para trás da base e cobre o pescoço.
+  const FOXC = { col: '#C66A32', cream: '#F2E6CF', dark: '#4A3328' };
+  const HEADF = [[-.18, -.05], [-.12, -.8], [.15, -1], [.5, -.6], [.8, -.32], [1, -.1], [1, .1], [.8, .28], [.45, .55], [.1, .8], [-.12, .55]];
+  function dog(a, Q) {
+    const p = a.pose, S = p.size, sd = sid(a.id), f = p.facing, lw = Math.max(1 / cam.z, .008 * S), q = n => Q.find(x => x.name === n), [s0, , s2] = p.spine, tail = p.appendages.tail;
+    const paw = (t, cl, n) => { const h = axis(t); blot(oval(h.m[0], h.m[1], h.L / 2, t.r - lw / 2, h.a, sd + n.length * 3, 9), mixCol(cl, FOXC.dark, .75), lw, { shade: false }); };
+    legsOf(a, Q, true, FOXC.col, lw, paw);
+    if (tail) { const tp = chaikin([[s2.x, s2.y], ...tail]), e = tail.at(-1); blot(ribbon(tp, .07 * S, .11 * S), FOXC.col, lw); blot(oval(e[0], e[1], .07 * S, .055 * S, 0, sd + 7, 9), FOXC.cream, lw, { shade: false }); }
+    const ba = Math.atan2(s0.y - s2.y, s0.x - s2.x), bl = Math.hypot(s0.x - s2.x, s0.y - s2.y) / 2;
+    blot(oval((s0.x + s2.x) / 2, (s0.y + s2.y) / 2, bl + .14 * S, .13 * S, ba, sd), FOXC.col, lw);
+    blot(oval(s0.x + f * .03 * S, s0.y + .05 * S, .1 * S, .085 * S, ba, sd + 9, 10), FOXC.cream, lw, { shade: false });  // peito
+    legsOf(a, Q, false, FOXC.col, lw, paw);
+    const nk = q('neck'), hq = q('head'), on = onAxis(hq, f, hq.r - lw / 2), ear = (k, col) => blot([[.05 + k, -.75], [-.1 + k, -1.85], [.36 + k, -.9]].map(on), col, lw, { shade: false });
+    limb(nk.pts, 2 * (nk.r - lw), FOXC.col, lw, undefined, nk.cap);
+    ear(-.14, dk(FOXC.col, .3));
+    blot(HEADF.map(on), FOXC.col, lw);
+    blot([[.3, .1], [.75, .05], [1, .08], [.85, .28], [.45, .52], [.12, .6]].map(on), FOXC.cream, lw, { shade: false });  // bochecha e queixo
+    ear(.04, FOXC.col);
+    const [nx, ny] = hq.pts[1], [ex, ey] = on([.48, -.42]), R = hq.r, sur = p.face && p.face.expression === 'surprised';
+    c.beginPath(); c.arc(nx, ny, .16 * R, 0, TAU); c.globalAlpha = A; c.fillStyle = P.ink; c.fill();  // nariz na ponta
+    if (sur) { c.beginPath(); c.arc(ex, ey, .2 * R, 0, TAU); c.fillStyle = '#FFFDF6'; c.fill(); c.strokeStyle = P.ink; c.lineWidth = lw; c.stroke(); }
+    c.beginPath(); c.arc(ex, ey, (sur ? .1 : .13) * R, 0, TAU); c.fillStyle = P.ink; c.fill(); c.globalAlpha = 1;
+  }
+  // Pássaro: cinza-azulado de peito creme, bico ocre, pernas finas com dedos (o de trás também); asas por pose.wings: no voo a
+  // asa de longe e a de perto batem (altura aparente pelo cosseno da fase); pousado, a asa fica dobrada no flanco.
+  const BIRDC = { col: '#7A8DA3', belly: '#EBDDBE', beak: '#D9A441', leg: '#8A5A3A' };
+  function bird(a, Q) {
+    const p = a.pose, S = p.size, sd = sid(a.id), f = p.facing, lw = Math.max(1 / cam.z, .01 * S), q = n => Q.find(x => x.name === n), [s0, s1] = p.spine, Wg = p.wings || { phase: 0, open: 0 };
+    const toes = (t, cl) => { const h = axis(t), w = 2 * (t.r - lw / 2); line(t.pts, w, cl); line([t.pts[0], [t.pts[0][0] - .45 * h.L * Math.cos(h.a), t.pts[0][1] + .2 * h.L]], w * .8, cl); };
+    const ba = Math.atan2(s0.y - s1.y, s0.x - s1.x), bl = Math.hypot(s0.x - s1.x, s0.y - s1.y) / 2, bx = (s0.x + s1.x) / 2, by = (s0.y + s1.y) / 2;
+    const wing = far => {
+      const col = far ? dk(BIRDC.col, .3) : dk(BIRDC.col, .1);
+      if (!Wg.open) { if (!far) blot(oval(bx - f * .03 * S, by - .03 * S, bl + .06 * S, .08 * S, ba + f * .12, sd + 31, 12), col, lw, { light: false }); return; }
+      const k = Math.cos(Wg.phase * TAU), ky = Math.sign(k || 1) * Math.max(.12, Math.abs(k)) * (far ? .85 : 1);
+      c.save(); c.translate(s0.x - f * .03 * S, s0.y - .06 * S); c.scale(f, ky);
+      blot([[.06, 0], [-.04, -.14], [-.22, -.4], [-.46, -.5], [-.34, -.26], [-.2, -.04]].map(([u, v]) => [u * S, v * S]), col, lw / Math.abs(ky), { light: false });
+      c.restore();
+    };
+    wing(true); legsOf(a, Q, true, BIRDC.leg, lw, toes);
+    if (p.appendages.tail) blot(ribbon([[s1.x, s1.y], ...p.appendages.tail], .07 * S, .06 * S), dk(BIRDC.col, .25), lw, { shade: false });
+    blot(oval(bx, by, bl + .17 * S, .15 * S, ba, sd), BIRDC.col, lw);
+    blot(oval(s0.x + f * .04 * S, s0.y + .06 * S, .12 * S, .09 * S, ba, sd + 9, 10), BIRDC.belly, lw, { shade: false });  // peito
+    legsOf(a, Q, false, BIRDC.leg, lw, toes);
+    const nk = q('neck'), hq = q('head'), h = axis(hq), R = h.L / 2;
+    limb(nk.pts, 2 * (nk.r - lw), BIRDC.col, lw, undefined, nk.cap);
+    c.save(); headFrame(p); blot([[.7, -.28], [1.75, .02], [.7, .3]].map(([u, v]) => [u * R, v * R]), BIRDC.beak, lw, { shade: false }); c.restore();  // bico (sob a cabeça)
+    blot(oval(h.m[0], h.m[1], R, hq.r - lw / 2, h.a, sd + 40), BIRDC.col, lw);
+    c.save(); headFrame(p); c.beginPath(); c.arc(.3 * R, -.18 * R, .2 * R, 0, TAU); c.globalAlpha = A; c.fillStyle = P.ink; c.fill(); c.beginPath(); c.arc(.24 * R, -.25 * R, .07 * R, 0, TAU); c.fillStyle = P.paper; c.fill(); c.restore(); c.globalAlpha = 1;
+    wing(false);
+  }
+  // Borboleta: asas azul-cerúleo com a borda escura e uma pinta clara; batem juntas (altura aparente pelo cosseno da fase).
+  const BFC = { wing: '#7FA8C9', edge: '#3E5E7A', body: '#3B302B', spot: '#F1E3B8' };
+  function butterfly(a, Q) {
+    const p = a.pose, S = p.size, sd = sid(a.id), f = p.facing, lw = Math.max(1 / cam.z, .012 * S), q = n => Q.find(x => x.name === n), [th, ab] = p.spine, Wg = p.wings || { phase: 0 };
+    const k = Math.cos(Wg.phase * TAU), wing = far => {
+      const ky = Math.sign(k || 1) * Math.max(.1, Math.abs(k)) * (far ? .88 : 1), col = far ? dk(BFC.wing, .3) : BFC.wing, s = ([u, v]) => [u * S, v * S];
+      c.save(); c.translate(th.x, th.y - .4 * th.r); c.scale(f, ky);
+      blot([[.02, 0], [-.1, -.3], [-.42, -.62], [-.62, -.5], [-.5, -.18], [-.12, .02]].map(s), dk(col, .08), lw / Math.abs(ky), { shade: false, rim: BFC.edge });  // asa de trás
+      blot([[.06, 0], [.14, -.5], [.4, -1], [.72, -.9], [.6, -.42], [.16, .02]].map(s), col, lw / Math.abs(ky), { shade: false, rim: BFC.edge });
+      if (!far) blot(oval(.47 * S, -.74 * S, .08 * S, .07 * S, 0, sd + 3, 8), BFC.spot, lw / Math.abs(ky), { shade: false });
+      c.restore();
+    };
+    wing(true);
+    const ant = n => p.appendages[n] && line(p.appendages[n], Math.max(1 / cam.z, .015 * S), BFC.body, .9);
+    ant(f > 0 ? 'antennaR' : 'antennaL');
+    blot(oval(ab.x, ab.y, 1.9 * ab.r, .85 * ab.r, ab.angle, sd), mixCol(BFC.body, BFC.wing, .25), lw, { shade: false });
+    blot(oval(th.x, th.y, 1.1 * th.r, .95 * th.r, th.angle, sd + 20), BFC.body, lw, { shade: false });
+    const nk = q('neck'), hq = q('head'), h = axis(hq);
+    limb(nk.pts, 2 * (nk.r - .5 * lw), BFC.body, .5 * lw, undefined, nk.cap);
+    blot(oval(h.m[0], h.m[1], h.L / 2, hq.r - lw / 2, h.a, sd + 40), BFC.body, lw, { shade: false });
+    ant(f > 0 ? 'antennaL' : 'antennaR');
+    wing(false);
+  }
+  // Besouro: élitros verde-bronze em cúpula com a luz do papel, pronoto mais escuro, patas e antenas quase pretas.
+  const BTC = { shell: '#45604E', dark: '#2C2824' };
+  function beetle(a, Q) {
+    const p = a.pose, S = p.size, sd = sid(a.id), f = p.facing, lw = Math.max(1 / cam.z, .01 * S), q = n => Q.find(x => x.name === n), [pr, el] = p.spine;
+    const ant = n => p.appendages[n] && line(p.appendages[n], Math.max(1 / cam.z, .014 * S), BTC.dark, .9);
+    legsOf(a, Q, true, BTC.dark, lw); ant(f > 0 ? 'antennaR' : 'antennaL');
+    const nk = q('neck'), hq = q('head'), h = axis(hq);
+    limb(nk.pts, 2 * (nk.r - .5 * lw), BTC.dark, .5 * lw, undefined, nk.cap);
+    blot(oval(h.m[0], h.m[1], h.L / 2, hq.r - lw / 2, h.a, sd + 40), BTC.dark, lw, { shade: false });
+    blot(oval(pr.x, pr.y, .95 * pr.r, .75 * pr.r, pr.angle, sd + 20), dk(BTC.shell, .25), lw);
+    blot(oval(el.x, el.y, 1.12 * el.r, .78 * el.r, el.angle, sd), BTC.shell, lw);
+    legsOf(a, Q, false, BTC.dark, lw); ant(f > 0 ? 'antennaL' : 'antennaR');
+  }
+  // Peixe: contorno do focinho (headTop) pela cabeça e pelos segmentos (raio de cada um) até a cauda; dorso escuro, barriga
+  // clara, nadadeira caudal em leque pelo apêndice. A água (lake) entra por cima depois dos atores.
+  const FISHC = { side: '#9DB4B8', back: '#4F6B74', belly: '#E4E2D2', fin: '#7C969C' };
+  function fish(a, Q) {
+    const p = a.pose, S = p.size, sd = sid(a.id), f = p.facing, lw = Math.max(1 / cam.z, .008 * S), q = n => Q.find(x => x.name === n), J = p.joints, nk = q('neck'), hq = q('head'), h = axis(hq);
+    const ch = [[...hq.pts[1], .02 * S], [...J.head, .95 * h.L / 2], ...p.spine.map(s => [s.x, s.y, s.r])], top = [], bot = [];
+    ch.forEach(([x, y, r], i) => { const A0 = ch[Math.max(0, i - 1)], B0 = ch[Math.min(ch.length - 1, i + 1)], dx = B0[0] - A0[0], dy = B0[1] - A0[1], d = Math.hypot(dx, dy) || 1; top.push([x - dy / d * r * f, y + dx / d * r * f]); bot.push([x + dy / d * r * f, y - dx / d * r * f]); });
+    const cd = p.appendages.caudal, pc = p.appendages.pectoral;
+    if (cd) blot(ribbon(cd, .05 * S, .26 * S), FISHC.fin, lw, { shade: false });
+    limb(nk.pts, 2 * (nk.r - .5 * lw), FISHC.side, .5 * lw, undefined, nk.cap);
+    const tail = p.spine.at(-1);
+    blot([...top, [tail.x, tail.y], ...bot.reverse()], FISHC.side, lw);
+    blot([...top.slice(1), [tail.x, tail.y], ...ch.slice(1).reverse().map(([x, y]) => [x, y])], FISHC.back, lw, { shade: false, a: .55 });  // dorso
+    blot(oval(h.m[0], h.m[1], h.L / 2, hq.r - lw / 2, h.a, sd + 40), mixCol(FISHC.side, FISHC.belly, .3), lw, { shade: false, a: .6 });
+    if (pc) line(pc, .03 * S, dk(FISHC.fin, .1), .8);
+    const R = h.L / 2;
+    c.save(); headFrame(p); c.beginPath(); c.arc(-.35 * R, .05 * R, .6 * R, -.9, .9); c.globalAlpha = .6 * A; c.strokeStyle = dk(FISHC.side, .45); c.lineWidth = lw; c.stroke();
+    c.beginPath(); c.arc(.25 * R, -.2 * R, .2 * R, 0, TAU); c.globalAlpha = A; c.fillStyle = '#FFFDF6'; c.fill(); c.beginPath(); c.arc(.28 * R, -.2 * R, .11 * R, 0, TAU); c.fillStyle = P.ink; c.fill(); c.restore(); c.globalAlpha = 1;
+  }
+  // Atores da camada pedida (layer < 1 ou = 1), fora do quadro pulados; alpha e flip aplicados. props = adereços da camada
+  // da frente, [{depth, draw}], intercalados pela profundidade (vai antes do ator de depth igual ou maior). Por fim os
+  // membros que passam por cima de outro ser (LATE).
+  const KIND = { human, fly, dog, bird, butterfly, beetle, fish };
+  function actors(F, front, props = []) {
+    const pr = [...props].sort((a, b) => a.depth - b.depth); let i = 0;
+    const flush = d => { while (i < pr.length && pr[i].depth <= d) { at(1); A = 1; pr[i++].draw(); } };
     for (const a of F.actors) {
-      if (a.hidden || (a.layer >= 1) !== front) continue;
+      if ((a.layer >= 1) !== front) continue;
+      if (front) flush(a.depth);
+      if (a.hidden) continue;
       const p = a.pose, lx = lerp(960, cam.cx, a.layer), sx = (p.spine[0].x - lx) * cam.z + 960, sy = (p.spine[0].y - cam.cy) * cam.z + 540, m = 1.6 * p.size * cam.z + 40;
       if (sx < -m || sx > W + m || sy < -m || sy > H + m) continue;
       at(a.layer); A = a.alpha ?? 1;
       if (a.flip) { const mx = (p.spine[0].x + p.spine.at(-1).x) / 2; c.translate(mx, 0); c.scale(a.flip, 1); c.translate(-mx, 0); }
-      (a.kind === 'human' ? human : a.kind === 'fly' ? fly : ant)(a, parts(a, F));
+      (KIND[a.kind] || ant)(a, parts(a, F));
       A = 1;
     }
-    c.globalAlpha = 1;
+    if (front) flush(Infinity);
+    for (const fn of LATE) fn();
+    LATE = []; c.globalAlpha = 1;
   }
 
   // ---------- planos ----------
@@ -466,6 +632,130 @@ window.ExpStyle = (() => {
     grass(1, x => w.antGround(x) + 40, 34, 12, 30, P.grassDk, { seed: 15, col2: P.grass, wind: .1, a: .75, gap: .5 });
   }
 
+  // ---------- praça (P) e lago (N) ----------
+  // Adereços pintados uma vez em p5.brush (cada um no seu cache, sem máscara: a aguada é transparente sobre o fundo).
+  function paintTree(x, y, h, sd) {
+    const crown = [[-.17, -.7, .19], [.02, -.84, .23], [.18, -.68, .18], [-.06, -.55, .17], [.11, -.52, .15]].map(([dx, k, r]) => [x + dx * h, y + k * h, r * h]);
+    wc(ribbon([[x, y + 8], [x + .01 * h, y - .3 * h], [x - .012 * h, y - .6 * h]], .065 * h, .03 * h), mixCol(P.soilDk, P.stone, .3), 220, .05, .5);
+    nib([[x - .028 * h, y + 4], [x - .025 * h, y - .5 * h]], .45); nib([[x, y - .42 * h], [x + .11 * h, y - .62 * h]], .4);
+    for (const [cx, cy, r] of crown) wc(ell(cx, cy, r, .82 * r, 16, cx + sd), P.tree, 190, .15, .55);
+    for (const [cx, cy, r] of crown) wc(ell(cx + 5, cy + .3 * r, .8 * r, .45 * r, 14, cy + sd), dk(P.tree, .3), 90, .2, .6);
+    nibBroken(crown.flatMap(([cx, cy, r]) => ell(cx, cy, r, .82 * r, 12, cx + sd).slice(7, 12)), .3, 21 + sd, .5, 3, dk(P.tree, .45));
+  }
+  function paintLamp(x, y, h) {
+    const col = '#4E4E46', top = y - h;
+    flat(ribbon([[x, y], [x, top + 30]], 12, 8), col); wc(ell(x, y - 6, 22, 9, 10, x), col, 220, .05, .4);
+    wc([[x - 26, top + 34], [x + 26, top + 34], [x + 18, top - 14], [x - 18, top - 14]], '#F3E2A0', 200, .1, .4);
+    nib([[x - 26, top + 34], [x - 18, top - 14], [x + 18, top - 14], [x + 26, top + 34], [x - 26, top + 34]], .4, col);
+    wc([[x - 30, top - 12], [x + 30, top - 12], [x, top - 40]], col, 230, .05, .4); nib([[x, top + 30], [x, y - 10]], .45, dk(col, .3));
+  }
+  function paintFountain(x, y, r) {
+    const st = P.stone, wt = '#9CC0D2';
+    wc([[x - r, y - 80], [x + r, y - 80], [x + r - 14, y], [x - r + 14, y]], st, 220, .08, .6);
+    wc(ell(x, y - 82, r + 8, 16, 24, 3), mixCol(st, P.paper, .35), 220, .05, .5); wc(ell(x, y - 84, r - 14, 9, 20, 4), wt, 200, .1, .5);
+    wc(ribbon([[x, y - 84], [x, y - 205]], 46, 34), dk(st, .1), 220, .05, .5);
+    wc([[x - 95, y - 205], [x + 95, y - 205], [x + 42, y - 172], [x - 42, y - 172]], st, 220, .05, .5); wc(ell(x, y - 206, 92, 9, 16, 5), wt, 200, .1, .5);
+    for (const s of [-1, 1]) wc(ribbon([[x, y - 228], [x + s * 60, y - 250], [x + s * 115, y - 190], [x + s * 140, y - 100]], 10, 5), wt, 120, .15, .5);
+    wc(ribbon([[x, y - 205], [x, y - 262]], 9, 4), wt, 130, .15, .5);
+    nibBroken([[x - r, y - 80], [x - r + 14, y], [x + r - 14, y], [x + r, y - 80]], .5, 5, .8, 1); nibBroken(ell(x, y - 82, r + 8, 16, 24, 3).slice(0, 13), .4, 7, .7, 3);
+  }
+  // Banco de perfil: assento (topo em seatY), pé da frente e o poste do encosto com a tábua do encosto atrás.
+  function benchPolys(b, gy) {
+    const xf = b.x - b.back * b.w / 2, xb = b.x + b.back * b.w / 2, s = b.seatY;
+    return [ribbon([[xf - b.back * 8, s + 7], [xb + b.back * 8, s + 7]], 14), ribbon([[xf + b.back * 6, s + 10], [xf + b.back * 6, gy]], 10), ribbon([[xb, gy], [xb + b.back * 12, s - b.backH]], 11),
+      ribbon([[xb + b.back * 3, s - .3 * b.backH], [xb + b.back * 12, s - b.backH]], 26)];
+  }
+  // Flor de cinco pétalas (rosa, miolo amarelo): no chão o caule deita; na mão (held) ele pende do punho.
+  function flower(it) {
+    const { x, y, r } = it, lw = Math.max(1 / cam.z, .08 * r);
+    line(it.held ? [[x, y], [x - .3 * r, y + 1.6 * r], [x - .2 * r, y + 2.8 * r]] : [[x, y], [x + 1.2 * r, y + .5 * r], [x + 2.6 * r, y + .8 * r]], .22 * r, '#5E8A45', .95);
+    for (let i = 0; i < 5; i++) { const t = i * TAU / 5 - Math.PI / 2; blot(oval(x + .55 * r * Math.cos(t), y + .55 * r * Math.sin(t), .5 * r, .38 * r, t, 300 + i, 8), '#E07A9A', lw, { shade: false }); }
+    c.beginPath(); c.arc(x, y, .3 * r, 0, TAU); c.globalAlpha = A; c.fillStyle = '#F0C74E'; c.fill(); c.globalAlpha = 1;
+  }
+  function plaza(F) {
+    const w = F.world, GY = w.ground(0), b = w.bench;
+    at(.15); for (const [x, y, s, sd] of [[-500, 120, 1.3, 11], [700, 40, 1.1, 12], [1900, 160, 1.5, 13], [3000, 70, 1.2, 14]]) cloud(x, y, s, sd);
+    const town = x => GY - 170 - 110 * hash(Math.floor(x / 150) + .5) - (Math.floor(x / 150) % 4 ? 0 : 60), park = x => GY - 120 - 45 * Math.abs(Math.sin(x * .006)) - 25 * Math.abs(Math.sin(x * .017));
+    band('p-far', .3, -1300, 3200, GY - 420, GY + 250, .6, terrain(town, mixCol(P.far, P.skyLow, .25), { glaze: 60, dots: 1e9 }), town);
+    band('p-mid', .6, -1400, 3200, GY - 300, GY + 250, .8, terrain(park, mixCol(P.tree, P.skyLow, .3), { glaze: 40, dots: 120, deep: 60 }), park);
+    band('p-ground', 1, -2000, 3800, GY - 20, GY + 430, 1.25, terrain(w.ground, P.path, { glaze: 40, ink: .4, dots: 1e9, extra: (x0, x1) => {
+      flat([[x0 - 40, GY - 6], [x1 + 80, GY - 6], [x1 + 80, GY + 10], [x0 - 40, GY + 10]], mixCol(P.grass, P.path, .3));  // faixa de grama no fundo
+      for (let j = 0; j < 7; j++) {  // juntas do calçamento: fiadas que se abrem para a frente
+        const y0 = GY + 16 + 8 * j * j + 20 * j, y1 = GY + 16 + 8 * (j + 1) ** 2 + 20 * (j + 1), st = 110 + 30 * j;
+        nibBroken([[x0 - 40, y0], [x1 + 80, y0]], .3, j * 13, .5, 1, dk(P.path, .4));
+        for (let x = x0 - 40 + st * hash(j + .5); x < x1 + 80; x += st) if (hash(x * .13 + j) < .7) nib([[x, y0 + 2], [x + .1 * (x - 900) * (y1 - y0) / 600, y1 - 2]], .25, dk(P.path, .35));
+      }
+      for (let i = 0; i < 26; i++) { const x = lerp(x0, x1, hash(i * 5.3 + 1)), y = GY + 40 + 340 * hash(i * 2.7), r = 30 + 60 * hash(i * 1.9); wc(ell(x, y, 2.2 * r, .5 * r, 14, i), dk(P.path, .15), 50, .3, .6); }
+    } }), w.ground);
+    at(1);
+    for (const tr of w.trees) still('p-tree' + tr.seed, [tr.x - .45 * tr.h, tr.y - 1.1 * tr.h, .9 * tr.h, 1.15 * tr.h], 1.25, () => paintTree(tr.x, tr.y, tr.h, tr.seed));
+    for (const l of w.lamps) still('p-lamp' + l.seed, [l.x - 50, l.y - l.h - 50, 100, l.h + 60], 1.25, () => paintLamp(l.x, l.y, l.h));
+    const fo = w.fountain; still('p-fountain', [fo.x - fo.r - 40, fo.y - 280, 2 * fo.r + 80, 300], 1.25, () => paintFountain(fo.x, fo.y, fo.r));
+    grass(1, () => GY - 2, 26, 10, 24, P.grassDk, { seed: 17, col2: P.grass, wind: .1, a: .7 });
+    const polys = benchPolys(b, GY), wood = '#9A6B45';
+    const props = [{ depth: b.depth, draw: () => still('p-bench', [b.x - b.w - 40, b.seatY - b.backH - 40, 2 * b.w + 80, GY - b.seatY + b.backH + 60], 1.25,
+      () => { for (const q of polys) { wc(q, wood, 230, .05, .5); nib([...q, q[0]], .35, dk(wood, .5)); } }, () => { for (const q of polys) { c.moveTo(...q[0]); for (const v of q) c.lineTo(...v); c.closePath(); } }) }];
+    if (w.item) props.push({ depth: w.item.held ? 200.5 : 199, draw: () => flower(w.item) });
+    actors(F, true, props);
+  }
+  // Lago: morros ao longe, mata da outra margem, a água (por trás: o corpo do lago; pela frente, em multiply depois dos
+  // atores: tinge o que está submerso, o peixe e as patas da raposa), a margem com o formigueiro e as plantas.
+  function paintPlant(pl) {
+    const { x, y, h, seed: sd } = pl, gr = mixCol(P.grassDk, P.grass, .4);
+    if (pl.kind === 'tree') return paintTree(x, y, h, sd);
+    if (pl.kind === 'reed') for (let i = 0; i < 3; i++) { const dx = (i - 1) * 9, hh = h * (1 - .15 * i), tx = x + dx + 10 * (hash(sd + i) - .5); wc(ribbon([[x + dx, y + 4], [tx, y - hh]], 5, 2), gr, 200, .05, .4); if (i < 2) wc(ell(tx, y - hh + .14 * h, 6, .1 * h, 8, sd + i), P.soilDk, 220, .05, .4); }
+    else if (pl.kind === 'grass') for (let i = 0; i < 7; i++) { const a = (i - 3) * .22, hh = h * (.6 + .4 * hash(sd + i)); wc([[x - 3 + 2 * i, y + 3], [x + 2 * i + Math.sin(a) * hh, y - hh * Math.cos(a)], [x + 3 + 2 * i, y + 3]], i % 2 ? gr : P.grass, 200, .05, .4); }
+    else {
+      const col = ['#E07A9A', '#F0C74E', '#A58BD0'][sd % 3], tx = x + 6 * (hash(sd) - .5);
+      nib([[x, y + 3], [tx, y - h]], .4, dk(gr, .3)); wc(ell(x + 7, y - .35 * h, 9, 4, 8, sd), gr, 200, .05, .4);
+      for (let i = 0; i < 5; i++) { const t = i * TAU / 5; wc(ell(tx + 8 * Math.cos(t), y - h + 8 * Math.sin(t), 7, 5, 8, sd + i), col, 210, .08, .4); }
+      wc(ell(tx, y - h, 4, 4, 6, sd), '#F0C74E', 230, .05, .3);
+    }
+  }
+  const PLANT_BOX = { tree: [.45, 1.1, 1.15], reed: [40, 30, 40], grass: [40, 10, 20], flower: [30, 20, 30] };
+  function lake(F) {
+    const w = F.world, L = w.lake, g = w.ground, WY = L.waterY, X1 = Math.min(L.x1, 2900), sh = F.shot, ns = w.nest;
+    const [k, y0, y1, x0, x1] = { margem: [.55, 280, 1420, -1400, 2800], bebe: [1.25, 230, 1150, 600, 2300], chao: [2, 450, 1040, -250, 1150] }[sh];
+    const mound = x => 30 * Math.max(0, 1 - ((x - ns.x) / (1.6 * ns.r)) ** 2), top = x => g(x) - mound(x);
+    at(.15); for (const [x, y, s, sd] of [[-200, 260, 1.2, 21], [1000, 180, 1.4, 22], [2300, 280, 1.1, 23]]) cloud(x, y, s, sd);
+    const hills = x => 690 + 45 * Math.sin(x * .0022 + 2) + 18 * Math.sin(x * .006), wood = x => 880 - 22 * Math.abs(Math.sin(x * .007)) - 14 * Math.abs(Math.sin(x * .019 + 1));
+    if (sh !== 'chao') band('n-far', .3, -1500, 3200, 450, 1350, .6, terrain(hills, mixCol(P.far, P.skyLow, .45), { glaze: 70 }), hills);
+    band('n-mid', .6, -1500, 3200, 650, 1350, .8, terrain(wood, mixCol(P.tree, P.skyLow, .35), { glaze: 30, dots: 90, deep: 40 }), wood);
+    at(1);
+    const water = '#7FA8C0', wx = L.x0 - 40, ww = X1 - wx;
+    still('n-water-b', [wx, WY, ww, 600], .6, () => { wc([[wx, WY], [X1, WY], [X1, WY + 600], [wx, WY + 600]], mixCol(water, P.skyLow, .35), 200, .01, .5); wc([[wx, WY + 30], [X1, WY + 20], [X1, WY + 600], [wx, WY + 600]], water, 120, .02, .6); }, () => c.rect(wx, WY, ww, 600));
+    band('n-ground-' + sh, 1, x0, x1, y0, y1, k, terrain(top, P.grass, { glaze: 90, ink: .5, dots: 300, deep: 300, extra: (a0, a1) => {
+      const bank = [], kb = x => clamp((x - 1050) / 300); for (let x = Math.max(a0, 1050); x <= a1 + 80; x += 30) bank.push([x, top(x) - 2]);
+      if (bank.length > 1) { wc([...bank, ...bank.slice().reverse().map(([x, y]) => [x, y + 70 * kb(x)])], mixCol(P.soil, P.path, .5), 200, .01, .5); wc([...bank.map(([x, y]) => [x, y + 30 * kb(x)]), ...bank.slice().reverse().map(([x, y]) => [x, y + 400 * kb(x) ** 2])], dk(P.soil, .15), 120, .01, .6); }
+      wc(ell(ns.x, top(ns.x) - 6, 1.5 * ns.r, 22, 16, 5), mixCol(P.soil, P.path, .3), 200, .1, .5); wc(ell(ns.x + 8, top(ns.x + 8) + 2, 18, 7, 10, 6), P.cave, 230, .05, .3);
+    } }), top);
+    for (const pl of w.plants) {
+      const [bx, bt, bb] = PLANT_BOX[pl.kind], half = pl.kind === 'tree' ? bx * pl.h : bx, up = pl.kind === 'tree' ? bt * pl.h : pl.h + bt, dn = pl.kind === 'tree' ? .05 * pl.h : bb - bt + 10;
+      const [v0, v1] = span(1, half); if (pl.x + half < v0 || pl.x - half > v1) continue;
+      const kp = sh === 'chao' ? 2 : sh === 'bebe' ? 1.25 : .6;
+      still(`n-plant${pl.seed}-${kp}`, [pl.x - half, pl.y - up, 2 * half, up + dn], pl.kind === 'tree' ? Math.min(kp, 1) : kp, () => paintPlant(pl));
+    }
+    grass(1, top, 22, 14, 40, P.grassDk, { seed: 7, col2: P.grass, wind: .12, a: .8, xmax: L.x0 - 20 });
+    actors(F, true);
+    // Água pela frente: multiply sobre o que está abaixo da linha d'água; brilhos do papel, ondas e respingos por quadro.
+    at(1); still('n-water-f', [wx, WY - 1, ww, 600], .6, () => { wc([[wx, WY], [X1, WY], [X1, WY + 600], [wx, WY + 600]], mixCol(water, '#FFFFFF', .2), 150, .01, .4); nibBroken([[wx + 40, WY], [X1, WY]], .35, 41, .6, 2, dk(water, .4)); });
+    const lw = Math.max(1.2 / cam.z, 1.5);
+    for (let i = 0; i < 40; i++) { const x = lerp(L.x0 + 30, X1, hash(i * 3.7 + 9)), y = WY + 6 + 120 * hash(i * 1.3) ** 2, l = 20 + 50 * hash(i * 7.1); line([[x, y], [x + l, y]], lw * 1.4, P.paper, .55); }
+    for (const e of w.ripples) {
+      const u = (F.t - e.t0) / 3, rx = e.r * (.15 + .85 * Math.sqrt(u));
+      for (const s of [1, .6]) { c.beginPath(); c.ellipse(e.x, e.y + 2, rx * s, .16 * rx * s, 0, 0, TAU); c.globalAlpha = .7 * (1 - u); c.strokeStyle = dk(water, .35); c.lineWidth = lw * (2 - u); c.stroke(); }
+    }
+    for (const e of w.splashes) {
+      const t = F.t - e.t0, G = 6 * e.r, kc = Math.sin(Math.PI * clamp(t / .5));
+      if (kc > 0) blot(oval(e.x, e.y - .35 * e.r * kc, .22 * e.r, .4 * e.r * kc + 1, 0, e.x, 10), mixCol(water, P.paper, .55), lw, { shade: false, a: .75 });
+      for (let i = 0; i < 12; i++) {
+        const an = -Math.PI / 2 + 1.7 * (hash(e.x * .37 + i * 7.1) - .5), v = e.r * (2.4 + 1.6 * hash(i * 3.3 + e.x)), x = e.x + Math.cos(an) * v * t, y = e.y + Math.sin(an) * v * t + .5 * G * t * t, s = .07 * e.r * (1 - .4 * t);
+        if (y < e.y + 2) blot(oval(x, y, s, 1.3 * s, an, i, 7), mixCol(water, P.paper, .4), lw * .7, { shade: false, a: .85 });
+      }
+    }
+    c.globalAlpha = 1;
+  }
+
   // ---------- papel e texto ----------
   // Papel: cor, manchas largas, fibras e grão por pixel; uma vez, entra em multiply sobre o quadro pronto.
   let PAPER = null;
@@ -496,7 +786,7 @@ window.ExpStyle = (() => {
       c = X; cam = F.cam; T = F.t; A = 1;
       c.resetTransform(); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; c.fillStyle = '#FFFFFF'; c.fillRect(0, 0, W, H);
       still('sky', [0, 0, W, H], .5, paintSky);
-      ({ close, wide, name, trail })[F.shot](F);
+      ({ close, wide, name, trail, praca: plaza, encontro: plaza, achado: plaza, banco: plaza, margem: lake, bebe: lake, chao: lake })[F.shot](F);
       c.resetTransform(); c.globalAlpha = 1;
       for (const s of F.texts) if (s.k > 0) title(s);
       if (!PAPER) PAPER = makePaper();
