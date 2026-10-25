@@ -81,11 +81,13 @@ window.ExpStyle = (() => {
     }
     return pts;
   }
-  // Tira cortada de a até b (mundo), largura w0 → w1, pontas chanfradas.
-  function strip(a, b, w0, w1 = w0) {
+  // Tira cortada de a até b (mundo), largura w0 → w1, pontas chanfradas; butt: a ponta b é um corte inclinado para dentro,
+  // sem passar de b (junta final: canela no tornozelo, antebraço no pulso, pescoço na base da cabeça).
+  function strip(a, b, w0, w1 = w0, butt = false) {
     const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, nx = -uy, ny = ux, e0 = w0 * .35, e1 = w1 * .35;
-    return [[a[0] - ux * e0 + nx * w0 * .3, a[1] - uy * e0 + ny * w0 * .3], [a[0] + nx * w0 / 2, a[1] + ny * w0 / 2], [b[0] + nx * w1 / 2, b[1] + ny * w1 / 2], [b[0] + ux * e1 + nx * w1 * .25, b[1] + uy * e1 + ny * w1 * .25],
-      [b[0] + ux * e1 - nx * w1 * .3, b[1] + uy * e1 - ny * w1 * .3], [b[0] - nx * w1 / 2, b[1] - ny * w1 / 2], [a[0] - nx * w0 / 2, a[1] - ny * w0 / 2], [a[0] - ux * e0 - nx * w0 * .25, a[1] - uy * e0 - ny * w0 * .25]];
+    const B = butt ? [[b[0] + nx * w1 / 2, b[1] + ny * w1 / 2], [b[0] - ux * e1 - nx * w1 / 2, b[1] - uy * e1 - ny * w1 / 2]]
+      : [[b[0] + nx * w1 / 2, b[1] + ny * w1 / 2], [b[0] + ux * e1 + nx * w1 * .25, b[1] + uy * e1 + ny * w1 * .25], [b[0] + ux * e1 - nx * w1 * .3, b[1] + uy * e1 - ny * w1 * .3], [b[0] - nx * w1 / 2, b[1] - ny * w1 / 2]];
+    return [[a[0] - ux * e0 + nx * w0 * .3, a[1] - uy * e0 + ny * w0 * .3], [a[0] + nx * w0 / 2, a[1] + ny * w0 / 2], ...B, [a[0] - nx * w0 / 2, a[1] - ny * w0 / 2], [a[0] - ux * e0 - nx * w0 * .25, a[1] - uy * e0 - ny * w0 * .25]];
   }
   const fr0 = (x, y) => [x, y];
 
@@ -177,6 +179,33 @@ window.ExpStyle = (() => {
   }
 
   // ---------- seres ----------
+  const d2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  // Peças rígidas de cada ser (contrato do verificador, a mesma geometria que o desenho usa), só das juntas da pose: eixo
+  // pts, meia largura r e ponta. Ossos que terminam em junta final (canela, antebraço, pescoço, pata) têm corte butt para
+  // dentro; pé, mão e cabeça são as peças terminais que cobrem a junta. Cabeça: eixo headBase → headTop, raio = metade.
+  function parts(a, F) {
+    const p = a.pose, J = p.joints, S = p.size, out = [], add = (name, from, to, r, cap, pts = [J[from], J[to]]) => out.push({ actor: a.id, name, from, to, pts, r, cap });
+    const R = d2(J.headBase, J.headTop) / 2, w = Math.max(S * .035, 1.4 / (F.cam?.z || 1));
+    if (p.spec === 'human') {
+      for (const s of 'LR') {
+        add('thigh' + s, 'hip' + s, 'knee' + s, S * .035, 'square'); add('shin' + s, 'knee' + s, 'ankle' + s, S * .032, 'butt');
+        add('foot' + s, 'ankle' + s, null, d2(J['ankle' + s], J['toe' + s]) * .25, 'butt', [J['ankle' + s], J['toe' + s]]);
+        add('upperArm' + s, 'shoulder' + s, 'elbow' + s, S * .025, 'square'); add('forearm' + s, 'elbow' + s, 'wrist' + s, S * .023, 'butt');
+        add('hand' + s, 'wrist' + s, null, S * .034, 'round', [J['wrist' + s], J['hand' + s]]);
+      }
+      add('neck', 'neck', 'headBase', S * .022, 'butt');
+    } else {
+      for (const n of Object.keys(p.limbs)) {
+        add(n + '.upper', n + '.root', n + '.mid', w * .95, 'square'); add(n + '.lower', n + '.mid', n + '.end', w * .7, 'butt');
+        if (J[n + '.toe']) add(n + '.tip', n + '.end', null, w * .4, 'butt', [J[n + '.end'], J[n + '.toe']]);
+      }
+      add('neck', 'neck', 'headBase', p.spec === 'fly' ? S * .03 : w * .7, 'butt');
+    }
+    add('head', 'headBase', null, p.spec === 'human' ? R : .92 * R, 'round', [J.headBase, J.headTop]);
+    return out;
+  }
+  // Tira de uma peça, de 2r até 2r·k na ponta (corte butt quando a peça pede).
+  const cut = (q, k, col, seed) => piece(strip(q.pts[0], q.pts[1], 2 * q.r, 2 * q.r * k, q.cap === 'butt'), col, seed);
   const ANT = { hero: [P.hero, P.heroDk], tunnel: [P.antLt, P.ant], garden: [P.antLt, P.ant] };
   // Folha cortada pela formiga: lente com borda serrilhada de tesoura e nervura clara.
   function leaf(cy, seed) {
@@ -198,16 +227,17 @@ window.ExpStyle = (() => {
   }
   function ant(a, F) {
     const p = a.pose, S = p.size, [col, dk] = ANT[a.role] || [P.ant, P.antDk], fy = p.facing, seed = sid(a.id), px = S * Z, w = Math.max(S * .035, 1.4 / Z);
-    const legs = far => { for (const l of Object.values(p.limbs)) if (l.far === far) { piece(strip(l.root, l.mid, w * 1.9, w * 1.4), far ? dk : col, seed + 3); piece(strip(l.mid, l.end, w * 1.4, w * .8), far ? dk : col, seed + 4); if (px > 120) pin(l.mid, w * .45); } };
-    legs(true);
+    const Q = Object.fromEntries(parts(a, F).map(q => [q.name, q]));
+    const legs = far => { for (const [n, l] of Object.entries(p.limbs)) if (l.far === far) { cut(Q[n + '.upper'], .74, far ? dk : col, seed + 3); cut(Q[n + '.lower'], .57, far ? dk : col, seed + 4); if (px > 120) pin(l.mid, w * .45); } };
+    legs(true); cut(Q.neck, 1, dk, seed + 2);  // pescoço sob o tórax
     const [g, pe, th] = [p.spine[2], p.spine[1], p.spine[0]], n = px > 60 ? 16 : 10;
     piece(blob(frame(g.x, g.y, g.angle, fy), -g.r * .15, 0, g.r * 1.3, g.r * .95, n, seed + 5), col, seed + 5);
     piece(blob(frame(pe.x, pe.y, pe.angle, fy), 0, 0, pe.r * 1.2, pe.r, 7, seed + 6), dk, seed + 6);
     piece(blob(frame(th.x, th.y, th.angle, fy), 0, -th.r * .1, th.r * 1.45, th.r * .8, n, seed + 7, -.12), col, seed + 7);
     legs(false);
-    const hr = SPECS[p.spec].head.r * S, hf = frame(p.head.x, p.head.y, p.head.angle, fy);
+    const hr = Q.head.r / .92, hf = frame(p.head.x, p.head.y, p.head.angle, fy);
     piece([hf(hr * .55, hr * .2), hf(hr * 1.35, hr * .45), hf(hr * 1.05, hr * .72), hf(hr * .5, hr * .6)], dk, seed + 8);  // mandíbula
-    piece(blob(hf, 0, 0, hr * 1.08, hr * .95, n, seed + 9), col, seed + 9);
+    piece(blob(hf, 0, 0, hr, hr * .92, n, seed + 9), col, seed + 9);
     if (a.role === 'hero' && px > 30) {  // olho de papel: olha para a forídea quando ela está no quadro
       const fly = F.actors.find(b => b.kind === 'fly' && !b.hidden), co = Math.cos(p.head.angle), si = Math.sin(p.head.angle);
       let lx = 1, ly = 0;
@@ -217,41 +247,44 @@ window.ExpStyle = (() => {
     if (p.carry) leaf(p.carry, seed + 12);
     for (const k of ['antennaR', 'antennaL']) { const ap = p.appendages[k]; if (ap) for (let i = 1; i < ap.length; i++) piece(strip(ap[i - 1], ap[i], w * .8, w * .6), k === 'antennaR' ? dk : col, seed + 13 + i); }
   }
-  function fly(a) {
-    const p = a.pose, S = p.size, fy = p.facing, [th, ab] = p.spine, ff = frame(th.x, th.y, th.angle, fy), ph = p.wings?.phase || 0;
+  function fly(a, F) {
+    const Q = Object.fromEntries(parts(a, F).map(q => [q.name, q])), p = a.pose, S = p.size, fy = p.facing, [th, ab] = p.spine, ff = frame(th.x, th.y, th.angle, fy), ph = p.wings?.phase || 0;
     const wing = (k, col) => {  // asa de papel vegetal presa no dorso do tórax, batendo em torno da raiz
       const an = -2.6 + .8 * Math.sin(TAU * ph + k), co = Math.cos(an), si = Math.sin(an), r0 = [-S * .02, -th.r * .6];
       piece(blob(fr0, S * .3, 0, S * .3, S * .09, 12, 70 + k, 0, .03).map(([x, y]) => ff(r0[0] + x * co - y * si, r0[1] + x * si + y * co)), col, 70 + k);
     };
     c.globalAlpha *= .85; wing(1.2, mixCol(P.wing, P.fly, .25)); c.globalAlpha /= .85;
     piece(blob(frame(ab.x, ab.y, ab.angle, fy), 0, 0, ab.r * 1.5, ab.r, 10, 61), P.fly, 61);
+    cut(Q.neck, 1, P.fly, 60);
     piece(blob(ff, 0, 0, th.r * 1.2, th.r * 1.05, 10, 62), P.fly, 62);
-    const hr = SPECS.fly.head.r * S, hf = frame(p.head.x, p.head.y, p.head.angle, fy);
-    piece(blob(hf, 0, 0, hr, hr * .9, 9, 63), P.fly, 63);
+    const hr = Q.head.r / .92, hf = frame(p.head.x, p.head.y, p.head.angle, fy);
+    piece(blob(hf, 0, 0, hr, hr * .92, 9, 63), P.fly, 63);
     poly(blob(hf, hr * .3, -hr * .2, hr * .38, hr * .38, 8, 64)); c.fillStyle = '#8A2A1E'; c.fill();
     c.globalAlpha *= .85; wing(0, P.wing); c.globalAlpha /= .85;
   }
   // Explorador: pernas e braços em tiras, tronco, mochila com bolso de jornal, cabeça com cabelo, chapéu e rosto colado.
-  function human(a) {
-    const p = a.pose, S = p.size, fy = p.facing, seed = 900, L = p.limbs, [ch, pv] = p.spine;
-    const limb = (l, c1, c2, w1, w2, end) => { piece(strip(l.root, l.mid, w1, w1 * .92), c1, seed + 1); piece(strip(l.mid, l.end, w1 * .92, w2), c2, seed + 2); end(l); };
+  function human(a, F) {
+    const p = a.pose, S = p.size, fy = p.facing, seed = 900, L = p.limbs, J = p.joints, Q = Object.fromEntries(parts(a, F).map(q => [q.name, q]));
     const dk = (l, c0, c1) => l.far ? c1 : c0;
-    const boot = l => { const bf = frame(l.end[0], l.end[1], 0, 1); piece([bf(-S * .03 * fy, -S * .035), bf(S * .05 * fy, -S * .03), bf(S * .085 * fy, S * .01), bf(S * .08 * fy, S * .025), bf(-S * .035 * fy, S * .025)], l.far ? mixCol(P.boot, '#000000', .25) : P.boot, seed + 3); };
-    const hand = l => piece(blob(fr0, l.end[0], l.end[1], S * .028, S * .026, 9, seed + 4), l.far ? P.skinDk : P.skin, seed + 4);
-    const arm = l => limb(l, dk(l, P.shirt, P.shirtDk), dk(l, P.skin, P.skinDk), S * .05, S * .036, hand);
-    const leg = l => limb(l, dk(l, P.pants, P.pantsDk), dk(l, P.pants, P.pantsDk), S * .07, S * .055, boot);
-    const ux = ch.x - pv.x, uy = ch.y - pv.y, ul = Math.hypot(ux, uy) || 1, tf = frame(pv.x, pv.y, Math.atan2(uy, ux), -fy);  // tronco: x para cima, y para trás
+    // Bota rígida no osso do pé (tornozelo → dedo, em unidades do pé; y para baixo): cano cobre a ponta da canela, sola no dedo.
+    const boot = (q, far) => { const l = d2(...q.pts), bf = frame(q.pts[0][0], q.pts[0][1], Math.atan2(q.pts[1][1] - q.pts[0][1], q.pts[1][0] - q.pts[0][0]), fy);
+      piece([[-.22, -.2], [.28, -.24], [.7, -.1], [1.02, -.02], [1, .02], [-.18, .32], [-.26, .2]].map(([x, y]) => bf(x * l, y * l)), far ? mixCol(P.boot, '#000000', .25) : P.boot, seed + 3); };
+    // Mão em luva no osso da mão (pulso → ponta), cobrindo a ponta do antebraço.
+    const hand = (q, far) => { const l = d2(...q.pts), hf = frame(q.pts[0][0], q.pts[0][1], Math.atan2(q.pts[1][1] - q.pts[0][1], q.pts[1][0] - q.pts[0][0]));
+      piece(blob(hf, l * .4, 0, l * .55, q.r, 9, seed + 4), far ? P.skinDk : P.skin, seed + 4); };
+    const arm = s => { const l = L['arm' + s]; cut(Q['upperArm' + s], .92, dk(l, P.shirt, P.shirtDk), seed + 1); cut(Q['forearm' + s], .78, dk(l, P.skin, P.skinDk), seed + 2); hand(Q['hand' + s], l.far); };
+    const leg = s => { const l = L['leg' + s], col = dk(l, P.pants, P.pantsDk); cut(Q['thigh' + s], .92, col, seed + 1); cut(Q['shin' + s], .86, col, seed + 2); boot(Q['foot' + s], l.far); };
+    const pv = J.pelvis, ux = J.neck[0] - pv[0], uy = J.neck[1] - pv[1], U = Math.hypot(ux, uy) || 1, ul = d2(J.chest, pv), tf = frame(pv[0], pv[1], Math.atan2(uy, ux), -fy);  // tronco pelve → base do pescoço: x para cima, y para trás
     // Mochila nas costas, com bolso de jornal.
-    const back = (x, y) => tf(x, y);
-    piece(blob(back, ul * .9, S * .11, S * .15, S * .1, 8, seed + 5, 0, .04), P.pack, seed + 5);
-    newsPocket(back(ul * .82, S * .14), Math.atan2(uy, ux) + Math.PI / 2, S * .04, seed + 6);
-    for (const l of Object.values(L)) if (l.far) (l.foot ? leg : arm)(l);
-    piece(blob(fr0, pv.x, pv.y, S * .1, S * .085, 10, seed + 7), P.pants, seed + 7);
-    for (const k of ['legL', 'legR']) if (!L[k].far) leg(L[k]);
-    piece([tf(-S * .02, S * .09), tf(ul + S * .06, S * .1), tf(ul + S * .1, S * .02), tf(ul + S * .07, -S * .1), tf(-S * .02, -S * .09)], P.shirt, seed + 8);
+    piece(blob(tf, ul * .9, S * .11, S * .15, S * .1, 8, seed + 5, 0, .04), P.pack, seed + 5);
+    newsPocket(tf(ul * .82, S * .14), Math.atan2(uy, ux) + Math.PI / 2, S * .04, seed + 6);
+    for (const s of 'LR') { if (L['leg' + s].far) leg(s); if (L['arm' + s].far) arm(s); }
+    piece(blob(fr0, pv[0], pv[1], S * .1, S * .085, 10, seed + 7), P.pants, seed + 7);
+    for (const s of 'LR') if (!L['leg' + s].far) leg(s);
+    piece([tf(-S * .02, S * .09), tf(U - S * .05, S * .1), tf(U - S * .01, S * .02), tf(U - S * .04, -S * .1), tf(-S * .02, -S * .09)], P.shirt, seed + 8);
     piece(strip(tf(ul * .9, S * .06), tf(-S * .01, -S * .07), S * .02), P.packDk, seed + 9);  // alça
-    const hr = SPECS.human.head.r * S * 1.3, hx = p.head.x, hy = p.head.y, hf = frame(hx, hy, p.head.angle, fy), face = p.face || {};
-    piece(strip(tf(ul + S * .05, 0), [hx - fy * hr * .2, hy + hr * .5], S * .045), P.skinDk, seed + 10);  // pescoço
+    const hr = Q.head.r, hx = J.head[0], hy = J.head[1], hf = frame(hx, hy, p.head.angle, fy), face = p.face || {};
+    cut(Q.neck, 1, P.skinDk, seed + 10);  // pescoço: base do pescoço → base da cabeça
     piece(blob(hf, -hr * .35, -hr * .2, hr * .78, hr * .72, 10, seed + 11), P.hair, seed + 11);
     piece(blob(hf, 0, 0, hr, hr * 1.02, 14, seed + 12, 0, .04), P.skin, seed + 12);
     piece([hf(hr * .85, -hr * .2), hf(hr * 1.22, hr * .15), hf(hr * .88, hr * .22)], P.skin, seed + 13);  // nariz
@@ -267,7 +300,7 @@ window.ExpStyle = (() => {
     piece(blob(hf, hr * .05, -hr * .84, hr * 1.6, hr * .16, 10, seed + 18, -.04), P.hatDk, seed + 18);
     piece([hf(-hr * .78, -hr * .84), hf(-hr * .6, -hr * 1.6), hf(hr * .62, -hr * 1.62), hf(hr * .82, -hr * .86)], P.hat, seed + 19);
     piece([hf(-hr * .74, -hr * .94), hf(-hr * .7, -hr * 1.12), hf(hr * .76, -hr * 1.12), hf(hr * .8, -hr * .96)], P.hatDk, seed + 20);
-    for (const k of ['armL', 'armR']) if (!L[k].far) arm(L[k]);
+    for (const s of 'LR') if (!L['arm' + s].far) arm(s);
     if (p.emote && p.emote.a > 0) emote(p.emote, hx + fy * hr * 1.4, hy - hr * 3.2, hr);
   }
   // Retalho de jornal: papel cinza-claro com linhas de "texto" (traços curtos por hash), girado em a.
@@ -294,7 +327,7 @@ window.ExpStyle = (() => {
     const p = a.pose, px = p.size * Z;
     if (a.flip) { const m = (p.spine[0].x + p.spine.at(-1).x) / 2; c.translate(m, 0); c.scale(a.flip, 1); c.translate(-m, 0); }
     c.globalAlpha = a.alpha ?? 1; SD = clamp(px * .02, .8, 5); SB = clamp(px * .02, .5, 5);
-    if (a.kind === 'ant') ant(a, F); else if (a.kind === 'fly') fly(a); else human(a);
+    if (a.kind === 'ant') ant(a, F); else if (a.kind === 'fly') fly(a, F); else human(a, F);
     c.globalAlpha = 1;
   }
 
@@ -357,5 +390,5 @@ window.ExpStyle = (() => {
     for (const s of F.texts) if (s.k > 0) label(s);
     c.resetTransform();
   }
-  return { draw };
+  return { draw, parts };
 })();
