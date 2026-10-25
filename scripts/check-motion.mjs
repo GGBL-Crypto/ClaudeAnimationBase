@@ -2,7 +2,10 @@
 // desenho nem GPU), captura cada ser desenhado (drawCreature3d) e a câmera (St.camera) em todo quadro e reprova:
 // corpos que se atravessam, velocidade, aceleração ou giro acima do limite, pé de apoio que desliza mais de 1 px, corpo
 // abaixo do chão ou solto sem estar no ar, ser que aparece ou some com o centro dentro do quadro e salto de posição.
-// Uso: node scripts/check-motion.mjs --project=<id> [--range=0:20] [--fps=30] [--out=relatorio.txt]
+// Com --2d (cenas de src/scenes/exp-estilos.js) também verifica o esqueleto (checkSkeleton): ossos que mudam de tamanho,
+// partes desenhadas soltas das juntas ou que passam da junta final, juntas dobradas além do limite. --style=<id> carrega o
+// estilo e verifica as partes que ele desenha (ExpStyle.parts).
+// Uso: node scripts/check-motion.mjs --project=<id> [--2d] [--style=exp-palito] [--range=0:20] [--fps=30] [--out=relatorio.txt] [--append]
 import vm from 'node:vm';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -97,8 +100,9 @@ export function report(v, title, n = 4) {
 
 // Roda o projeto em Node: carrega a plataforma, motion/timeline e os scripts da cena; troca o palco, o bioma e a vida de
 // fundo por stubs (nada desenha), envolve creature3d (para saber trilho, s e opções) e captura drawCreature3d.
+// Stub que aceita qualquer uso (document, canvas, THREE, p5): toda leitura, chamada ou new devolve ele mesmo.
+const ANY = new Proxy(function () {}, { get: (t, k) => k === Symbol.toPrimitive ? () => 0 : k === 'then' ? undefined : ANY, apply: () => ANY, construct: () => ANY, set: () => true });
 export function sampleProject(id, { fps = 30, range } = {}) {
-  const ANY = new Proxy(function () {}, { get: (t, k) => k === Symbol.toPrimitive ? () => 0 : k === 'then' ? undefined : ANY, apply: () => ANY, construct: () => ANY, set: () => true });
   const platform = catalog(), project = platform.resolveProject(id), win = {};
   const ctx = vm.createContext({ AnimationPlatform: platform, projectConfig: project, window: win, document: ANY, animationEngine: { render: async () => {}, canvas: ANY }, console });
   for (const file of ['src/motion.js', 'src/timeline.js', ...project.scripts]) vm.runInContext(readFileSync(join(ROOT, file), 'utf8'), ctx, { filename: file });
@@ -154,16 +158,22 @@ function groundOf(P) {
 // Adaptador 2D (exp/estilos, --2d): cenas com coreografia sem desenho (EST.frame em src/scenes/exp-estilos.js). O ponto
 // 2D (y para baixo) vira [x, −y, depth] e a câmera {cx, cy, z} vira uma câmera de frente a FOCAL / z: 1 unidade = z px,
 // como na tela. Cada camada de paralaxe f é verificada à parte, com a sua câmera (cx = lerp(960, cx, f)).
+const SCENES = { 'estilos-a': 'A', 'estilos-h': 'H', 'estilos-p': 'P', 'estilos-n': 'N' };
+// Carrega motion.js e os scripts da cena; com style, também os do estilo (window = o global; document, canvas e p5 = ANY).
+function load2d(id, style) {
+  const platform = catalog(), project = platform.resolveProject(id, style), ctx = vm.createContext({ AnimationPlatform: platform, projectConfig: project, window: {}, console });
+  if (style) Object.assign(ctx, { window: vm.runInContext('globalThis', ctx), document: ANY, Path2D: ANY, Image: ANY, OffscreenCanvas: ANY, p5: ANY });
+  for (const file of ['src/motion.js', ...project.scripts, ...(style ? platform.styles[style].scripts : [])]) vm.runInContext(readFileSync(join(ROOT, file), 'utf8'), ctx, { filename: file });
+  return { ctx, project, scene: SCENES[id] || 'A' };
+}
 export function sampleProject2d(id, { fps = 30, range } = {}) {
-  const platform = catalog(), project = platform.resolveProject(id), ctx = vm.createContext({ AnimationPlatform: platform, projectConfig: project, window: {}, console });
-  for (const file of ['src/motion.js', ...project.scripts]) vm.runInContext(readFileSync(join(ROOT, file), 'utf8'), ctx, { filename: file });
-  const scene = id === 'estilos-h' ? 'H' : 'A', [t0, t1] = range || [0, project.duration], layers = new Map();
+  const { ctx, project, scene } = load2d(id), [t0, t1] = range || [0, project.duration], layers = new Map();
   for (let i = Math.round(t0 * fps); i < Math.round(t1 * fps); i++) {
     const t = i / fps, F = ctx.EST.frame(scene, t), byLayer = new Map();
     for (const a of F.actors) {
       const P = a.pose, d = a.depth || 0, X = (x, y) => [x, -y, d], air = a.kind === 'fly', g = a.ground, hr = ctx.SPECS[P.spec].head.r * P.size;
       const parts = [...P.spine, { ...P.head, r: hr }].map(q => ({ c: X(q.x, q.y), r: .9 * q.r, bottom: air ? 1 : g(q.x) - q.y - q.r }));
-      const feet = air ? [] : Object.entries(P.limbs).filter(([, l]) => l.foot).map(([name, l]) => ({ name, pos: X(...l.end), stance: l.stance, k: 0, h: g(l.end[0]) - l.end[1], reach: 0 }));
+      const feet = air ? [] : Object.entries(P.limbs).filter(([, l]) => l.foot).map(([name, l]) => { const e = l.toe || l.end; return { name, pos: X(...e), stance: l.stance, k: 0, h: g(e[0]) - e[1], reach: 0 }; });  // chão no dedo
       const f = a.layer ?? 1; if (!byLayer.has(f)) byLayer.set(f, []);
       byLayer.get(f).push({ id: a.id, S: P.size, air, hidden: !!a.hidden, p: X(a.track.x, a.track.y), f: [Math.cos(a.track.angle), -Math.sin(a.track.angle), 0], parts, feet });
     }
@@ -176,14 +186,105 @@ export function sampleProject2d(id, { fps = 30, range } = {}) {
   return layers;
 }
 
+// ---------- Esqueleto ----------
+// Faixas (rad) das juntas do humano de lado, com o sinal de quem olha para a direita (facing = −1 espelha): joelho (coxa →
+// canela; a canela volta para trás) e cotovelo (braço → antebraço; o antebraço vai à frente) dobram só para um lado;
+// pescoço (em relação ao eixo pelve → peito) e cabeça (em relação ao pescoço) giram pouco.
+export const JOINT_RANGES = { knee: [0, 2.6], elbow: [0, 2.6], neck: [-.6, .6], head: [-.5, .5] };
+const d2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]), vec = (J, [a, b]) => [J[b][0] - J[a][0], J[b][1] - J[a][1]];
+const turn = (u, v) => Math.atan2(u[0] * v[1] - u[1] * v[0], u[0] * v[0] + u[1] * v[1]);  // giro de u para v (y para baixo)
+// [junta, faixa, sinal, osso de entrada, osso de saída]; só valem as juntas presentes (animais ficam de fora).
+const ANGLES = [...['L', 'R'].flatMap(s => [[`knee${s}`, 'knee', 1, [`hip${s}`, `knee${s}`], [`knee${s}`, `ankle${s}`]], [`elbow${s}`, 'elbow', -1, [`shoulder${s}`, `elbow${s}`], [`elbow${s}`, `wrist${s}`]]]),
+  ['neck', 'neck', 1, ['pelvis', 'chest'], ['neck', 'headBase']], ['head', 'head', 1, ['neck', 'headBase'], ['headBase', 'headTop']]];
+// Juntas finais que o traço não pode passar: tornozelo, pulso, base da cabeça e ponta de membro de animal (<membro>.end).
+const END = /^(ankle|wrist)[LR]?$|^headBase$|\.end$/;
+
+// frames = [{t, actors: [{id, facing, joints: {nome: [x, y]}, bones: [{name, a, b, len}], parts?}]}]. Contrato das partes
+// (ExpStyle.parts(actor, F), exatamente o que o estilo desenha): {actor, name, from, to, pts: [[x, y], ...] (eixo do
+// traço em px do mundo), r (meia largura), cap: 'round' | 'butt' | 'square'}; from/to = juntas, to = null em parte
+// terminal (pé, mão, cabeça). Cabeça: pts = [headBase, headTop], eixo de baixo para cima; o círculo ou a elipse tem esse
+// eixo como diâmetro e meia largura r, então a base dela toca headBase; from = 'headBase', to = null.
+// Reprova em todo quadro (uma entrada por quadro, ser e regra; tolerância max(1 px, 1% do osso)):
+//   osso varia: |joints[b] − joints[a]| difere de len em mais de 1%;
+//   parte solta: pts[0] fora de joints[from];
+//   ângulo: junta fora de lim (JOINT_RANGES);
+//   passa da junta: parte cujo to é junta final (END) com algum ponto, mais a ponta do traço (round: r em todo ponto;
+//   square: r à frente e de lado no último; butt: r de lado no último), projetado no eixo from → to além de |to − from|.
+// Sem parts, só osso varia e ângulo.
+export function checkSkeleton(frames, lim = JOINT_RANGES) {
+  const out = [];
+  for (const f of frames) for (const x of f.actors) {
+    const J = x.joints, fc = x.facing ?? 1, bad = {}, add = (ty, s) => (bad[ty] ||= []).push(s);
+    for (const b of x.bones) { const e = d2(J[b.a], J[b.b]) / b.len - 1; if (Math.abs(e) > .01) add('osso varia', `${b.name} ${(100 * e).toFixed(1)}%`); }
+    for (const [name, key, sg, u, v] of ANGLES) {
+      if (![...u, ...v].every(k => J[k])) continue;
+      const g = sg * fc * turn(vec(J, u), vec(J, v)), [lo, hi] = lim[key];
+      if (g < lo - 1e-9 || g > hi + 1e-9) add('ângulo', `${name} ${g.toFixed(2)} rad`);
+    }
+    for (const p of x.parts || []) {
+      if (!p.from) continue;
+      const A = J[p.from], B = p.to && J[p.to];
+      if (!A || p.to && !B) { add('parte solta', `${p.name}: junta inexistente`); continue; }
+      const bone = x.bones.find(b => b.a === p.from && (!p.to || b.b === p.to)), tol = Math.max(1, .01 * (B ? d2(A, B) : bone?.len || 0)), gap = d2(p.pts[0], A);
+      if (gap > tol) add('parte solta', `${p.name} ${gap.toFixed(1)} px de ${p.from}`);
+      if (!B || !END.test(p.to)) continue;
+      const L = d2(A, B), u = [(B[0] - A[0]) / L, (B[1] - A[1]) / L], n = p.pts.length, P = p.pts[n - 1], Q = p.pts[n - 2] || A, dl = d2(P, Q) || 1, w = [(P[0] - Q[0]) / dl, (P[1] - Q[1]) / dl];
+      const ext = i => p.cap === 'round' ? p.r : i < n - 1 ? 0 : p.r * (Math.abs(w[0] * u[1] - w[1] * u[0]) + (p.cap === 'square' ? Math.abs(w[0] * u[0] + w[1] * u[1]) : 0));
+      const over = Math.max(...p.pts.map((q, i) => (q[0] - A[0]) * u[0] + (q[1] - A[1]) * u[1] + ext(i))) - L;
+      if (over > tol) add('passa da junta', `${p.name} ${over.toFixed(1)} px além de ${p.to}`);
+    }
+    for (const [ty, xs] of Object.entries(bad)) out.push({ type: ty, t: +f.t.toFixed(3), id: x.id, info: xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` (+${xs.length - 3})` : '') });
+  }
+  return out;
+}
+
+// Pose antiga (sem joints/bones; para medir o antes): humano com coluna (spine[0] peito = base do pescoço, spine[1] pelve),
+// cabeça (headBase = centro − r·cima, headTop = centro + r·cima, cima = facing·(sen a, −cos a), r = spec.head.r·size) e
+// pernas e braços com os nomes novos; outros seres com spine<i>, head e <membro>.root|mid|end. Ossos dos membros: l1/l2
+// da especificação; coluna e pescoço (peito → base da cabeça; nos animais spine0 → cabeça): o len em ref (os ossos do
+// primeiro quadro amostrado do ser) ou, sem ref, o atual.
+export function legacySkeleton(P, spec, ref) {
+  const J = { head: [P.head.x, P.head.y] }, bones = [], h = J.head, fc = P.facing ?? 1, r = spec.head.r * P.size, up = [fc * Math.sin(P.head.angle), -fc * Math.cos(P.head.angle)];
+  const bone = (name, a, b, len) => bones.push({ name, a, b, len: len ?? ref?.find(q => q.name === name)?.len ?? d2(J[a], J[b]) });
+  if (P.spec === 'human') {
+    Object.assign(J, { chest: [P.spine[0].x, P.spine[0].y], neck: [P.spine[0].x, P.spine[0].y], pelvis: [P.spine[1].x, P.spine[1].y], headBase: [h[0] - r * up[0], h[1] - r * up[1]], headTop: [h[0] + r * up[0], h[1] + r * up[1]] });
+    bone('spine', 'pelvis', 'chest'); bone('neck', 'neck', 'headBase');
+  } else { P.spine.forEach((q, i) => J[`spine${i}`] = [q.x, q.y]); bone('neck', 'spine0', 'head'); }
+  for (const lb of spec.limbs) {
+    const l = P.limbs[lb.name], m = /^(leg|arm)([LR])$/.exec(lb.name); if (!l) continue;
+    const [j0, j1, j2] = m ? (m[1] === 'leg' ? ['hip', 'knee', 'ankle'] : ['shoulder', 'elbow', 'wrist']).map(k => k + m[2]) : ['root', 'mid', 'end'].map(k => `${lb.name}.${k}`);
+    const [b1, b2] = m ? (m[1] === 'leg' ? ['thigh', 'shin'] : ['upperArm', 'forearm']).map(k => k + m[2]) : [`${lb.name}.1`, `${lb.name}.2`];
+    Object.assign(J, { [j0]: l.root, [j1]: l.mid, [j2]: l.end }); bone(b1, j0, j1, lb.l1 * P.size); bone(b2, j1, j2, lb.l2 * P.size);
+  }
+  return { joints: J, bones };
+}
+
+// Esqueleto de cada ser em todo quadro de uma cena 2D: pose.joints/bones (skeleton.js) ou legacySkeleton na pose antiga
+// (legacy = algum ser sem joints). Com style, parts = ExpStyle.parts(actor, F); geometry = false se o estilo não as tem.
+export function sampleSkeleton2d(id, { fps = 30, range, style } = {}) {
+  const { ctx, project, scene } = load2d(id, style), [t0, t1] = range || [0, project.duration], first = new Map(), frames = [], parts = style && ctx.ExpStyle?.parts;
+  let legacy = false;
+  for (let i = Math.round(t0 * fps); i < Math.round(t1 * fps); i++) {
+    const t = i / fps, F = ctx.EST.frame(scene, t);
+    frames.push({ t, actors: F.actors.map(a => {
+      const P = a.pose, sk = P.joints ? { joints: P.joints, bones: P.bones } : legacySkeleton(P, ctx.SPECS[P.spec], first.get(a.id));
+      legacy ||= !P.joints; if (!first.has(a.id)) first.set(a.id, sk.bones);
+      return { id: a.id, facing: P.facing, ...sk, ...(parts && { parts: parts(a, F) }) };
+    }) });
+  }
+  return { frames, geometry: !style || !!parts, legacy };
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = parseArgs(process.argv.slice(2)), range = args.range && String(args.range).split(':').map(Number), fps = Number(args.fps || 30);
   const runs = args['2d'] ? [...sampleProject2d(args.project, { fps, range })].map(([f, frames]) => [`${args.project} camada ${f}`, frames]) : [[args.project, sampleProject(args.project, { fps, range })]];
-  let total = 0;
-  for (const [i, [title, frames]] of runs.entries()) {
-    const v = checkMotion(frames), text = report(v, `${title} (${frames.length} quadros, ${frames.reduce((n, f) => Math.max(n, f.agents.length), 0)} seres no máximo)`);
-    console.log(text); total += v.length;
-    if (args.out) writeFileSync(args.out, text + '\n', { flag: args.append || i ? 'a' : 'w' });
+  let total = 0, n = 0;
+  const emit = (v, title) => { const text = report(v, title); console.log(text); total += v.length; if (args.out) writeFileSync(args.out, text + '\n', { flag: args.append || n++ ? 'a' : 'w' }); };
+  for (const [title, frames] of runs) emit(checkMotion(frames), `${title} (${frames.length} quadros, ${frames.reduce((n, f) => Math.max(n, f.agents.length), 0)} seres no máximo)`);
+  if (args['2d']) {
+    const { frames, geometry, legacy } = sampleSkeleton2d(args.project, { fps, range, style: args.style }), v = checkSkeleton(frames);
+    if (!geometry) v.unshift({ type: 'sem geometria', t: 0, id: args.style, info: 'o estilo não tem ExpStyle.parts' });
+    emit(v, `${args.project} esqueleto${args.style ? ` ${args.style}` : ''}${legacy ? ' (pose antiga)' : ''} (${frames.length} quadros)`);
   }
   process.exitCode = total ? 1 : 0;
 }
