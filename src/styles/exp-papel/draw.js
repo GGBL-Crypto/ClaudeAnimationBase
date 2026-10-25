@@ -505,13 +505,26 @@ window.ExpStyle = (() => {
     piece([[x - r * .9, wy + 2], [x - r * .88, wy - 10], [x + r * .88, wy - 10], [x + r * .9, wy + 2]], '#7FB6D0', 704);
     piece(strip([x - r * .98, wy], [x + r * .98, wy], 16), mixCol(P.stone, '#ffffff', .2), 705);
   }
-  // Banco de perfil: assento (tábua com o topo em seatY), pés até o chão e encosto do lado back.
+  // Banco de frente: encosto de duas tábuas atrás do assento (de seatY - backH até seatY, na largura toda), assento com o
+  // topo em seatY e pés até o chão.
   function bench(b, g) {
-    at(1); SD = 4; SB = 6; const { x, seatY, w, back, backH } = b, th = w * .12, wood = '#9A6A3E', x0 = x - w / 2, x1 = x + w / 2, xb = x + back * w / 2;
+    at(1); SD = 4; SB = 6; const { x, seatY, w, backH } = b, th = w * .12, wood = '#9A6A3E', x0 = x - w / 2, x1 = x + w / 2;
+    for (const lx of [x0 + w * .08, x1 - w * .08]) piece(strip([lx, seatY - backH], [lx, seatY + th], w * .06), shade(wood, .15), 722);  // postes do encosto
+    for (const k of [.3, .75]) piece([[x0, seatY - backH * k - th * .6], [x1, seatY - backH * k - th * .6], [x1, seatY - backH * k + th * .6], [x0, seatY - backH * k + th * .6]], wood, 723 + k);
     for (const lx of [x0 + w * .12, x1 - w * .12]) piece(strip([lx, seatY + th], [lx, g + 4], w * .08), shade(wood, .25), 721);
-    piece(strip([xb, g + 4], [xb, seatY - backH], w * .09, w * .07), shade(wood, .15), 722);
-    for (const k of [.3, .75]) piece(strip([xb, seatY - backH * k - th * .4], [xb + back * -w * .08, seatY - backH * k + th * .4], th * 1.4), wood, 723 + k);
     piece([[x0 - 6, seatY], [x1 + 6, seatY], [x1 + 4, seatY + th], [x0 - 4, seatY + th]], wood, 725);
+  }
+  // Tronco caído: corpo do topo (log.top) ao chão, riscos de casca e anel do corte na ponta da direita.
+  function fallenLog(L, g) {
+    at(1); SD = 4; SB = 6; const n = 16, top = [], bot = [], bark = '#7A5434';
+    for (let i = 0; i <= n; i++) { const x = lerp(L.x0, L.x1, i / n); top.push([x, L.top(x)]); bot.push([x, g(x) + 4]); }
+    piece([...top, ...bot.reverse()], bark, 760);
+    SD = 0; for (let i = 1; i < 9; i++) {  // casca: tiras escuras de papel
+      const x = lerp(L.x0, L.x1, (i + .3 * hash(i + 40)) / 9.5), y0 = L.top(x), y1 = g(x);
+      piece(strip([x - 8, lerp(y0, y1, .25)], [x + 10, lerp(y0, y1, .6)], 5, 2), shade(bark, .3), 770 + i);
+    }
+    const xm = L.x1 - 60, ym = (L.top(xm) + g(xm)) / 2, rr = (g(xm) - L.top(xm)) / 2;
+    piece(blob(fr0, xm, ym, rr * .55, rr * .95, 12, 780), '#D9B27C', 780); piece(blob(fr0, xm, ym, rr * .3, rr * .55, 10, 781), '#B98B55', 781); piece(blob(fr0, xm, ym, rr * .1, rr * .2, 8, 782), '#8A5E36', 782);
   }
   // Planta da beira do lago: árvore, flor, capim ou taboa (balança devagar por ruído, sem estado).
   function plant(q, t) {
@@ -607,7 +620,7 @@ window.ExpStyle = (() => {
       band(1, w.ground, P.grass, 73, { st: 8 });
       at(1); SD = 0; const mud = [], x0 = w.lake.x0 - 60; for (let x = x0; x <= 6000; x += 30) mud.push([x, w.ground(x) + 6]);  // lodo do fundo: faixa sob a margem molhada
       piece([...mud, ...mud.map(([x, y]) => [x, y + 50 * clamp((x - x0) / 160)]).reverse()], P.soilDk, 74);
-      const nest = w.nest, props = [...w.plants.map(q => ({ depth: q.depth, fn: () => plant(q, F.t) })), { depth: nest.depth, fn: () => { at(1); SD = 3; SB = 6; ripped(blob(fr0, nest.x, nest.y + 4, nest.r * 1.6, nest.r * .45, 16, 760), P.soilDk, 760, 8, 3); piece(blob(fr0, nest.x, nest.y, nest.r * .35, nest.r * .14, 9, 761), P.cave, 761); } }];
+      const nest = w.nest, props = [...w.plants.map(q => ({ depth: q.depth, fn: () => plant(q, F.t) })), ...(w.log ? [{ depth: w.log.depth, fn: () => fallenLog(w.log, w.ground) }] : []), { depth: nest.depth, fn: () => { at(1); SD = 3; SB = 6; ripped(blob(fr0, nest.x, nest.y + 4, nest.r * 1.6, nest.r * .45, 16, 760), P.soilDk, 760, 8, 3); piece(blob(fr0, nest.x, nest.y, nest.r * .35, nest.r * .14, 9, 761), P.cave, 761); } }];
       stage(F, props);
       water(F);
     } else if (F.scene === 'H') {
