@@ -105,22 +105,23 @@
   const lwOf = p => p.size < 28 ? 0 : clamp(p.size * .03, 1.5, STYLE.outline.weight), d2 = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
   const short = (a, b, r) => { const k = r / (d2(a, b) || 1); return [b[0] + (a[0] - b[0]) * k, b[1] + (a[1] - b[1]) * k]; };
   const mid = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
-  function partsOf(p) {
+  function partsOf(p, L = {}) {
     const J = p.joints, S = p.size, w = lwOf(p), out = [], add = (name, from, to, pts, r, cap, o = {}) => out.push({ name, from, to, pts, r, cap, pass: 0, ...o });
     if (p.spec === 'human') {
-      const B = BODY[p.body || 'adult'];
+      const B = BODY[p.body || 'adult'], gw = clamp(B.girth / .11, .8, 1.5);  // coxa e braço mais grossos no corpo largo
       for (const s of ['L', 'R']) {
-        const o = { limb: 'leg' + s, far: p.limbs['leg' + s].far, key: 'skin' }, r = .03 * S + w, kn = J['knee' + s], an = J['ankle' + s];
+        const o = { limb: 'leg' + s, far: p.limbs['leg' + s].far, key: 'skin' }, r = .03 * gw * S + w, kn = J['knee' + s], an = J['ankle' + s];
         add('thigh' + s, 'hip' + s, 'knee' + s, [J['hip' + s], kn], r, 'round', o);
         add('shin' + s, 'knee' + s, 'ankle' + s, [kn, short(kn, an, r)], r, 'round', o);
-        add('boot' + s, null, 'ankle' + s, [mid(kn, an, .7), short(kn, an, r + 2)], r + 2, 'round', { ...o, key: 'shoe', pass: 1 });  // cano da bota
-        add('foot' + s, 'ankle' + s, null, [an, J['toe' + s]], .3 * B.foot * S + w, 'round', { ...o, key: 'shoe', pass: 2, shape: 'shoe', kh: B.footH / B.foot });
+        add('shorts' + s, 'hip' + s, 'knee' + s, [J['hip' + s], mid(J['hip' + s], kn, .3)], r + 2, 'round', { ...o, key: 'pants', pass: 1 });  // perna do calção: cobre o topo da coxa
+        if (L.boots) add('boot' + s, null, 'ankle' + s, [mid(kn, an, .7), short(kn, an, r + 2)], r + 2, 'round', { ...o, key: 'shoe', pass: 1 });  // cano da bota
+        add('foot' + s, 'ankle' + s, null, [an, J['toe' + s]], .2 * B.foot * S + w, 'round', { ...o, key: 'shoe', pass: 2, shape: 'shoe', kh: B.footH / B.foot });
       }
       for (const s of ['L', 'R']) {
-        const l = p.limbs['arm' + s], o = { limb: 'arm' + s, far: l.far, key: 'skin' }, r = .025 * S + w, sh = J['shoulder' + s], el = J['elbow' + s], wr = J['wrist' + s];
+        const l = p.limbs['arm' + s], o = { limb: 'arm' + s, far: l.far, key: 'skin' }, r = .025 * gw * S + w, sh = J['shoulder' + s], el = J['elbow' + s], wr = J['wrist' + s];
         add('upperArm' + s, 'shoulder' + s, 'elbow' + s, [sh, el], r, 'round', o);
         add('forearm' + s, 'elbow' + s, 'wrist' + s, [el, short(el, wr, r)], r, 'round', o);
-        add('sleeve' + s, 'shoulder' + s, 'elbow' + s, [sh, mid(sh, el, .35)], .044 * S + w, 'round', { ...o, key: 'shirt', pass: 1 });
+        add('sleeve' + s, 'shoulder' + s, 'elbow' + s, [sh, mid(sh, el, .35)], (.019 + .025 * gw) * S + w, 'round', { ...o, key: 'shirt', pass: 1 });
         add('hand' + s, 'wrist' + s, null, [wr, J['hand' + s]], .4 * B.hand * S + w, 'round', { ...o, pass: 2, shape: l.hand === 'fist' ? 'fist' : 'hand' });
       }
       add('neck', 'neck', 'headBase', [J.neck, J.headBase], .02 * S + w, 'butt', { key: 'skin' });
@@ -132,7 +133,7 @@
         const far = p.limbs[n].far, t = far && bug ? .7 : 1, o = { limb: n, far, key }, ru = w ? wu * k * t + w : Math.max(.5, .03 * S), rl = w ? wl * k * t + w : ru, rt = Math.max(.6, .9 * k * t), m = j(n, 'mid'), e = j(n, 'end'), toe = j(n, 'toe');
         add(`${n}.upper`, `${n}.root`, `${n}.mid`, [j(n, 'root'), m], ru, 'round', o);
         add(`${n}.lower`, `${n}.mid`, `${n}.end`, [m, short(m, e, rl)], rl, 'round', { ...o, key: sp === 'dog' ? 'sock' : key });
-        if (toe && sp === 'dog') add(`${n}.tip`, `${n}.end`, null, [e, toe], 1.25 * rl, 'round', { ...o, key: 'sock', pass: 2, shape: 'paw', kh: .05 / .07 });
+        if (toe && sp === 'dog') add(`${n}.tip`, `${n}.end`, null, [e, toe], rl, 'round', { ...o, key: 'sock', pass: 2, shape: 'paw', kh: .05 / .07 });
         else if (toe) { add(`${n}.tip`, `${n}.end`, null, [e, toe], rl, 'round', o); add(`${n}.hallux`, null, null, [e, mid(e, toe, -.4)], rl, 'round', o); }
         else if (w && bug) add(`${n}.tarsus`, null, `${n}.end`, [mid(m, e, .66), short(m, e, rt)], rt, 'round', { ...o, key: 'dark', ink: false, pass: 1 });
       }
@@ -145,10 +146,10 @@
   // Formas fechadas no quadro da junta: a ao longo de pts[0] → pts[1], b de lado (> 0 para a sola ou o dorso da mão), em
   // comprimentos do osso. Sapato: a sola vai de sob o tornozelo (kh = altura do tornozelo / pé) ao dedo, no chão.
   const SHAPES = {
-    shoe: kh => [[-.24, .08], [-.14, kh], [.45, .55 * kh], [1, 0], [1.1, -.12], [.88, -.26], [.3, -.28], [-.06, -.32]],
+    shoe: kh => [[-.18, .1], [-.1, kh], [.45, .55 * kh], [1, 0], [1.05, -.09], [.85, -.17], [.3, -.19], [-.04, -.22]],
     hand: () => [[-.1, .38], [.5, .42], [.95, .28], [1.02, 0], [.9, -.28], [.62, -.34], [.64, -.62], [.38, -.66], [.2, -.42], [-.1, -.36]],
     fist: () => [0, 1, 2, 3, 4, 5, 6, 7].map(i => [.42 + .48 * Math.cos(i * TAU / 8), .48 * Math.sin(i * TAU / 8)]),
-    paw: kh => [[-.45, .2], [-.05, kh], [.55, .45 * kh], [1, 0], [1.1, -.25], [.7, -.6], [.1, -.75], [-.45, -.45]],
+    paw: kh => [[-.3, .15], [-.05, kh], [.55, .45 * kh], [1, 0], [1.05, -.15], [.6, -.32], [.05, -.38], [-.3, -.28]],
   };
   // Largura das patas por espécie [coxa, canela, cor, inseto] e do pescoço [meia largura, cor], em BL/100.
   const WID = { ant: [1.65, 1.3, 'color', true], beetle: [2.6, 2, 'dark', true], dog: [4.2, 2.6, 'color', false], bird: [1.4, 1.4, 'beak', false] };
@@ -202,13 +203,22 @@
   // (girth / .1, de lado ao osso); chapéu e lenço só no look que os tem; membros de actor.front ficam para depois dos corpos.
   const human0 = DEC.human.build;
   DEC.human.build = (p, L) => {
-    const G = without(human0(p, L), new Set([...LIMB, ...(L.noHat ? [HP.hat] : []), ...(L.noScarf ? [HP.scarf, HP.scarfTail] : [])])), Q = partsOf(p), gk = BODY[p.body || 'adult'].girth / .1;
+    const G = without(human0(p, L), new Set([...LIMB, ...(L.noHat ? [HP.hat] : []), ...(L.noScarf ? [HP.scarf, HP.scarfTail] : [])])), Q = partsOf(p, L), gk = BODY[p.body || 'adult'].girth / .1;
     fitHead(p, G, HP.head, new Set([HP.head, HP.hair, HP.ear, HP.hat]), [2, -8.5, 24]);
-    for (const s of G.flatMap(g => g.list || [])) if (s.q === HP.torso || s.q === HP.pelvis || s.q === HP.scarf) s.m = [s.m[0] * gk, s.m[1] * gk, ...s.m.slice(2)];
-    G.push(...limbGroups(p, L, Q, l => (l.foot ? 4 : 8) - (l.far ? 10 : 0)), neckGroup(p, L, Q, 5.3));
+    for (const s of G.flatMap(g => g.list || [])) if (s.q === HP.torso || s.q === HP.pelvis || s.q === HP.scarf) { s.m = [s.m[0] * gk, s.m[1] * gk, ...s.m.slice(2)]; if (L.noScarf) s.q = { ...s.q, lines: [] }; if (s.q.d === HP.pelvis.d) s.q = { ...s.q, d: PELVIS }; }
+    if (gk > 1.3) G.push({ z: 4.95, draw: () => belly(p, L, gk) });  // por baixo do tronco: só a frente aparece
+    G.push(...limbGroups(p, L, Q, l => l.far ? (l.foot ? -6 : -7) : l.foot ? 4 : 8), neckGroup(p, L, Q, 5.3));  // braço de lá atrás da perna de lá: a mão pendente não aparece entre as pernas
     if (L.pack) G.push({ z: 1.5, draw: () => pack(p) }, { z: 5.45, draw: () => strap(p) });
     return G;
   };
+  // Calção sem o recorte entre as pernas (pelo recorte aparecia o topo da coxa, um calombo).
+  const PELVIS = 'M -9.4 -7 C -4 -8.4 5 -8.4 10 -7 C 10.8 -1 11.6 5 12 10.6 C 4 12.2 -4 12.2 -10.8 10.6 C -10.6 4 -10 -1 -9.4 -7 Z';
+  // Barriga do corpo pesado: elipse na cor da camisa à frente do tronco, entre pelve e peito, com a luz do blob; desenhada
+  // antes do tronco, só o volume que passa à frente dele aparece.
+  function belly(p, L, gk) {
+    const J = p.joints, u = [J.chest[0] - J.pelvis[0], J.chest[1] - J.pelvis[1]], l = Math.hypot(...u) || 1, fr = [-u[1] / l * p.facing, u[0] / l * p.facing], c0 = mid(J.pelvis, J.chest, .38), d = .065 * gk * p.size;
+    blob(ring(c0[0] + fr[0] * d, c0[1] + fr[1] * d, .55 * l, .085 * gk * p.size, Math.atan2(u[1], u[0])), L.shirt, lwOf(p));
+  }
   // Formiga: patas e pescoço (o segundo talo, do tórax à cabeça) das partes; a cintura fica; cabeça e mandíbulas no círculo.
   const ant0 = DEC.ant.build;
   DEC.ant.build = (p, L) => {
@@ -236,18 +246,26 @@
   // headTop), orelhas em pé, bochecha creme, olho e trufa.
   const dog0 = DEC.dog.build;
   DEC.dog.build = (p, L) => {
-    const G = without(dog0(p, L), new Set([...LIMB, DP.head, DP.collar, DP.tag, DP.ear])).filter(g => !g.draw), Q = partsOf(p);
+    const G = without(dog0(p, L), new Set([...LIMB, DP.head, DP.collar, DP.tag, DP.ear, DP.tailSeg, DP.tailTip])).filter(g => !g.draw), Q = partsOf(p);
     for (const s of G.flatMap(g => g.list || [])) if (s.q === DP.body) s.m = [s.m[0], s.m[1], .62 * s.m[2], .62 * s.m[3], s.m[4], s.m[5]];  // raposa: corpo esguio
-    G.push(...limbGroups(p, L, Q, l => l.far ? -6 : 4), neckGroup(p, L, Q, 5.1), { z: 5.2, draw: () => foxHead(p, L) });
+    G.push(...limbGroups(p, L, Q, l => l.far ? -6 : 4), neckGroup(p, L, Q, 5.1), { z: 5.2, draw: () => foxHead(p, L) }, { z: 1.2, draw: () => brush(p, L) });
     return G;
   };
+  // Cauda em pincel pela cadeia do apêndice tail: larga no meio, ponta creme.
+  function brush(p, L) {
+    const t = p.appendages.tail, S = p.size, wd = [.035, .075, .085, .06], side = k => t.map((q, i) => { const a = t[Math.max(0, i - 1)], b = t[Math.min(t.length - 1, i + 1)], l = d2(a, b) || 1; return [q[0] - (b[1] - a[1]) / l * wd[i] * S * k, q[1] + (b[0] - a[0]) / l * wd[i] * S * k]; });
+    const n = t.length, e = t[n - 1], v = [e[0] - t[n - 2][0], e[1] - t[n - 2][1]], tip = [e[0] + .6 * v[0], e[1] + .6 * v[1]];
+    blob([...side(1), tip, ...side(-1).reverse()], L.color, lwOf(p));
+    const m = mid(t[n - 2], e, .45), sl = side(1), sr = side(-1);
+    blob([mid(sl[n - 2], sl[n - 1], .45), sl[n - 1], tip, sr[n - 1], mid(sr[n - 2], sr[n - 1], .45), m], L.dark, 0);
+  }
   function foxHead(p, L) {
     const f = headFrame(p), w = lwOf(p), R = d2(p.joints.headBase, p.joints.headTop) / 2, ear = (a, dk) => blob([[a - .14, -.3], [a - .2, -.85], [a + .12, -.34]].map(f), mixCol(L.color, P.ink, dk), w);
     ear(.1, .3);
-    blob([[-.06, .05], [0, -.3], [.22, -.42], [.5, -.3], [.75, -.15], [.98, -.04], [1, .04], [.8, .14], [.5, .3], [.15, .36]].map(f), L.color, w);
-    blob([[.3, .12], [.62, .06], [.95, .03], [.8, .13], [.5, .27], [.25, .3]].map(f), L.dark, 0);  // bochecha e queixo creme
+    blob([[-.05, .08], [0, -.28], [.2, -.4], [.42, -.3], [.62, -.15], [.85, -.07], [1.01, -.02], [1.01, .04], [.8, .09], [.55, .18], [.3, .3], [.08, .32]].map(f), L.color, w);
+    blob([[.18, .12], [.42, .07], [.66, .08], [.52, .17], [.3, .26]].map(f), L.dark, 0);  // bochecha creme (o focinho fica laranja)
     ear(.3, 0);
-    const [ex, ey] = f([.5, -.14]), [nx, ny] = f([.97, 0]), wide = p.face.expression === 'surprised';
+    const [ex, ey] = f([.4, -.15]), [nx, ny] = f([.98, .01]), wide = p.face.expression === 'surprised';
     eye(p, ex, ey, (wide ? .17 : .13) * R, .5 * w);
     const g = cur(); g.beginPath(); g.ellipse(nx, ny, .1 * R, .08 * R, 0, 0, TAU); g.fillStyle = P.line; g.fill();
   }
@@ -267,13 +285,13 @@
       { z: 6, draw: () => { const R = roundHead(p, L.dark), [x, y] = headFrame(p)([.55, -.1]); eye(p, x, y, .3 * R, .5 * w); } }];
   } };
   DEC.butterfly = { look: { color: P.purple, dark: P.purpleDk, body: mixCol(P.ink, P.purpleDk, .3), spot: P.gold }, build(p, L) {
-    const Q = partsOf(p), [th, ab] = p.spine, S = p.size, f = p.facing, w = lwOf(p), fl = Math.cos(TAU * p.wings.phase);
+    const Q = partsOf(p), [th, ab] = p.spine, S = p.size, f = p.facing, w = Math.max(2, lwOf(p)), fl = .35 + .65 * Math.abs(Math.cos(TAU * p.wings.phase));
     // Asa: anterior e posterior presas no tórax, abertas para cima e batendo (escala vertical fl); a de lá atrás do corpo.
     const wing = (dk, dx) => () => {
-      const at = ([a, b]) => [th.x + f * (a + dx) * S, th.y + b * fl * S], col = mixCol(L.color, P.ink, dk);
+      const at = ([a, b]) => [th.x + f * (a + dx) * S, th.y + b * fl * S], col = mixCol(mixCol(L.color, P.cloud, .15), P.ink, dk);
       blob([[.05, 0], [.2, -.55], [.55, -.8], [.7, -.55], [.35, -.08]].map(at), col, w);
       blob([[-.02, 0], [-.12, -.45], [-.45, -.55], [-.5, -.3], [-.2, -.05]].map(at), mixCol(col, P.ink, .15), w);
-      for (const [a, b, r] of [[.5, -.6, .07], [-.32, -.38, .06]]) Kit.ellipse(...at([a, b]), r * S, r * S * Math.max(.2, Math.abs(fl)), mixCol(L.spot, P.ink, dk));
+      for (const [a, b, r] of [[.48, -.58, .11], [-.3, -.36, .09]]) Kit.ellipse(...at([a, b]), r * S, r * S * fl, mixCol(L.spot, P.ink, dk), { stroke: true });
     };
     return [{ z: 1, draw: wing(.3, -.04) }, neckGroup(p, L, Q, 5.5), { z: 6.5, draw: antennae(p, L.body, true) }, { z: 7, draw: wing(0, 0) },
       { z: 5, draw: () => { blob(ring(ab.x, ab.y, 1.9 * ab.r, .8 * ab.r, ab.angle), L.body, w); blob(ring(th.x, th.y, th.r, th.r), L.body, w); } },
@@ -291,14 +309,14 @@
   // cor-herói (laranja) só na criança. Raposa (N) em laranja de raposa, ponta da cauda e bochecha creme, meias escuras.
   const PEOPLE = {
     corredor: { shirt: P.cloth, pants: P.clothDk, hair: P.line, shoe: P.cloud, sole: P.stone, noHat: true, noScarf: true },
-    marta: { shirt: P.purple, pants: P.shade, skin: mixCol(P.skinDk, P.wood, .45), hair: P.line, shoe: P.wood, sole: P.bootDk, noHat: true, noScarf: true },
-    joao: { shirt: P.water, pants: P.wood, hair: P.hair, noHat: true, noScarf: true },
+    marta: { shirt: P.purple, pants: mixCol(P.shade, P.cloud, .45), skin: mixCol(P.skinDk, P.wood, .45), hair: P.line, shoe: P.purpleDk, sole: P.line, noHat: true, noScarf: true },
+    joao: { shirt: P.water, pants: P.wood, hair: P.hair, shoe: mixCol(P.shade, P.ink, .3), sole: P.line, noHat: true, noScarf: true },
     lia: { shirt: P.blush, pants: P.shorts, hair: P.gold, shoe: P.cloud, sole: P.stone, noHat: true, noScarf: true },
     bia: { shirt: P.sauvaHero, pants: P.cloth, hair: P.brown, shoe: P.purpleDk, sole: P.line, noHat: true, noScarf: true },
     avo: { shirt: P.olive, pants: P.stone, hair: P.cloud, skin: mixCol(P.skin, P.skinDk, .4), hat: P.wood, hatBand: P.bootDk, noScarf: true },
   };
   const FOX = { color: P.orange, dark: P.cream, sock: mixCol(P.orangeDk, P.ink, .5) };
-  const lookOf = a => a.role === 'hero' ? LOOK : a.kind === 'human' ? { pack: a.gear?.includes('backpack'), ...PEOPLE[a.id], ...(a.front && { skip: a.front }) } : a.kind === 'dog' ? FOX : DEEP[a.role] || {};
+  const lookOf = a => a.role === 'hero' ? LOOK : a.kind === 'human' ? { pack: a.gear?.includes('backpack'), boots: !PEOPLE[a.id], ...PEOPLE[a.id], ...(a.front && { skip: a.front }) } : a.kind === 'dog' ? FOX : DEEP[a.role] || {};
   // Ator: some se hidden; alpha ao entrar e sair de túnel; flip em torno do meio do corpo; a folha atrás de quem a leva
   // (a folha é maior que a formiga: por cima, a escondia inteira no túnel). Sem achatar o corpo (pose.sq mudaria o
   // tamanho dos ossos desenhados).
@@ -332,7 +350,7 @@
     if (F.shot === 'wide') return L.forEach(a => a.role === 'hero' ? stamp([a], 'rgba(255,246,214,.95)', 9, 3) : actor(a));
     if (F.shot === 'trail') { L.filter(a => a.role !== 'line').forEach(actor); return stamp(L.filter(a => a.role === 'line'), 'rgba(23,23,28,.95)', 3, 3); }
     L.forEach(actor);
-    for (const a of L) if (a.front && !a.hidden) drawParts(a.pose, { ...DEC.human.look, ...lookOf(a) }, partsOf(a.pose).filter(q => a.front.includes(q.limb)));
+    for (const a of L) if (a.front && !a.hidden) drawParts(a.pose, { ...DEC.human.look, ...lookOf(a) }, partsOf(a.pose, lookOf(a)).filter(q => a.front.includes(q.limb)));
   }
   // Desenha os atores num canvas à parte (só no retângulo que ocupam na tela) e cola n vezes com sombra col de blur px:
   // a sombra contorna a silhueta inteira por fora, sem marcar as peças por dentro.
@@ -572,10 +590,16 @@
     else if (q.kind === 'grass') for (let i = 0; i < 7; i++) A().blade(q.x + (i - 3) * 7, q.y + 3, q.h * (.6 + .5 * hash(q.seed + i)), bladeBend(t, q.x, q.y, [], 60, 3) + .15 * (i - 3), i & 1 ? P.grass : P.grassDk);
     else flower({ x: q.x, y: q.y, r: q.h / 5.5, held: true });
   }
-  function water(L, t, x0, x1) {
+  // Perfil do fundo sob a água, de a a x1: o chão gN (que segue sob o lago).
+  const bedOf = (gr, a, x1) => { const pts = []; for (let x = a; x < x1 + 16; x += 16) pts.push([Math.min(x, x1), gr(Math.min(x, x1))]); return pts; };
+  function bed(gr, L, x0, x1) {  // fundo de lodo sob o lago: faixa ao longo do chão, de 0 na beirada a 70 px mais longe
+    const a = Math.max(L.x0, x0); if (a >= x1) return; const pts = bedOf(gr, a, x1), col = mixCol(P.wood, P.shade, .35), th = x => 70 * clamp((x - L.x0) / 300);
+    Kit.poly([...pts, ...pts.map(([x, y]) => [x, y + th(x)]).reverse()], col, { stroke: false }); Kit.line(pts, mixCol(col, P.ink, .3), 3, { smooth: false });
+  }
+  function water(gr, L, t, x0, x1) {
     const a = Math.max(L.x0, x0), y = L.waterY; if (a >= x1) return;
-    const g = cur(), gr = g.createLinearGradient(0, y, 0, y + 400); gr.addColorStop(0, rgba(mixCol(P.water, P.cloud, .2), .78)); gr.addColorStop(1, rgba(mixCol(P.water, P.shade, .5), .95));
-    g.fillStyle = gr; g.fillRect(a, y, x1 - a, 2000);
+    const g = cur(), grd = g.createLinearGradient(0, y, 0, y + 250); grd.addColorStop(0, rgba(mixCol(P.water, P.cloud, .2), .8)); grd.addColorStop(1, rgba(mixCol(P.water, P.shade, .45), .92));
+    g.beginPath(); g.moveTo(a, y); g.lineTo(x1, y); for (const [x, yy] of bedOf(gr, a, x1).reverse()) g.lineTo(x, Math.max(y, yy)); g.closePath(); g.fillStyle = grd; g.fill();
     Kit.line([[a, y], [x1, y]], P.cloud, 4, { smooth: false });
     for (let i = Math.floor(a / 260); i * 260 < x1; i++) { const hx = i * 260 + 90 * hash(i + 7) + 20 * Math.sin(t * .8 + i), hy = y + 25 + 70 * hash(i + 3); Kit.line([[hx, hy], [hx + 60, hy]], mixCol(P.water, P.cloud, .5), 4, { alpha: .7 }); }
   }
@@ -583,10 +607,11 @@
   function splash(s, t) {  // coroa de gotas que sobe e cai em 1,2 s
     const u = (t - s.t0) / 1.2; if (u < 0 || u >= 1) return;
     for (let i = 0; i < 9; i++) {
-      const a = -Math.PI / 2 + (i - 4) * .3, v = s.r * (1.6 + .6 * hash(i + s.x)), T = u * 1.2, x = s.x + Math.cos(a) * v * T, y = s.y + Math.sin(a) * v * T * 1.3 + 380 * T * T;
-      if (y <= s.y + 4) Kit.ellipse(x, y, 6 * (1 - .5 * u), 8 * (1 - .5 * u), mixCol(P.cloud, P.water, .2));
+      const a = -Math.PI / 2 + (i - 4) * .22, v = s.r * (3.4 + 1.2 * hash(i + s.x)), T = u * 1.2, x = s.x + Math.cos(a) * v * T, y = s.y + Math.sin(a) * v * T + 650 * T * T, r = .14 * s.r * (1 - .5 * u);
+      if (y <= s.y + 4) Kit.ellipse(x, y, r, 1.25 * r, P.cloud, { stroke: true });
     }
-    Kit.ellipse(s.x, s.y, s.r * (.4 + .6 * u), .2 * s.r * (1 - u), P.cloud, { alpha: 1 - u });
+    const k = Math.sin(Math.PI * Math.min(1, u * 1.6));  // coroa de espuma que sobe e baixa
+    Kit.poly([[s.x - 1.1 * s.r, s.y], [s.x - .6 * s.r, s.y - .7 * s.r * k], [s.x - .2 * s.r, s.y - .35 * s.r * k], [s.x, s.y - 1.1 * s.r * k], [s.x + .25 * s.r, s.y - .4 * s.r * k], [s.x + .65 * s.r, s.y - .75 * s.r * k], [s.x + 1.1 * s.r, s.y]], P.cloud, { smooth: true, weight: 3, alpha: .95 });
   }
   function ripple(q, t) {
     const u = (t - q.t0) / 3; if (u < 0 || u >= 1) return;
@@ -603,19 +628,20 @@
     });
     Kit.cam(F.cam.cx, F.cam.cy, F.cam.z, 0, hand(t));
     A().ground(g, x0, x1);
+    bed(g, L, x0, x1);
     w.plants.forEach(q => plant(q, t));
     Kit.poly([[N.x - 1.3 * N.r, N.y + 6], [N.x - .5 * N.r, N.y - .45 * N.r], [N.x + .5 * N.r, N.y - .5 * N.r], [N.x + 1.3 * N.r, N.y + 6]], EARTH, { smooth: true, weight: 3 });
     Kit.ellipse(N.x, N.y - .12 * N.r, .35 * N.r, .12 * N.r, P.line);
     grass(t, x0, Math.min(x1, L.x0 - 60), g, 26, 14, 30, 0);
     actors(F, 1);
-    water(L, t, x0, x1);
+    water(g, L, t, x0, x1);
     w.ripples.forEach(q => ripple(q, t)); w.splashes.forEach(s => splash(s, t));
     Kit.camEnd();
     finish(t);
   }
 
   window.ExpStyle = {
-    parts: (a, F) => partsOf(a.pose).map(q => ({ actor: a.id, ...q })),
+    parts: (a, F) => partsOf(a.pose, lookOf(a)).map(q => ({ actor: a.id, ...q })),
     draw(F) {
       ({ close, wide, name, trail, praca: plaza, encontro: plaza, achado: plaza, banco: plaza, margem: lake, bebe: lake, chao: lake })[F.shot](F);
       for (const s of F.texts) Kit.text(s.text, s.x, s.y, s.size, P.ink, { k: s.k });
