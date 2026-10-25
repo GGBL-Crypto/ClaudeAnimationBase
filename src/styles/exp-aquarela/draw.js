@@ -696,11 +696,23 @@ window.ExpStyle = (() => {
     wc(ribbon([[x, y - 205], [x, y - 262]], 9, 4), wt, 130, .15, .5);
     nibBroken([[x - r, y - 80], [x - r + 14, y], [x + r - 14, y], [x + r, y - 80]], .5, 5, .8, 1); nibBroken(ell(x, y - 82, r + 8, 16, 24, 3).slice(0, 13), .4, 7, .7, 3);
   }
-  // Banco de perfil: assento (topo em seatY), pé da frente e o poste do encosto com a tábua do encosto atrás.
+  // Banco de frente: encosto de duas tábuas em toda a largura (de seatY − backH a seatY), assento (topo em seatY) e dois pés até o chão.
   function benchPolys(b, gy) {
-    const xf = b.x - b.back * b.w / 2, xb = b.x + b.back * b.w / 2, s = b.seatY;
-    return [ribbon([[xf - b.back * 8, s + 7], [xb + b.back * 8, s + 7]], 14), ribbon([[xf + b.back * 6, s + 10], [xf + b.back * 6, gy]], 10), ribbon([[xb, gy], [xb + b.back * 12, s - b.backH]], 11),
-      ribbon([[xb + b.back * 3, s - .3 * b.backH], [xb + b.back * 12, s - b.backH]], 26)];
+    const x0 = b.x - b.w / 2, x1 = b.x + b.w / 2, s = b.seatY, ys = [s - b.backH + 14, s - .45 * b.backH];
+    return [...[x0 + 10, x1 - 10].map(x => ribbon([[x, s], [x, s - b.backH]], 9)), ...ys.map(y => ribbon([[x0, y], [x1, y]], 24)),
+      ...[x0 + .1 * b.w, x1 - .1 * b.w].map(x => ribbon([[x, s + 10], [x, gy]], 11)), ribbon([[x0 - 6, s + 7], [x1 + 6, s + 7]], 14)];
+  }
+  // Tronco caído (N): corpo do topo (log.top) ao chão, sombra embaixo, riscos de casca e o anel do corte na ponta da direita.
+  function logPaint(Lg, g) {
+    const n = 24, top = [], bot = [], bark = '#7A5638';
+    for (let i = 0; i <= n; i++) { const x = lerp(Lg.x0, Lg.x1, i / n); top.push([x, Lg.top(x)]); bot.push([x, g(x)]); }
+    wc([...top, ...bot.slice().reverse()], bark, 235, .05, .5);
+    wc([...top.map(([x, y], i) => [x, lerp(y, bot[i][1], .55)]), ...bot.slice().reverse()], dk(bark, .25), 130, .08, .6);
+    for (let i = 1; i < 9; i++) { const x = lerp(Lg.x0, Lg.x1, (i + .3 * hash(i + 40)) / 9.5), y0 = Lg.top(x), y1 = g(x); nib([[x - 14, lerp(y0, y1, .3)], [x + 6, lerp(y0, y1, .45)], [x + 20, lerp(y0, y1, .6)]], .4, dk(bark, .5)); }
+    nib(top, .6, dk(bark, .55));
+    const xm = Lg.x1 - 60, ym = (Lg.top(xm) + g(xm)) / 2, rr = (g(xm) - Lg.top(xm)) / 2;
+    wc(ell(xm, ym, rr * .55, rr * .95, 16, 7), '#D9B98A', 240, .03, .4); nib([...ell(xm, ym, rr * .55, rr * .95, 16, 7), ell(xm, ym, rr * .55, rr * .95, 16, 7)[0]], .45, dk(bark, .5));
+    nib([...ell(xm, ym, rr * .25, rr * .45, 12, 8), ell(xm, ym, rr * .25, rr * .45, 12, 8)[0]], .3, dk('#D9B98A', .45));
   }
   // Flor de cinco pétalas (rosa, miolo amarelo): no chão o caule deita; na mão (held) ele pende do punho.
   function flower(it) {
@@ -737,7 +749,7 @@ window.ExpStyle = (() => {
     const fo = w.fountain; still('p-fountain', [fo.x - fo.r - 40, fo.y - 280, 2 * fo.r + 80, 300], 1.25, () => paintFountain(fo.x, fo.y, fo.r));
     grass(1, () => GY - 2, 26, 10, 24, P.grassDk, { seed: 17, col2: P.grass, wind: .1, a: .7 });
     const polys = benchPolys(b, GY), wood = '#9A6B45';
-    const props = [{ depth: b.depth, draw: () => still('p-bench', [b.x - b.w - 40, b.seatY - b.backH - 40, 2 * b.w + 80, GY - b.seatY + b.backH + 60], 1.25,
+    const props = [{ depth: b.depth, draw: () => still('p-bench', [b.x - b.w / 2 - 40, b.seatY - b.backH - 40, b.w + 80, GY - b.seatY + b.backH + 60], 1.25,
       () => { for (const q of polys) { wc(q, wood, 230, .05, .5); nib([...q, q[0]], .35, dk(wood, .5)); } }, () => { for (const q of polys) { c.moveTo(...q[0]); for (const v of q) c.lineTo(...v); c.closePath(); } }) }];
     if (w.item) props.push({ depth: w.item.held ? 200.5 : 199, draw: () => flower(w.item) });
     actors(F, true, props);
@@ -784,7 +796,8 @@ window.ExpStyle = (() => {
       still(`n-plant${pl.seed}-${kp}`, [pl.x - half, pl.y - up, 2 * half, up + dn], pl.kind === 'tree' ? Math.min(kp, 1) : kp, () => paintPlant(pl));
     }
     grass(1, top, 22, 14, 40, P.grassDk, { seed: 7, col2: P.grass, wind: .12, a: .8, xmax: L.x0 - 20 });
-    actors(F, true);
+    const Lg = w.log, ty = Array.from({ length: 12 }, (_, i) => Lg.top(lerp(Lg.x0, Lg.x1, i / 11))), gy = Array.from({ length: 12 }, (_, i) => g(lerp(Lg.x0, Lg.x1, i / 11))), ly = Math.min(...ty) - 20;
+    actors(F, true, [{ depth: Lg.depth, draw: () => still('n-log', [Lg.x0 - 20, ly, Lg.x1 - Lg.x0 + 40, Math.max(...gy) + 30 - ly], 1.25, () => logPaint(Lg, g)) }]);
     // Água pela frente: multiply sobre o que está abaixo da linha d'água; brilhos do papel, ondas e respingos por quadro.
     at(1); still('n-water-f', [wx, WY - 1, ww, 600], .6, () => { wc([[wx, WY], [X1, WY], [X1, WY + 600], [wx, WY + 600]], mixCol(water, '#FFFFFF', .2), 150, .01, .4); nibBroken([[wx + 40, WY], [X1, WY]], .35, 41, .6, 2, dk(water, .4)); });
     const lw = Math.max(1.2 / cam.z, 1.5);
