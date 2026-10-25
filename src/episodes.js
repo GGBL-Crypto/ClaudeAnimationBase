@@ -1417,4 +1417,17 @@ AnimationPlatform.registerProject({
   AnimationPlatform.registerProject({ ...base, ...common, id: 'estilos-a', title: 'Estilos 2D: saúva, 0–20 s', duration: cut, storyboard });
   AnimationPlatform.registerProject({ ...base, ...common, id: 'estilos-h', title: 'Estilos 2D: explorador e formigas', duration: 8, audio: undefined,
     storyboard: [{ id: 'h1', start: 0, end: 8, event: 'Um explorador de mochila anda na trilha, para, se agacha e olha uma fila de formigas, surpreso.', transition: 'corte', reads: [{ start: 0, end: 8, text: '(sem narração)' }] }] });
+  // P (pessoas na praça) e N (bichos na beira do lago): 30 s sem narração, um plano por entrada (tempos em EST.times).
+  const shots = list => list.map(([id, start, end, event]) => ({ id, start, end, event, transition: 'corte', reads: [{ start, end, text: '(sem narração)' }] }));
+  AnimationPlatform.registerProject({ ...base, ...common, id: 'estilos-p', title: 'Estilos 2D: pessoas na praça', duration: 30, audio: undefined, storyboard: shots([
+    ['p1', 0, 6, 'Praça aberta: Marta espera, João chega pela direita, a moça senta no banco, o avô chega, um corredor passa ao fundo.'],
+    ['p2', 6, 17, 'João e Marta: aperto de mão, um passo, abraço e conversa com as mãos.'],
+    ['p3', 17, 24, 'A criança acha uma flor no chão, agacha, pega e mostra ao avô.'],
+    ['p4', 24, 30, 'A moça levanta do banco e anda até a conversa; a câmera a acompanha.'],
+  ]) });
+  AnimationPlatform.registerProject({ ...base, ...common, id: 'estilos-n', title: 'Estilos 2D: bichos na beira do lago', duration: 30, audio: undefined, storyboard: shots([
+    ['n1', 0, 9, 'Beira do lago aberta: a raposa chega trotando, a borboleta voa, um peixe salta, formigas em fila, o besouro anda.'],
+    ['n2', 9, 19, 'A raposa para na margem e bebe; um peixe salta perto e ela ergue a cabeça.'],
+    ['n3', 19, 30, 'No chão da margem: um pássaro pousa e saltita, o besouro passa, a fila de formigas, a borboleta.'],
+  ]) });
 })();

@@ -157,7 +157,9 @@ function groundOf(P) {
 
 // Adaptador 2D (exp/estilos, --2d): cenas com coreografia sem desenho (EST.frame em src/scenes/exp-estilos.js). O ponto
 // 2D (y para baixo) vira [x, −y, depth] e a câmera {cx, cy, z} vira uma câmera de frente a FOCAL / z: 1 unidade = z px,
-// como na tela. Cada camada de paralaxe f é verificada à parte, com a sua câmera (cx = lerp(960, cx, f)).
+// como na tela. Cada camada de paralaxe f é verificada à parte, com a sua câmera (cx = lerp(960, cx, f)). No ar = a.air (ave
+// ou borboleta voando, peixe, corredor no voo da passada; sem a.air, kind 'fly'): sem chão nem pés. Raio da cabeça = metade
+// do osso head (variantes da cena fora de SPECS).
 const SCENES = { 'estilos-a': 'A', 'estilos-h': 'H', 'estilos-p': 'P', 'estilos-n': 'N' };
 // Carrega motion.js e os scripts da cena; com style, também os do estilo (window = o global; document, canvas e p5 = ANY).
 function load2d(id, style) {
@@ -171,7 +173,7 @@ export function sampleProject2d(id, { fps = 30, range } = {}) {
   for (let i = Math.round(t0 * fps); i < Math.round(t1 * fps); i++) {
     const t = i / fps, F = ctx.EST.frame(scene, t), byLayer = new Map();
     for (const a of F.actors) {
-      const P = a.pose, d = a.depth || 0, X = (x, y) => [x, -y, d], air = a.kind === 'fly', g = a.ground, hr = ctx.SPECS[P.spec].head.r * P.size;
+      const P = a.pose, d = a.depth || 0, X = (x, y) => [x, -y, d], air = !!(a.air ?? a.kind === 'fly'), g = a.ground, J = P.joints, hr = J ? Math.hypot(J.headTop[0] - J.headBase[0], J.headTop[1] - J.headBase[1]) / 2 : ctx.SPECS[P.spec].head.r * P.size;
       const parts = [...P.spine, { ...P.head, r: hr }].map(q => ({ c: X(q.x, q.y), r: .9 * q.r, bottom: air ? 1 : g(q.x) - q.y - q.r }));
       const feet = air ? [] : Object.entries(P.limbs).filter(([, l]) => l.foot).map(([name, l]) => { const e = l.toe || l.end; return { name, pos: X(...e), stance: l.stance, k: 0, h: g(e[0]) - e[1], reach: 0 }; });  // chão no dedo
       const f = a.layer ?? 1; if (!byLayer.has(f)) byLayer.set(f, []);
@@ -199,7 +201,8 @@ const ANGLES = [...['L', 'R'].flatMap(s => [[`knee${s}`, 'knee', 1, [`hip${s}`, 
 // Juntas finais que o traço não pode passar: tornozelo, pulso, base da cabeça e ponta de membro de animal (<membro>.end).
 const END = /^(ankle|wrist)[LR]?$|^headBase$|\.end$/;
 
-// frames = [{t, actors: [{id, facing, joints: {nome: [x, y]}, bones: [{name, a, b, len}], parts?}]}]. Contrato das partes
+// frames = [{t, actors: [{id, facing, joints: {nome: [x, y]}, bones: [{name, a, b, len}], limits?, parts?}]}]; limits = pose.limits
+// (spec.limits: rad ou [mín, máx] por junta) sobrepõe lim naquele ser. Contrato das partes
 // (ExpStyle.parts(actor, F), exatamente o que o estilo desenha): {actor, name, from, to, pts: [[x, y], ...] (eixo do
 // traço em px do mundo), r (meia largura), cap: 'round' | 'butt' | 'square'}; from/to = juntas, to = null em parte
 // terminal (pé, mão, cabeça). Cabeça: pts = [headBase, headTop], eixo de baixo para cima; o círculo ou a elipse tem esse
@@ -214,11 +217,11 @@ const END = /^(ankle|wrist)[LR]?$|^headBase$|\.end$/;
 export function checkSkeleton(frames, lim = JOINT_RANGES) {
   const out = [];
   for (const f of frames) for (const x of f.actors) {
-    const J = x.joints, fc = x.facing ?? 1, bad = {}, add = (ty, s) => (bad[ty] ||= []).push(s);
+    const J = x.joints, fc = x.facing ?? 1, bad = {}, add = (ty, s) => (bad[ty] ||= []).push(s), L = x.limits ? { ...lim, ...Object.fromEntries(Object.entries(x.limits).map(([k, v]) => [k, Array.isArray(v) ? v : [-v, v]])) } : lim;
     for (const b of x.bones) { const e = d2(J[b.a], J[b.b]) / b.len - 1; if (Math.abs(e) > .01) add('osso varia', `${b.name} ${(100 * e).toFixed(1)}%`); }
     for (const [name, key, sg, u, v] of ANGLES) {
       if (![...u, ...v].every(k => J[k])) continue;
-      const g = sg * fc * turn(vec(J, u), vec(J, v)), [lo, hi] = lim[key];
+      const g = sg * fc * turn(vec(J, u), vec(J, v)), [lo, hi] = L[key];
       if (g < lo - 1e-9 || g > hi + 1e-9) add('ângulo', `${name} ${g.toFixed(2)} rad`);
     }
     for (const p of x.parts || []) {
@@ -269,7 +272,7 @@ export function sampleSkeleton2d(id, { fps = 30, range, style } = {}) {
     frames.push({ t, actors: F.actors.map(a => {
       const P = a.pose, sk = P.joints ? { joints: P.joints, bones: P.bones } : legacySkeleton(P, ctx.SPECS[P.spec], first.get(a.id));
       legacy ||= !P.joints; if (!first.has(a.id)) first.set(a.id, sk.bones);
-      return { id: a.id, facing: P.facing, ...sk, ...(parts && { parts: parts(a, F) }) };
+      return { id: a.id, facing: P.facing, ...sk, ...(P.limits && { limits: P.limits }), ...(parts && { parts: parts(a, F) }) };
     }) });
   }
   return { frames, geometry: !style || !!parts, legacy };

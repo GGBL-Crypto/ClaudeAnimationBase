@@ -81,3 +81,24 @@ test('scene H: the explorer keeps every bone through walk, crouch, hand on knee 
 test('scene A: the hero ant keeps its neck through the head turn (nod)', () => {
   for (let t = ctx.EST.times.T2; t < 20; t += .25) checkSkeleton(ctx.EST.frame('A', t).actors.find(a => a.id === 'hero').pose, `A t=${t.toFixed(2)}`);
 });
+
+test('handTo puts the hand tip exactly on the target; lowered keeps the bones; stepTo plants the ankle', () => {
+  const sp = ctx.humanSpec('adult'), o = { path: P, s: 3, size: 300, ground: flat, t: 1, seed: 1, moving: 0 }, p0 = ctx.creaturePose(sp, o);
+  for (const [limb, M] of [['armL', [p0.joints.shoulderL[0] + 80, p0.joints.shoulderL[1] + 40]], ['armR', [p0.joints.shoulderR[0] + 20, p0.joints.shoulderR[1] - 70]]]) {
+    const p = ctx.creaturePose(sp, { ...o, gesture: [{ limb, target: ctx.handTo(p0, sp, limb, M), k: 1 }] }), tip = p.joints['hand' + limb.slice(-1)];
+    assert.ok(d(tip, M) < 1e-6, `${limb} ponta da mão a ${d(tip, M)} px`); checkSkeleton(p, `handTo ${limb}`);
+  }
+  const low = ctx.creaturePose(ctx.lowered(sp, .1), o);
+  assert.ok(Math.abs(low.joints.pelvis[1] - (600 - (sp.spine[1].h - .1) * 300)) < .5, `pelve .1 BL abaixo do quadril de pé: ${low.joints.pelvis[1]}`); checkSkeleton(low, 'lowered');
+  assert.deepEqual(low.bones.map(b => b.len), p0.bones.map(b => b.len));
+  const g = ctx.stepTo(p0, sp, 'legR', 1000, flat, 1), q = ctx.creaturePose(sp, { ...o, gesture: [g] });
+  assert.ok(Math.abs(q.joints.toeR[1] - 600) < .5 && q.limbs.legR.stance, 'pé apoiado no fim do passo');
+  assert.equal(ctx.creaturePose(sp, { ...o, gesture: [ctx.stepTo(p0, sp, 'legR', 1000, flat, .5)] }).limbs.legR.stance, false, 'no ar no meio');
+});
+
+test('turnHead uses per-spec limits (spec.limits), still clamped', () => {
+  const dog = { ...ctx.SPECS.dog, limits: { neck: 1.5 } }, p = walk('dog', 10), q = ctx.creaturePose(dog, { path: P, s: 1 + .3, size: 120, ground: flat, t: 1 / 3, seed: 1 });
+  assert.ok(Math.abs(ctx.turnHead(p, 1.2).angles.neck) <= .6 + 1e-9, 'padrão limita a .6');
+  const r = ctx.turnHead(q, 1.2, 0, dog); assert.ok(r.angles.neck > .8 && r.angles.neck <= 1.5 + 1e-9, `pescoço ${r.angles.neck}`);
+  assert.ok(Math.abs(ctx.turnHead(q, 3, 0, dog).angles.neck) <= 1.5 + 1e-9, 'ainda limitado');
+});

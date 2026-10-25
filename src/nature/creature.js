@@ -28,7 +28,9 @@ var ORGANIC = { vary: .05, bob: .024, lean: .16, twist: .015, nod: 0, flex: 0, b
 // repouso a cabeça continua o pescoço); knee/elbow = [mín, máx] da dobra (0 = reto), sempre para o lado de bend do membro,
 // nos membros com pé ou mão (l3: humano, cão, ave); pata de inseto dobra inteira (túneis íngremes pedem).
 // Molas, aceno, balanço e susto só giram pescoço e cabeça nas juntas; nenhum osso estica (pose.angles = desvios usados).
+// spec.limits sobrepõe por espécie (ex.: cão que bebe água: pescoço mais solto); limitsOf(spec) = os limites valendo.
 var JOINT_LIMITS = { neck: .6, head: .5, knee: [0, 2.6], elbow: [0, 2.6] };
+const limitsOf = spec => spec && spec.limits ? { ...JOINT_LIMITS, ...spec.limits } : JOINT_LIMITS;
 // IK de dois ossos com dobra limitada: alvo perto demais da raiz vai para a distância da dobra máxima (ik2 limita o alcance).
 function limb2(root, target, l1, l2, bend, max) {
   const dx = target[0] - root[0], dy = target[1] - root[1], d = Math.hypot(dx, dy), m = Math.sqrt(Math.max(0, l1 * l1 + l2 * l2 + 2 * l1 * l2 * Math.cos(max)));
@@ -170,7 +172,7 @@ function creaturePose(spec, o) {
   const nv = [hc[0] - R * Math.cos(axW) - nOff[0], hc[1] - R * Math.sin(axW) - nOff[1]], nL = Math.hypot(...nv), nRest = Math.atan2(nv[1], nv[0]), nRef = nRest + rot[0];
   const no = turn(nOff, rot[0]), nb = [s0.x + no[0], s0.y + no[1]], axD = sv ? (dir > 0 ? ax + tilt : Math.PI - ax - tilt) : hq.a + micro;
   const rv = turn(nv, rot[0]), arc = walk && legs.length ? dir * org.arc * size * m * Math.sin(2 * TAU * (gp - org.rec - org.lag)) : 0;
-  const dyH = sv ? life * (bobH - bob - org.stab * (drop + bobH) + org.nod * size * m * beatH + .4 * breath - .05 * size * flinch) : 0, wb = [nb[0] + rv[0] + arc, nb[1] + rv[1] + dyH], L = JOINT_LIMITS;
+  const dyH = sv ? life * (bobH - bob - org.stab * (drop + bobH) + org.nod * size * m * beatH + .4 * breath - .05 * size * flinch) : 0, wb = [nb[0] + rv[0] + arc, nb[1] + rv[1] + dyH], L = limitsOf(spec);
   const dN = nL > 1e-9 ? clamp(wrapA(Math.atan2(wb[1] - nb[1], wb[0] - nb[0]) - nRef), -L.neck, L.neck) : 0, aN = nRef + dN, hb = [nb[0] + nL * Math.cos(aN), nb[1] + nL * Math.sin(aN)];
   const dH = clamp(wrapA(axD - aN - (axW - nRest)), -L.head, L.head), aH = aN + axW - nRest + dH;
   const head = { x: hb[0] + R * Math.cos(aH), y: hb[1] + R * Math.sin(aH), a: hq.a }, headTop = [hb[0] + 2 * R * Math.cos(aH), hb[1] + 2 * R * Math.sin(aH)], headAngle = sv ? aH - dir * ax : aH;
@@ -187,7 +189,7 @@ function creaturePose(spec, o) {
     if (!sv) return local(e, body[lb.attach].a, lb.l3, 0);
     const run = v => dir * Math.sqrt(L3 * L3 - v * v);
     let v = Math.min(L3, (lb.h3 || 0) * size);
-    if (stance && !air) v = clamp((o.ground ? o.ground(e[0] + run(v)) : st.pos[1]) - e[1], -L3, L3);
+    if (stance && !air) for (let i = 0; i < (o.ground ? 4 : 1); i++) v = clamp((o.ground ? o.ground(e[0] + run(v)) : st.pos[1]) - e[1], -L3, L3);  // no declive, o dedo acha o chão em poucas voltas
     return [e[0] + run(v), e[1] + v];
   };
   for (const lb of spec.limbs) {
@@ -251,7 +253,7 @@ function creaturePose(spec, o) {
     carry = { x, y, angle: sv ? 0 : anc.a, w: o.carry.w * size, h: o.carry.h * size };
   }
   return {
-    spec: spec.id, ...(spec.body && { body: spec.body }), size, view, facing: dir, spine, limbs, appendages, head: { x: head.x, y: head.y, angle: headAngle }, ...skeleton,
+    spec: spec.id, ...(spec.body && { body: spec.body }), ...(spec.limits && { limits: spec.limits }), size, view, facing: dir, spine, limbs, appendages, head: { x: head.x, y: head.y, angle: headAngle }, ...skeleton,
     face: { expression: o.expression || 'neutral', blink: o.blink ?? blink(t, seed), mouth: o.mouth || null }, sq: o.sq || 0, lag: sv ? org.follow * (o.drag || 0) * life : 0, emote: o.emote || null, ...(spec.flyer && { wings: { phase: flying ? frac(t * spec.flyer.freq) : 0, open: flying ? 1 : 0 } }), carry,
   };
 }
