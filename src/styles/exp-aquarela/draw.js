@@ -140,8 +140,8 @@ window.ExpStyle = (() => {
   }
   const box = p => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const [x, y] of p) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); } return [x0, y0, x1, y1]; };
   // Traço de membro: o pigmento escuro por baixo um pouco mais largo, a aguada por cima.
-  function limb(pts, w, col, lw, rim = dk(col, .4)) {
-    c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.lineCap = c.lineJoin = 'round';
+  function limb(pts, w, col, lw, rim = dk(col, .4), cap = 'round') {
+    c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.lineCap = cap; c.lineJoin = 'round';
     c.globalAlpha = .7 * A; c.strokeStyle = rim; c.lineWidth = w + 2 * lw; c.stroke();
     c.globalAlpha = .95 * A; c.strokeStyle = col; c.lineWidth = w; c.stroke(); c.globalAlpha = 1;
   }
@@ -157,25 +157,63 @@ window.ExpStyle = (() => {
   function line(pts, w, col, a = 1) { c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.lineCap = c.lineJoin = 'round'; c.globalAlpha = a * A; c.strokeStyle = col; c.lineWidth = w; c.stroke(); c.globalAlpha = 1; }
   // Quadro local da cabeça: x à frente, y para baixo, girado pela inclinação (sem virar de cabeça para baixo à esquerda).
   function headFrame(p) { c.translate(p.head.x, p.head.y); c.scale(p.facing, 1); c.rotate(p.facing > 0 ? p.head.angle : Math.PI - p.head.angle); }
+  // Eixo de uma parte de dois pontos: meio, comprimento e ângulo (cabeça, mão, pé).
+  const axis = ({ pts: [A0, B0] }) => ({ m: [(A0[0] + B0[0]) / 2, (A0[1] + B0[1]) / 2], L: Math.hypot(B0[0] - A0[0], B0[1] - A0[1]), a: Math.atan2(B0[1] - A0[1], B0[0] - A0[0]) });
+  // Para d antes de B (no eixo A → B): a ponta redonda de raio d termina na junta, sem passar dela.
+  const short = (A0, B0, d) => { const k = Math.max(0, 1 - d / (Math.hypot(B0[0] - A0[0], B0[1] - A0[1]) || 1)); return [A0[0] + (B0[0] - A0[0]) * k, A0[1] + (B0[1] - A0[1]) * k]; };
+  // Partes desenhadas de um ser (contrato do verificador, scripts/check-motion.mjs): eixo pts em px do mundo, meia largura
+  // r já com a borda de pigmento, ponta cap; tudo sai das juntas da pose (pose.joints) e o desenho usa só isto. Achatamento
+  // (sq) e flip do ator transformam o ser inteiro, juntas e partes juntas.
+  function parts(a, F) {
+    const p = a.pose, J = p.joints, S = p.size, z = F.cam.z, out = [], Rh = Math.hypot(J.headTop[0] - J.headBase[0], J.headTop[1] - J.headBase[1]) / 2;
+    const part = (name, from, to, r, cap, pts = [J[from], J[to]], o) => out.push({ actor: a.id, name, from, to, pts, r, cap, ...o });
+    if (a.kind === 'human') {
+      const lw = Math.max(1.1 / z, .004 * S);
+      part('neck', 'neck', 'headBase', .0225 * S + lw, 'butt');
+      part('head', 'headBase', null, .95 * Rh / 1.05 + lw / 2, 'round', [J.headBase, J.headTop]);
+      for (const s of 'LR') {
+        const r = k => k * S + lw;
+        part('upperArm' + s, 'shoulder' + s, 'elbow' + s, r(.031), 'round');
+        part('forearm' + s, 'elbow' + s, 'wrist' + s, r(.0225), 'round', [J['elbow' + s], short(J['elbow' + s], J['wrist' + s], r(.0225))]);
+        part('hand' + s, 'wrist' + s, null, .028 * S + lw / 2, 'round', [J['wrist' + s], J['hand' + s]]);
+        part('thigh' + s, 'hip' + s, 'knee' + s, r(.0425), 'round');
+        part('shin' + s, 'knee' + s, 'ankle' + s, r(.035), 'round', [J['knee' + s], short(J['knee' + s], J['ankle' + s], r(.035))]);
+        part('foot' + s, 'ankle' + s, null, .04 * S + lw / 2, 'round', [J['ankle' + s], J['toe' + s]]);
+      }
+      return out;
+    }
+    // Formiga e mosca: pescoço fino (coberto pelo tórax), cabeça e, na formiga, cada pata em fita que afina (w = larguras
+    // da aguada por ponto; a borda é .8 lw, então o eixo para .4 lw antes da ponta da pata).
+    const ant = a.kind !== 'fly', lw = Math.max(1 / z, (ant ? .01 : .012) * S), legW = k => Math.max(1.1 / z, k * S);
+    part('neck', 'neck', 'headBase', .025 * S + .5 * lw, 'butt');
+    part('head', 'headBase', null, (ant ? .95 : .9) * Rh + lw / 2, 'round', [J.headBase, J.headTop]);
+    if (ant) for (const n of Object.keys(p.limbs)) {
+      const j = k => J[`${n}.${k}`], w = [legW(.045), legW(.03), legW(.012)];
+      part(n + '.upper', n + '.root', n + '.mid', w[0] / 2 + .4 * lw, 'butt', undefined, { w: w.slice(0, 2) });
+      part(n + '.lower', n + '.mid', n + '.end', w[1] / 2 + .4 * lw, 'butt', [j('mid'), short(j('mid'), j('end'), .4 * lw)], { w: w.slice(1) });
+    }
+    return out;
+  }
 
-  function ant(a) {
-    const p = a.pose, S = p.size, sd = sid(a.id), f = p.facing, hero = a.role === 'hero', px = S * cam.z;
+  function ant(a, Q) {
+    const p = a.pose, S = p.size, sd = sid(a.id), f = p.facing, hero = a.role === 'hero', px = S * cam.z, q = n => Q.find(x => x.name === n);
     const col = hero ? P.hero : a.role === 'back' ? mixCol(P.ant, P.far, .4) : a.role === 'tunnel' || a.role === 'garden' ? mixCol(P.ant, P.soil, .15) : P.ant;
-    const lw = Math.max(1 / cam.z, .01 * S), legW = (l, k) => Math.max(1.1 / cam.z, k * S), farAnt = f > 0 ? 'antennaR' : 'antennaL';
+    const lw = Math.max(1 / cam.z, .01 * S), farAnt = f > 0 ? 'antennaR' : 'antennaL';
     // Pata: fita que afina da raiz à ponta em dois segmentos, aguada transparente com a borda acumulando pigmento.
-    const legs = far => { for (const l of Object.values(p.limbs)) if (l.far === far) taper([l.root, l.mid, l.end], [legW(l, .045), legW(l, .03), legW(l, .012)], far ? dk(col, .4) : dk(col, .15), lw * .8); };
+    const legs = far => { for (const [n, l] of Object.entries(p.limbs)) if (l.far === far) { const u = q(n + '.upper'), v = q(n + '.lower'); taper([...u.pts, v.pts[1]], [...u.w, v.w[1]], far ? dk(col, .4) : dk(col, .15), lw * .8); } };
     const antenna = n => p.appendages[n] && line(p.appendages[n], Math.max(1 / cam.z, .016 * S), dk(col, n === farAnt ? .45 : .25));
     legs(true); legs(false); antenna(farAnt);
     if (p.carry) leaf(p.carry, sd, a.role === 'back' ? mixCol(P.leaf, P.far, .4) : P.leaf, lw);
-    const [th, pt, gs] = p.spine;
+    const [th, pt, gs] = p.spine, nk = q('neck');
     blot(oval(gs.x, gs.y, 1.2 * gs.r, .95 * gs.r, gs.angle, sd), col, lw, { light: px > 25 });
     blot(oval(pt.x, pt.y, 1.4 * pt.r, .8 * pt.r, pt.angle, sd + 20, 10), col, lw, { shade: false });
+    limb(nk.pts, 2 * (nk.r - .5 * lw), dk(col, .3), .5 * lw, undefined, nk.cap);
     blot(oval(th.x, th.y, 1.5 * th.r, .85 * th.r, th.angle, sd + 40), col, lw, { light: px > 25 });
-    const R = SPECS.ant.head.r * S;
+    const R = SPECS.ant.head.r * S, hq = q('head'), h = axis(hq);
     if (px > 150) for (const u of [-.6, -.05]) line([[th.x + f * u * th.r, th.y - .7 * th.r], [th.x + f * (u - .35) * th.r, th.y - 1.25 * th.r]], .18 * th.r, dk(col, .3));  // espinhos do tórax
+    c.save(); headFrame(p); limb([[.75 * R, .3 * R], [1.25 * R, .55 * R], [1.05 * R, .7 * R]], .12 * R, dk(col, .5), lw * .5); c.restore();  // mandíbula
+    blot(oval(h.m[0], h.m[1], h.L / 2, hq.r - lw / 2, h.a, sd + 60), col, lw, { light: px > 25 });
     c.save(); headFrame(p);
-    limb([[.75 * R, .3 * R], [1.25 * R, .55 * R], [1.05 * R, .7 * R]], .12 * R, dk(col, .5), lw * .5);  // mandíbula
-    blot(oval(0, 0, 1.05 * R, .95 * R, 0, sd + 60), col, lw, { light: px > 25 });
     trace(oval(.4 * R, -.14 * R, .42 * R, .36 * R, -.2, sd + 80, 9)); c.globalAlpha = .95 * A; c.fillStyle = mixCol(P.ink, col, .15); c.fill();
     c.globalAlpha = .8 * A; c.strokeStyle = P.ink; c.lineWidth = Math.max(lw, .05 * R); c.stroke();
     if (px > 30) { c.beginPath(); c.arc(.28 * R, -.26 * R, .12 * R, 0, TAU); c.globalAlpha = .9 * A; c.fillStyle = P.paper; c.fill(); }
@@ -192,8 +230,8 @@ window.ExpStyle = (() => {
     blot(p, col, lw, { a: .85 }); line([[-.45 * w, .05 * h], [.42 * w, -.05 * h]], Math.max(lw * .8, .02 * h), dk(col, .3), .7);
     c.restore();
   }
-  function fly(a) {
-    const p = a.pose, S = p.size, sd = sid(a.id), lw = Math.max(1 / cam.z, .012 * S), [th, ab] = p.spine, R = SPECS.fly.head.r * S;
+  function fly(a, Q) {
+    const p = a.pose, S = p.size, sd = sid(a.id), lw = Math.max(1 / cam.z, .012 * S), [th, ab] = p.spine, R = SPECS.fly.head.r * S, [nk, hq] = Q, h = axis(hq);
     const wing = (far) => {
       const w = p.wings || { phase: 0, open: 0 }, ang = -.5 - 1.1 * w.open * (.5 + .5 * Math.sin(w.phase * TAU)) + (far ? .25 : 0), L = .62 * S;
       c.save(); c.translate(th.x - p.facing * .05 * S, th.y - .6 * th.r); c.scale(-p.facing, 1); c.rotate(ang);
@@ -202,51 +240,60 @@ window.ExpStyle = (() => {
     };
     wing(true);
     blot(oval(ab.x, ab.y, 1.25 * ab.r, .9 * ab.r, ab.angle, sd), P.fly, lw);
+    limb(nk.pts, 2 * (nk.r - .5 * lw), dk(P.fly, .3), .5 * lw, undefined, nk.cap);
     blot(oval(th.x, th.y, 1.1 * th.r, 1.05 * th.r, th.angle, sd + 20), P.fly, lw);
-    c.save(); headFrame(p); blot(oval(0, 0, R, .9 * R, 0, sd + 40), mixCol(P.fly, P.soil, .3), lw, { shade: false });
-    c.beginPath(); c.arc(.3 * R, -.15 * R, .35 * R, 0, TAU); c.globalAlpha = .9 * A; c.fillStyle = '#7A2E22'; c.fill(); c.restore(); c.globalAlpha = 1;
+    blot(oval(h.m[0], h.m[1], h.L / 2, hq.r - lw / 2, h.a, sd + 40), mixCol(P.fly, P.soil, .3), lw, { shade: false });
+    c.save(); headFrame(p); c.beginPath(); c.arc(.3 * R, -.15 * R, .35 * R, 0, TAU); c.globalAlpha = .9 * A; c.fillStyle = '#7A2E22'; c.fill(); c.restore(); c.globalAlpha = 1;
     wing(false);
   }
 
   // Explorador de chapéu e mochila, de perfil; 1 BL = altura. O rosto atua (neutral, curious, surprised) e pisca.
-  function human(a) {
-    const p = a.pose, S = p.size, sd = sid(a.id), f = p.facing, [ch, pe] = p.spine, L = p.limbs, lw = Math.max(1.1 / cam.z, .004 * S);
+  // Bota no eixo tornozelo → dedo: (fração do pé, fração da meia largura para o lado do chão); o calcanhar desce até o chão.
+  const BOOT = [[-.12, -.9], [.35, -.75], [.85, -.35], [1, .15], [.9, .85], [.3, 1], [-.15, 1], [-.2, .1]];
+  function human(a, Q) {
+    const p = a.pose, S = p.size, sd = sid(a.id), f = p.facing, J = p.joints, [ch, pe] = p.spine, L = p.limbs, lw = Math.max(1.1 / cam.z, .004 * S), q = n => Q.find(x => x.name === n);
     const gy = Math.max(L.legL.end[1], L.legR.end[1]), sq = p.sq || 0, ta = Math.atan2(ch.y - pe.y, ch.x - pe.x);
     c.save(); c.translate(pe.x, gy); c.scale(1 + .5 * sq, 1 - sq); c.translate(-pe.x, -gy);
-    const leg = (l, far) => {
-      const cl = far ? dk(P.pants, .3) : P.pants;
-      limb([l.root, l.mid], .085 * S, cl, lw); limb([l.mid, l.end], .07 * S, cl, lw);
-      blot(oval(l.end[0] + f * .035 * S, l.end[1] - .02 * S, .065 * S, .032 * S, 0, sd + (far ? 3 : 5), 10), far ? dk(P.boot, .3) : P.boot, lw);
+    const bone = (n, col) => { const x = q(n); limb(x.pts, 2 * (x.r - lw), col, lw, undefined, x.cap); };
+    const leg = (s, far) => {
+      const cl = far ? dk(P.pants, .3) : P.pants, ft = q('foot' + s), [A0] = ft.pts, h = axis(ft), w = ft.r - lw / 2, u = [Math.cos(h.a), Math.sin(h.a)], n = [-f * u[1], f * u[0]];
+      bone('thigh' + s, cl); bone('shin' + s, cl);
+      blot(BOOT.map(([k, m]) => [A0[0] + u[0] * k * h.L + n[0] * m * w, A0[1] + u[1] * k * h.L + n[1] * m * w]), far ? dk(P.boot, .3) : P.boot, lw);
     };
-    const arm = (l, far) => {
-      limb([l.root, l.mid], .062 * S, far ? dk(P.shirt, .3) : P.shirt, lw); limb([l.mid, l.end], .045 * S, far ? dk(P.skin, .25) : P.skin, lw);
-      blot(oval(l.end[0], l.end[1], .03 * S, .028 * S, 0, sd + (far ? 11 : 13), 9), far ? dk(P.skin, .25) : P.skin, lw, { shade: false });
+    const arm = (s, far) => {
+      const hd = q('hand' + s), h = axis(hd), sk = far ? dk(P.skin, .25) : P.skin;
+      bone('upperArm' + s, far ? dk(P.shirt, .3) : P.shirt); bone('forearm' + s, sk);
+      blot(oval(h.m[0], h.m[1], h.L / 2, hd.r - lw / 2, h.a, sd + (far ? 11 : 13), 9), sk, lw, { shade: false });
     };
     const fl = Object.entries(L).filter(([, l]) => l.far), nr = Object.entries(L).filter(([, l]) => !l.far);
-    for (const [n, l] of fl) n.startsWith('leg') ? leg(l, true) : arm(l, true);
+    for (const [n] of fl) n.startsWith('leg') ? leg(n.slice(-1), true) : arm(n.slice(-1), true);
+    // Eixo do tronco: pelve → base do pescoço (1,2 d); tq(al px ao longo, ac BL à frente). Mochila, camisa, cinto e alça vão nele.
+    const d = Math.hypot(J.neck[0] - pe.x, J.neck[1] - pe.y) / 1.2, dc = Math.hypot(ch.x - pe.x, ch.y - pe.y);
+    const ux = (J.neck[0] - pe.x) / (1.2 * d || 1), uy = (J.neck[1] - pe.y) / (1.2 * d || 1), tq = (al, ac) => [pe.x + ux * al - uy * ac * f * S, pe.y + uy * al + ux * ac * f * S];
     // Mochila nas costas, com o saco de dormir enrolado em cima.
-    const bx = ch.x - f * .14 * S, by = ch.y + .02 * S;
+    const [bx, by] = tq(dc - .02 * S, -.14);
     blot(oval(bx, by, .085 * S, .14 * S, ta + Math.PI / 2, sd + 21), P.pack, lw);
-    blot(oval(bx - f * .005 * S, by - .15 * S, .07 * S, .035 * S, 0, sd + 23, 10), mixCol(P.pants, P.paper, .3), lw);
-    line([[bx - f * .02 * S, by - .02 * S], [bx + f * .05 * S, by - .02 * S]], .012 * S, dk(P.pack, .4), .8);
+    blot(oval(...tq(dc + .13 * S, -.145), .07 * S, .035 * S, ta + Math.PI / 2, sd + 23, 10), mixCol(P.pants, P.paper, .3), lw);
+    line([tq(dc, -.16), tq(dc, -.09)], .012 * S, dk(P.pack, .4), .8);
     // Tronco: camisa do quadril ao ombro; calça no quadril.
-    for (const [n, l] of nr) if (n.startsWith('leg')) leg(l, false);
-    const d = Math.hypot(ch.x - pe.x, ch.y - pe.y);
-    // Camisa: do quadril (estreito) ao peito e ombros (mais largos), no eixo pelve → peito.
-    const ux = (ch.x - pe.x) / (d || 1), uy = (ch.y - pe.y) / (d || 1), tq = (al, ac) => [pe.x + ux * al - uy * ac * f * S, pe.y + uy * al + ux * ac * f * S];
+    for (const [n] of nr) if (n.startsWith('leg')) leg(n.slice(-1), false);
+    // Camisa: do quadril (estreito) ao peito e ombros (mais largos); cobre a base do pescoço.
     blot([[-.03, .085], [.45, .088], [1, .1], [1.12, .075], [1.22, .02], [1.2, -.06], [1.05, -.1], [.45, -.092], [-.03, -.088]].map(([al, ac]) => tq(al * d, ac)), P.shirt, lw);
     blot(oval(pe.x, pe.y + .02 * S, .1 * S, .07 * S, ta, sd + 33, 12), P.pants, lw, { light: false });
-    line([[pe.x - .09 * S, pe.y - .035 * S], [pe.x + .09 * S, pe.y - .035 * S]], .015 * S, P.band, .8);  // cinto
-    line([[ch.x + f * .02 * S, ch.y - .1 * S], [ch.x + f * .055 * S, ch.y + .1 * S]], .016 * S, dk(P.pack, .3), .9);  // alça
-    // Pescoço e cabeça.
-    line([[ch.x + f * .01 * S, ch.y - .1 * S], [p.head.x - f * .005 * S, p.head.y + .04 * S]], .045 * S, dk(P.skin, .1));
-    c.save(); headFrame(p); head(p, .075 * S, sd, lw); c.restore();
-    for (const [n, l] of nr) if (!n.startsWith('leg')) arm(l, false);
+    line([tq(.035 * S, -.09), tq(.035 * S, .09)], .015 * S, P.band, .8);  // cinto
+    line([tq(dc + .1 * S, .02), tq(dc - .1 * S, .055)], .016 * S, dk(P.pack, .3), .9);  // alça
+    // Cabeça no eixo base → topo (o rosto em y < 0); o eixo inteiro mede 2,1 R.
+    bone('neck', dk(P.skin, .1));
+    const h = axis(q('head'));
+    c.save(); c.translate(...h.m); c.rotate(h.a + Math.PI / 2); c.scale(f, 1); head(p, h.L / 2.1, sd, lw); c.restore();
+    for (const [n] of nr) if (!n.startsWith('leg')) arm(n.slice(-1), false);
     c.restore();
     if (p.emote) emote(p, S);
   }
   function head(p, R, sd, lw) {
     const F = p.face || {}, ex = F.expression || 'neutral', shut = (F.blink || 0) > .5;
+    // Queixo e garganta por baixo do rosto: cobrem o topo do pescoço (que para na base da cabeça), mesmo com a cabeça inclinada.
+    blot(oval(0, .9 * R, .55 * R, .45 * R, 0, sd + 49, 10, .04), P.skin, lw, { shade: false });
     blot(oval(-.55 * R, -.15 * R, .5 * R, .5 * R, 0, sd + 51, 10), P.hair, lw, { shade: false });
     blot(oval(0, 0, .95 * R, 1.05 * R, 0, sd + 53), P.skin, lw);
     blot(oval(.97 * R, .12 * R, .2 * R, .17 * R, 0, sd + 55, 9), P.skin, lw, { shade: false });  // nariz
@@ -294,7 +341,7 @@ window.ExpStyle = (() => {
       if (sx < -m || sx > W + m || sy < -m || sy > H + m) continue;
       at(a.layer); A = a.alpha ?? 1;
       if (a.flip) { const mx = (p.spine[0].x + p.spine.at(-1).x) / 2; c.translate(mx, 0); c.scale(a.flip, 1); c.translate(-mx, 0); }
-      (a.kind === 'human' ? human : a.kind === 'fly' ? fly : ant)(a);
+      (a.kind === 'human' ? human : a.kind === 'fly' ? fly : ant)(a, parts(a, F));
       A = 1;
     }
     c.globalAlpha = 1;
@@ -444,6 +491,7 @@ window.ExpStyle = (() => {
   }
 
   return {
+    parts,
     draw(F) {
       c = X; cam = F.cam; T = F.t; A = 1;
       c.resetTransform(); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; c.fillStyle = '#FFFFFF'; c.fillRect(0, 0, W, H);
