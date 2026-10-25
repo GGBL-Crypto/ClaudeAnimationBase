@@ -796,16 +796,31 @@
     return later;
   }
 
-  // Banco de praça de perfil (P): encosto do lado b.back, pés até o chão e assento com o topo em seatY; madeira hachurada.
-  // Desenhado na ordem de profundidade dele (atrás da moça sentada, na frente do corredor).
+  // Banco de praça de frente (P): encosto de duas ripas atrás do assento em toda a largura (seatY − backH até seatY),
+  // assento de tábua grossa com o topo em seatY e pés até o chão; madeira hachurada. Desenhado na ordem de profundidade
+  // dele (atrás da moça sentada, na frente do corredor).
   function bench(b, F) {
     const M = mapper(F, {}), g = F.world.ground, w = clamp(2.4 * F.cam.z, 1.6, 4), o = { sp: 4.5, rot: .8, w: 1.1, anchor: M(b.x, b.seatY), seed: 450 };
     const box = (x0, y0, x1, y1, s, t) => { const q = [M(x0, y0), M(x1, y0), M(x1, y1), M(x0, y1)]; part(q, shade(q, t, .45), w, o, s); };
-    const th = .1 * b.w, xb = b.x + b.back * b.w / 2, pw = .06 * b.w;
-    box(xb - pw * .6, b.seatY - b.backH, xb + pw * .6, g(xb), 451, .35);
-    for (const [i, y] of [b.seatY - b.backH + .05 * b.w, b.seatY - .5 * b.backH].entries()) box(xb - b.back * pw * .6 - b.back * .02 * b.w, y, xb - b.back * pw * .6 + b.back * .07 * b.w, y + .18 * b.w, 452 + i, .5);  // ripas do encosto, de topo
-    for (const u of [-.38, .38]) { const x = b.x + u * b.w; box(x - pw / 2, b.seatY + th, x + pw / 2, g(x), 455 + u * 10, .4); }
-    box(b.x - b.w / 2 - .04 * b.w, b.seatY, b.x + b.w / 2 + .04 * b.w, b.seatY + th, 458, .25);
+    const th = .1 * b.w, pw = .06 * b.w, xa = b.x - b.w / 2, xb = b.x + b.w / 2;
+    for (const u of [-.46, .46]) box(b.x + u * b.w - pw / 2, b.seatY - b.backH, b.x + u * b.w + pw / 2, b.seatY, 451, .35);  // postes do encosto
+    for (const [i, y] of [b.seatY - b.backH + .04 * b.w, b.seatY - .55 * b.backH].entries()) box(xa, y, xb, y + .16 * b.w, 452 + i, .5);  // ripas do encosto
+    for (const u of [-.4, .4]) { const x = b.x + u * b.w; box(x - pw / 2, b.seatY + th, x + pw / 2, g(x), 455 + u * 10, .4); }
+    box(xa - .03 * b.w, b.seatY, xb + .03 * b.w, b.seatY + th, 458, .25);
+  }
+  // Tronco caído (N): corpo do topo (log.top) ao chão, casca em riscos de hachura e o anel do corte na ponta da direita.
+  function log(Lg, F) {
+    const M = mapper(F, {}), g = F.world.ground, w = clamp(2.4 * F.cam.z, 1.6, 4), n = 24, top = [], bot = [];
+    for (let i = 0; i <= n; i++) { const x = lerp(Lg.x0, Lg.x1, i / n); top.push(M(x, Lg.top(x))); bot.push(M(x, g(x))); }
+    const q = [...top, ...bot.reverse()], o = { sp: 5, rot: -.15, w: 1.2, anchor: M(Lg.x0, Lg.top(Lg.x0)), seed: 470 };
+    part(q, shade(q, .3, .5), w * 1.2, o, 471);
+    for (let i = 1; i < 8; i++) {  // fendas da casca
+      const x = lerp(Lg.x0, Lg.x1, (i + .5 * rs(i, 41)) / 8.5), y0 = Lg.top(x), y1 = g(x);
+      pen([M(x, lerp(y0, y1, .2)), M(x + 14, lerp(y0, y1, .45)), M(x + 4, lerp(y0, y1, .7))], 1.6, 480 + i);
+    }
+    const xm = Lg.x1 - 55, ym = (Lg.top(xm) + g(xm)) / 2, rr = (g(xm) - Lg.top(xm)) / 2, [X, Y] = M(xm, ym), r = rr * F.cam.z;
+    part(ellPoly(X, Y, .5 * r, .95 * r, 0, 24), null, w, { fill: pat }, 490);
+    ring(ellPoly(X, Y, .25 * r, .5 * r, 0, 20), w * .6, 491);
   }
 
   // Lago (N), por cima dos seres: abaixo da linha d'água, papel translúcido (o submerso esmaece), aguada azul, riscos de
@@ -893,6 +908,7 @@
       // Ordem de desenho: camada e profundidade; adereços (banco, flor no chão) antes dos seres da mesma profundidade.
       const Wd = F.world, it = Wd.item, z = F.cam.z, later = [], list = [];
       if (Wd.bench) list.push({ depth: Wd.bench.depth ?? -150, draw: () => bench(Wd.bench, F) });
+      if (Wd.log) list.push({ depth: Wd.log.depth, draw: () => log(Wd.log, F) });
       if (it && !it.held) list.push({ depth: (F.actors.find(a => a.role === 'child')?.depth ?? 200) - .01, draw: () => flower(it, mapper(F, {}), clamp(2.4 * z, 1.6, 4), { sp: 4, w: 1, seed: 3 }) });
       list.push(...F.actors.map(a => ({ a, depth: a.depth ?? 0, layer: a.layer ?? 1 })));
       list.sort((u, v) => (u.layer ?? 1) - (v.layer ?? 1) || u.depth - v.depth);
