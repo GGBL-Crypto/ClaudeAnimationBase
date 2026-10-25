@@ -157,8 +157,51 @@ window.ExpStyle = (() => {
     ell(x, y, rx, ry, a, K.dk); ell(x - .06 * ry, y - .12 * ry, rx * .9, ry * .82, a, K.body);
     if (spec) ell(x - .25 * ry, y - .42 * ry, rx * .42, ry * .2, a, K.lt);
   }
+  // Geometria dos seres (ExpStyle.parts, contrato de check-motion.mjs): eixo, meia largura e ponta de cada parte, só das
+  // juntas de pose.joints. O desenho usa esta mesma lista. Ponta 'butt' nas juntas finais (tornozelo, pulso, base da
+  // cabeça, <membro>.end): o pé, a mão, a cabeça ou o disco da pata cobrem a junta.
+  const d2 = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]), unit2 = (a, b) => { const d = d2(a, b) || 1; return [(b[0] - a[0]) / d, (b[1] - a[1]) / d]; };
+  const mid = ([a, b]) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  function partsOf(a) {
+    const p = a.pose, J = p.joints, S = p.size, out = [], part = (name, from, to, pts, r, cap) => out.push({ actor: a.id, name, from, to, pts, r, cap });
+    const hl = d2(J.headBase, J.headTop) / 2;
+    if (a.kind === 'human') {
+      part('torso', 'pelvis', 'chest', [J.pelvis, J.chest], BODY[p.body || 'adult'].girth * S, 'round');  // topo arredondado chega à base do pescoço
+      part('neck', 'neck', 'headBase', [J.neck, J.headBase], .028 * S, 'butt');
+      part('head', 'headBase', null, [J.headBase, J.headTop], hl, 'round');
+      for (const s of ['L', 'R']) {
+        const j = k => J[k + s], hr = .028 * S, hu = unit2(j('wrist'), j('hand')), fr = .032 * S, fu = unit2(j('ankle'), j('toe'));
+        let n = [fu[1], -fu[0]]; if (n[1] > 0) n = [-n[0], -n[1]];  // normal do pé para cima: a sola fica rente ao chão no dedo
+        part('upperArm' + s, 'shoulder' + s, 'elbow' + s, [j('shoulder'), j('elbow')], .036 * S, 'round');
+        part('forearm' + s, 'elbow' + s, 'wrist' + s, [j('elbow'), j('wrist')], .026 * S, 'butt');
+        part('hand' + s, 'wrist' + s, null, [j('wrist'), [j('hand')[0] - hr * hu[0], j('hand')[1] - hr * hu[1]]], hr, 'round');  // a ponta redonda termina na ponta da mão
+        part('thigh' + s, 'hip' + s, 'knee' + s, [j('hip'), j('knee')], .046 * S, 'round');
+        part('shin' + s, 'knee' + s, 'ankle' + s, [j('knee'), j('ankle')], .038 * S, 'butt');
+        part('foot' + s, 'ankle' + s, null, [j('ankle'), [j('toe')[0] - fr * (fu[0] - n[0]), j('toe')[1] - fr * (fu[1] - n[1])]], fr, 'round');
+      }
+      return out;
+    }
+    const ant = a.kind !== 'fly';
+    part('neck', 'neck', 'headBase', [J.neck, J.headBase], (ant ? .35 : .25) * hl, 'butt');
+    part('head', 'headBase', null, [J.headBase, J.headTop], (ant ? .92 : .95) * hl, 'round');
+    if (ant) for (const [name, l] of Object.entries(p.limbs)) {  // pata: afila para o pé; as de lá mais finas
+      const w = (l.far ? .018 : .022) * S, j = k => `${name}.${k}`;
+      part(j('upper'), j('root'), j('mid'), [J[j('root')], J[j('mid')]], w / 2, 'round');
+      part(j('lower'), j('mid'), j('end'), [J[j('mid')], J[j('end')]], .35 * w, 'butt');
+      part(j('foot'), j('end'), null, [J[j('end')]], .45 * w, 'round');
+    }
+    return out;
+  }
+  const byName = a => Object.fromEntries(partsOf(a).map(q => [q.name, q]));
+  // Desenha uma parte com a ponta dela; um ponto só é um disco. k afina o traço (realce por dentro).
+  function stroke(q, col, k = 1, dx = 0, dy = 0) {
+    if (q.pts.length < 2) return ell(q.pts[0][0] + dx, q.pts[0][1] + dy, q.r * k, q.r * k, 0, col);
+    c.beginPath(); q.pts.forEach(([x, y], i) => i ? c.lineTo(x + dx, y + dy) : c.moveTo(x + dx, y + dy)); c.strokeStyle = col; c.lineWidth = 2 * q.r * k; c.lineCap = q.cap; c.lineJoin = 'round'; c.stroke();
+  }
+  // Cabeça oval da parte: centro no meio do eixo base → topo, semieixo = metade dele, meia largura r.
+  const headBlob = (q, K, spec) => { const [x, y] = mid(q.pts), [a, b] = q.pts; blob(x, y, d2(a, b) / 2, q.r, Math.atan2(b[1] - a[1], b[0] - a[0]), K, spec); };
   // Quadro local da cabeça: x para a frente, y para baixo, nos dois sentidos.
-  const local = (x, y, a, dir, fn) => { c.save(); c.translate(x, y); c.rotate(a); c.scale(1, dir); fn(); c.restore(); };
+  const local =(x, y, a, dir, fn) => { c.save(); c.translate(x, y); c.rotate(a); c.scale(1, dir); fn(); c.restore(); };
   function leaf({ x, y, w, h, angle }, K) {
     c.save(); c.translate(x, y); c.rotate(angle); const a = w / 2, b = h / 2;
     c.beginPath(); c.moveTo(-a, 0); c.bezierCurveTo(-a * .4, -b * 1.3, a * .45, -b * 1.15, a, 0); c.closePath(); c.fillStyle = K.leaf; c.fill();
@@ -169,15 +212,16 @@ window.ExpStyle = (() => {
     }
     c.restore();
   }
-  function ant(p, K) {
-    const S = p.size, dir = p.facing, hr = SPECS[p.spec].head.r * S, [th, pe, ga] = p.spine, L = Object.values(p.limbs);
-    const leg = (l, col, w) => { line([l.root, l.mid], col, w); line([l.mid, l.end], col, .7 * w); ell(l.end[0], l.end[1], .45 * w, .45 * w, 0, col); };  // afila para o pé
-    for (const l of L) if (l.far) leg(l, K.far, .018 * S);  // lado de lá: atrás do corpo e mais escuras
+  function ant(a, K) {
+    const p = a.pose, S = p.size, dir = p.facing, Q = byName(a), hr = d2(...Q.head.pts) / 2, [th, pe, ga] = p.spine, L = Object.entries(p.limbs);
+    const leg = (n, col) => { for (const k of ['upper', 'lower', 'foot']) stroke(Q[`${n}.${k}`], col); };
+    for (const [n, l] of L) if (l.far) leg(n, K.far);  // lado de lá: atrás do corpo e mais escuras
     blob(ga.x, ga.y, ga.r * 1.28, ga.r * .95, ga.angle, K);
     blob(pe.x, pe.y, pe.r * 1.2, pe.r, pe.angle, K, false);
-    for (const l of L) if (!l.far) leg(l, K.leg, .022 * S);  // lado de cá: nascem sob o tórax
+    for (const [n, l] of L) if (!l.far) leg(n, K.leg);  // lado de cá: nascem sob o tórax
+    stroke(Q.neck, K.dk);
     blob(th.x, th.y, th.r * 1.45, th.r * .82, th.angle, K);
-    blob(p.head.x, p.head.y, hr * 1.06, hr * .92, p.head.angle, K);
+    headBlob(Q.head, K);
     local(p.head.x, p.head.y, p.head.angle, dir, () => {
       c.beginPath(); c.moveTo(.75 * hr, .2 * hr); c.lineTo(1.3 * hr, .5 * hr); c.lineTo(.8 * hr, .62 * hr); c.closePath(); c.fillStyle = K.dk; c.fill();
       if (hr * cam.z > 6) {  // olho grande: elipse clara, pupila voltada para a frente, brilho
@@ -189,8 +233,8 @@ window.ExpStyle = (() => {
     if (p.carry) leaf(p.carry, K);
     for (const ap of Object.values(p.appendages)) { line(ap, K.leg, .013 * S); const e = ap.at(-1); ell(e[0], e[1], .016 * S, .016 * S, 0, K.leg); }
   }
-  function fly(p, K) {
-    const S = p.size, dir = p.facing, [th, ab] = p.spine, w = p.wings || { phase: 0, open: 0 }, mono = K === MONO;
+  function fly(a, K) {
+    const p = a.pose, S = p.size, dir = p.facing, [th, ab] = p.spine, w = p.wings || { phase: 0, open: 0 }, mono = K === MONO, Q = byName(a);
     const wing = (k, a0) => {  // asa translúcida presa no alto do tórax
       const a = (dir > 0 ? Math.PI : 0) + dir * (-.35 - k * .9 * w.open * Math.sin(w.phase * TAU) + a0), bx = th.x, by = th.y - th.r * .7;
       ell(bx + Math.cos(a) * .28 * S, by + Math.sin(a) * .28 * S, .3 * S, .09 * S, a, rgba(P.wing, .55));
@@ -198,25 +242,21 @@ window.ExpStyle = (() => {
     if (!mono) wing(1, -.15);
     for (const k of [-1, 0, 1]) line([[th.x + k * .07 * S, th.y + .1 * S], [th.x + k * .09 * S + dir * .03 * S, th.y + .26 * S]], K.leg || P.fly, .018 * S);
     blob(ab.x, ab.y, ab.r * 1.3, ab.r * .85, ab.angle, K);
+    stroke(Q.neck, K.dk);
     blob(th.x, th.y - .03 * S, th.r * 1.1, th.r * 1.05, th.angle, K);
-    const hr = SPECS.fly.head.r * S;
-    blob(p.head.x, p.head.y + .02 * S, hr, hr * .95, 0, K, false);
-    ell(p.head.x + dir * .3 * hr, p.head.y - .05 * hr, .45 * hr, .5 * hr, 0, mono ? K.dk : '#9A3B2E');
+    const hr = d2(...Q.head.pts) / 2, [hx, hy] = mid(Q.head.pts);
+    headBlob(Q.head, K, false);
+    ell(hx + dir * .3 * hr, hy - .05 * hr, .45 * hr, .5 * hr, 0, mono ? K.dk : '#9A3B2E');
     if (!mono) wing(1.2, .2);
   }
   const FLYK = { body: P.fly, dk: mixCol(P.fly, P.ink, .5), lt: P.flyLt, leg: mixCol(P.fly, P.ink, .4) };
   // Explorador em cápsulas: perna e braço de lá, mochila, perna de cá, tronco, cabeça com rosto e chapéu, braço de cá.
-  function human(p, K) {
-    const S = p.size, dir = p.facing, [ch, pv] = p.spine, R = .1 * S, mono = K === MONO, Ls = Object.values(p.limbs);
-    const leg = (l, far) => {
-      line([l.root, l.mid, l.end], far ? K.pantsDk : K.pants, .095 * S);
-      ell(l.end[0] + dir * .035 * S, l.end[1] - .012 * S, .065 * S, .032 * S, 0, far ? mixCol(K.boot, P.ink, .4) : K.boot);
-    };
-    const arm = (l, far) => {
-      line([l.root, l.mid], far ? K.shirtDk : K.shirt, .072 * S); line([l.mid, l.end], far ? K.skinDk : K.skin, .052 * S);
-      ell(l.end[0], l.end[1], .034 * S, .034 * S, 0, far ? K.skinDk : K.skin);
-    };
-    for (const l of Ls) if (l.far) (l.foot ? leg : arm)(l, true);
+  function human(a, K) {
+    const p = a.pose, S = p.size, dir = p.facing, J = p.joints, Q = byName(a), R = Q.head.r, [hx, hy] = mid(Q.head.pts), mono = K === MONO, Ls = Object.entries(p.limbs);
+    const ch = { x: J.chest[0], y: J.chest[1] }, pv = { x: J.pelvis[0], y: J.pelvis[1] };
+    const leg = (s, far) => { stroke(Q['thigh' + s], far ? K.pantsDk : K.pants); stroke(Q['shin' + s], far ? K.pantsDk : K.pants); stroke(Q['foot' + s], far ? mixCol(K.boot, P.ink, .4) : K.boot); };
+    const arm = (s, far) => { stroke(Q['upperArm' + s], far ? K.shirtDk : K.shirt); stroke(Q['forearm' + s], far ? K.skinDk : K.skin); stroke(Q['hand' + s], far ? K.skinDk : K.skin); };
+    for (const [n, l] of Ls) if (l.far) (l.foot ? leg : arm)(n.slice(-1), true);
     // mochila nas costas
     const ta = Math.atan2(ch.y - pv.y, ch.x - pv.x) + Math.PI / 2;  // inclinação do tronco: a mochila acompanha
     local(ch.x, ch.y, ta, 1, () => {  // colada às costas: a borda da frente entra sob o tronco
@@ -225,8 +265,8 @@ window.ExpStyle = (() => {
       c.beginPath(); c.roundRect(bx - .07 * S - dir * .012 * S, -.08 * S, .14 * S, .25 * S, .04 * S); c.fillStyle = K.pack; c.fill();
       c.beginPath(); c.roundRect(bx - dir * .03 * S - .04 * S, .07 * S, .08 * S, .08 * S, .02 * S); c.fillStyle = K.packDk; c.fill();
     });
-    for (const l of Ls) if (!l.far && l.foot) leg(l, false);
-    line([[pv.x, pv.y], [ch.x, ch.y]], K.shirtDk, .21 * S); line([[pv.x - .01 * S, pv.y - .01 * S], [ch.x - .012 * S, ch.y - .012 * S]], K.shirt, .18 * S);
+    for (const [n, l] of Ls) if (!l.far && l.foot) leg(n.slice(-1), false);
+    stroke(Q.torso, K.shirtDk); stroke(Q.torso, K.shirt, .86, -.011 * S, -.011 * S);
     ell(pv.x, pv.y + .03 * S, .1 * S, .065 * S, 0, K.pants);
     line([[pv.x - .1 * S, pv.y - .025 * S], [pv.x + .1 * S, pv.y - .025 * S]], K.boot, .022 * S);
     local(ch.x, ch.y, ta, 1, () => {  // alça sobre o ombro, da mochila ao peito, e a da cintura
@@ -234,9 +274,9 @@ window.ExpStyle = (() => {
       c.strokeStyle = K.packDk; c.lineWidth = .026 * S; c.lineCap = 'round'; c.stroke();
       line([[-dir * .09 * S, .17 * S], [dir * .06 * S, .19 * S]], K.packDk, .02 * S);
     });
-    line([[ch.x, ch.y - .1 * S], [p.head.x, p.head.y]], K.skinDk, .06 * S);
+    stroke(Q.neck, K.skinDk);
     if (p.appendages.hair) line(p.appendages.hair, K.hair, .05 * S);
-    local(p.head.x, p.head.y, p.head.angle, dir, () => {
+    local(hx, hy, p.head.angle, dir, () => {
       ell(0, 0, R, R, 0, K.skinDk); ell(-.05 * R, -.06 * R, R * .93, R * .93, 0, K.skin);
       ell(-.2 * R, .08 * R, .15 * R, .2 * R, 0, K.skinDk);  // orelha
       if (!mono) face(p, R);
@@ -248,8 +288,8 @@ window.ExpStyle = (() => {
       ell(.05 * R, -.5 * R, 1.42 * R, .19 * R, 0, K.hatDk);
       if (!mono) ell(-.45 * R, -1.02 * R, .3 * R, .14 * R, -.4, '#F2E2B8');
     });
-    for (const l of Ls) if (!l.far && !l.foot) arm(l, false);
-    if (p.emote && !mono) emote(p, R);
+    for (const [n, l] of Ls) if (!l.far && !l.foot) arm(n.slice(-1), false);
+    if (p.emote && !mono) emote(p, .1 * S);  // selo no tamanho de antes da cabeça do esqueleto
   }
   // Rosto no quadro local da cabeça (x para a frente): olhos de ponto, sobrancelhas, nariz, bochecha e boca por expressão.
   function face(p, R) {
@@ -285,11 +325,11 @@ window.ExpStyle = (() => {
     if (a.flip) { const m = (p.spine[0].x + p.spine.at(-1).x) / 2; c.translate(m, 0); c.scale(a.flip, 1); c.translate(-m, 0); }
     if (p.sq) { const fs = Object.values(p.limbs).filter(l => l.foot), x = (p.spine[0].x + p.spine.at(-1).x) / 2, y = fs.length ? Math.max(...fs.map(l => l.end[1])) : p.spine[0].y; c.translate(x, y); c.scale(1 + .5 * p.sq, 1 - p.sq); c.translate(-x, -y); }
     c.globalAlpha = a.alpha ?? 1;
-    if (a.kind === 'human') human(p, mono ? MONO : P);
-    else if (a.kind === 'fly') fly(p, mono ? MONO : a.layer < 1 ? hazed(FLYK, .3) : FLYK);
+    if (a.kind === 'human') human(a, mono ? MONO : P);
+    else if (a.kind === 'fly') fly(a, mono ? MONO : a.layer < 1 ? hazed(FLYK, .3) : FLYK);
     else {
       const under = a.role === 'tunnel' || a.role === 'garden';
-      ant(p, mono ? MONO : antPal(a.role === 'hero', under ? P.cave : P.haze, under ? .12 : Math.round((1 - a.layer) * 10) / 10 * .7));
+      ant(a, mono ? MONO : antPal(a.role === 'hero', under ? P.cave : P.haze, under ? .12 : Math.round((1 - a.layer) * 10) / 10 * .7));
     }
     c.restore();
   }
@@ -334,6 +374,7 @@ window.ExpStyle = (() => {
   const farH = x => 600 + 55 * Math.sin(x * .0021 + .3) + 18 * Math.sin(x * .007), midH = x => 770 + 28 * Math.sin(x * .0042 + 1.7) + 9 * Math.sin(x * .013);
 
   return {
+    parts: a => partsOf(a),
     draw(F) {
       cam = F.cam; const w = F.world, sh = F.shot, back = F.actors.filter(a => a.layer < 1), fore = F.actors.filter(a => a.layer >= 1);
       SHY = sh === 'wide' ? .05 : .2;
