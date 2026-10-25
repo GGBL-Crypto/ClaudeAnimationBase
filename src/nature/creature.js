@@ -179,13 +179,17 @@ function creaturePose(spec, o) {
 
   // Membros: pé, braço com balanço oposto à perna `swing`, dobra na morte, gesto por cima; IK de dois ossos com dobra
   // limitada. Pé (l3, h3): o tornozelo fica h3 acima do ponto plantado e o pé vai dele ao dedo, que no apoio toca o chão.
-  // Mão (l3): continua o antebraço a partir do pulso.
+  // Mão (l3): continua o antebraço a partir do pulso (gesto com tipDir [x, y] unitário: o pulso dobra para essa direção).
   const roots = {}, limbs = {};
   // A coluna rígida absorve a respiração do peito ereto; ela aparece nos ombros, que sobem (não são osso do esqueleto).
   for (const lb of spec.limbs) { const r = rootOf(lb, body[lb.attach], rot[lb.attach]); roots[lb.name] = sv && !lb.foot ? [r[0], r[1] - breath] : r; }
-  const tipOf = (lb, k, stance, st) => {
+  const tipOf = (lb, k, stance, st, g) => {
     const L3 = lb.l3 * size, e = k.end;
-    if (!lb.foot) { const dx = e[0] - k.mid[0], dy = e[1] - k.mid[1], d = Math.hypot(dx, dy) || 1; return [e[0] + dx / d * L3, e[1] + dy / d * L3]; }
+    if (!lb.foot) {  // a mão continua o antebraço; gesto com tipDir dobra o pulso até essa direção (misturada por k)
+      let dx = e[0] - k.mid[0], dy = e[1] - k.mid[1], d = Math.hypot(dx, dy) || 1;
+      if (g && g.tipDir) { dx = lerp(dx / d, g.tipDir[0], g.k); dy = lerp(dy / d, g.tipDir[1], g.k); d = Math.hypot(dx, dy) || 1; }
+      return [e[0] + dx / d * L3, e[1] + dy / d * L3];
+    }
     if (!sv) return local(e, body[lb.attach].a, lb.l3, 0);
     const run = v => dir * Math.sqrt(L3 * L3 - v * v);
     let v = Math.min(L3, (lb.h3 || 0) * size);
@@ -210,7 +214,7 @@ function creaturePose(spec, o) {
     if (g) target = [lerp(target[0], g.target[0], g.k), lerp(target[1], g.target[1], g.k)];
     const k = limb2(root, target, lb.l1 * size, lb.l2 * size, sv ? lb.bend * dir : lb.bend * lb.side, lb.l3 ? (lb.foot ? L.knee : L.elbow)[1] : Math.PI), stance = !!(st && st.stance) && !dead && !(g && g.k > 0 && g.k < 1);  // pé num gesto (passo) está no ar
     limbs[lb.name] = { root, mid: k.mid, end: k.end, stance, far: sv && lb.side * dir < 0, foot: !!lb.foot };
-    if (lb.l3) limbs[lb.name].toe = tipOf(lb, k, stance, st);
+    if (lb.l3) limbs[lb.name].toe = tipOf(lb, k, stance, st, g);
     if (!lb.foot) limbs[lb.name].hand = (g && g.k > .5 && g.hand) || o.hands?.[lb.name] || 'open';  // open | point | fist
   }
 

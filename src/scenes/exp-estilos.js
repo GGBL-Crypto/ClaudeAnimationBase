@@ -183,30 +183,35 @@ var EST = (() => {
   const RUNNER = person('corredor', 'adult', 400, -1, [[-6, 60, 2.2]], [0, 3300], { spec: RUN, seed: 41, depth: -300, role: 'runner', mood: [[0, 'neutral']] });
   // Par: Marta espera (de frente para a direita); João chega pela direita, aperta a mão dela (9–11 s), os dois dão um passo
   // (11,2–12 s), se abraçam (12–14,3 s), recuam um passo (de costas, 14,4–15,2 s) e conversam (fala alternada com as mãos).
-  const B = person('marta', 'heavy', 380, 1, [[11.2, 11.6, .214, .4], [14.4, 14.8, -.21, .4]], [0, 1385], { seed: 22, depth: 0, role: 'greeter',
+  const B = person('marta', 'heavy', 380, 1, [[11.2, 11.6, .099, .4], [14.4, 14.8, -.21, .4]], [0, 1402], { seed: 22, depth: 0, role: 'greeter',
     mood: [[0, 'neutral'], [2.5, 'curious', '?'], [7.4, 'happy', '!']], talk: [[16.4, 18.4], [20.6, 22.4], [24.8, 26.6], [28.8, 30.5]] });
-  const A = person('joao', 'adult', 400, -1, [[3.6, 8.2, .75], [11.2, 11.6, .203, .4], [14.4, 14.8, -.2, .4]], [9, 1615], { seed: 21, depth: 0, role: 'greeter',
+  const A = person('joao', 'adult', 400, -1, [[3.6, 8.2, .75], [11.2, 11.6, .094, .4], [14.4, 14.8, -.2, .4]], [9, 1597], { seed: 21, depth: 0, role: 'greeter',
     mood: [[0, 'neutral'], [7.8, 'happy', '!']], talk: [[14.4, 16.2], [18.6, 20.4], [22.6, 24.6], [26.8, 28.6]] });
-  const SHAKE = [9, 9.5, 10.6, 11], HUG = [12, 12.6, 13.7, 14.3];
-  // M do aperto de mão (pontas das duas mãos direitas), dos ombros da primeira passada.
-  const shakeAt = (a0, b0, t) => { const sa = a0.joints.shoulderR, sb = b0.joints.shoulderR, sh = .022 * 390 * Math.sin(TAU * 3 * (t - SHAKE[1])) * span(t, SHAKE[1], SHAKE[2], .2); return [(sa[0] + sb[0]) / 2, (sa[1] + sb[1]) / 2 + .2 * 390 + sh]; };
+  const SHAKE = [9, 9.5, 10.6, 11], HUG = [12, 12.6, 13.7, 14.3], HUG_HEAD = { A: [-.35, -.3], B: [.15, .4] };
+  // Aperto de mão: as duas mãos direitas lado a lado na mesma reta, uma sobre a outra (a ponta de cada uma no pulso da
+  // outra), em torno de C (entre os ombros, .2 BL abaixo), que bombeia 3 vezes por segundo. u = de João para Marta;
+  // devolve os gestos (pulso no alvo, tipDir = direção da mão: o pulso dobra).
+  function shake(a0, b0, t, k) {
+    const sa = a0.joints.shoulderR, sb = b0.joints.shoulderR, pump = .02 * 390 * Math.sin(TAU * 3 * (t - SHAKE[1])) * span(t, SHAKE[1], SHAKE[2], .2);
+    const C = [(sa[0] + sb[0]) / 2, (sa[1] + sb[1]) / 2 + .2 * 390 + pump], tilt = .25 * pump / 390 * 4, u = [Math.sign(sb[0] - sa[0]) * Math.cos(tilt), Math.sin(tilt)];
+    const LA = A.spec.limbs.find(l => l.name === 'armR').l3 * A.size / 2, LB = B.spec.limbs.find(l => l.name === 'armR').l3 * B.size / 2;
+    return [{ limb: 'armR', target: [C[0] - u[0] * LA, C[1] - u[1] * LA], tipDir: u, k }, { limb: 'armR', target: [C[0] + u[0] * LB, C[1] + u[1] * LB], tipDir: [-u[0], -u[1]], k }];
+  }
   function pairP(t) {
     const hs = ease(seg(t, SHAKE[0], SHAKE[1])) * (1 - ease(seg(t, SHAKE[2], SHAKE[3]))), hg = ease(seg(t, HUG[0], HUG[1])) * (1 - ease(seg(t, HUG[2], HUG[3])));
     const o = { lean: 1.3 * hg }, a0 = pose(A, t, o), b0 = pose(B, t, o), ga = talkHands(A, a0, t), gb = talkHands(B, b0, t);
     let front = false;
-    if (hs) {  // mãos direitas: as duas pontas no mesmo ponto M, que sacode 3 vezes por segundo
-      const M = shakeAt(a0, b0, t);
-      ga.push({ limb: 'armR', target: handTo(a0, A.spec, 'armR', M), k: hs }); gb.push({ limb: 'armR', target: handTo(b0, B.spec, 'armR', M), k: hs });
-    }
+    if (hs) { const [x, y] = shake(a0, b0, t, hs); ga.push(x); gb.push(y); }
     if (hg) {  // abraço: as mãos dele nas costas dela, perto dos ombros; as dela nas costas dele, mais baixo
       const back = (p, c, dy) => [p.joints.chest[0] - c.dir * .5 * BODY[c.type].girth * c.size, p.joints.chest[1] + dy * c.size];
       ga.push(...['armR', 'armL'].map((limb, i) => ({ limb, target: handTo(a0, A.spec, limb, back(b0, B, .01 + .07 * i)), k: hg })));
       gb.push(...['armL', 'armR'].map((limb, i) => ({ limb, target: handTo(b0, B.spec, limb, back(a0, A, .14 + .08 * i)), k: hg })));
       front = hg > .5;
     }
-    // Quem ouve acena devagar; no abraço as cabeças baixam um pouco (sem encostar).
+    // Quem ouve acena devagar. No abraço as caras não se encostam: ele ergue o queixo por cima do ombro dela, ela baixa
+    // o rosto junto ao peito dele.
     const nodOf = (c, other) => .12 * Math.max(0, Math.sin(TAU * .7 * t + c.seed)) * Math.max(0, ...other.talk.map(([a, b]) => span(t, a, b, .4)));
-    const pa = turnHead(pose(A, t, { ...o, gesture: ga }), nodOf(A, B), .12 * hg), pb = turnHead(pose(B, t, { ...o, gesture: gb }), nodOf(B, A), .12 * hg);
+    const pa = turnHead(pose(A, t, { ...o, gesture: ga }), nodOf(A, B) + HUG_HEAD.A[0] * hg, HUG_HEAD.A[1] * hg), pb = turnHead(pose(B, t, { ...o, gesture: gb }), nodOf(B, A) + HUG_HEAD.B[0] * hg, HUG_HEAD.B[1] * hg);
     return [actorP(A, pa, go(t, A.legs), front ? { front: ['armR'] } : {}), actorP(B, pb, go(t, B.legs), front ? { front: ['armL'] } : {})];
   }
 
@@ -301,18 +306,23 @@ var EST = (() => {
   // Cópia rasa de uma pose para girar a cabeça sem mexer na original (turnHead troca juntas e apêndices, não os edita).
   const clonePose = p => ({ ...p, joints: { ...p.joints }, appendages: { ...p.appendages }, head: { ...p.head }, angles: { ...p.angles } });
 
-  // Raposa (SPECS.dog com pescoço mais longo e mais solto: limits = pescoço 1,7 e cabeça .9 rad; os estilos podem desenhar
+  // Raposa (SPECS.dog com pescoço mais longo, quase horizontal, e mais solto: limits = pescoço 1,7 e cabeça .9 rad; no
+  // repouso o eixo da cabeça, headBase → headTop (ponta do focinho), fica quase na horizontal; os estilos podem desenhar
   // cão ou raposa): trota, para e fareja o chão (3,6–6,9 s), trota até a beirada (para em 10,3 s) e bebe (10,2–14,4 s:
   // a ponta do focinho, joints.headTop, vai à linha d'água e lambe 2,5 vezes por segundo, com uma onda a cada lambida);
   // o salto do peixe (13,6 s) faz ela erguer a cabeça e olhar.
-  const DOG = { ...SPECS.dog, stride: .9, lift: .1, neck: { at: [.1, -.04] }, head: { ...SPECS.dog.head, offset: -.32, h: .66 }, limits: { neck: 1.7, head: .9 } };
+  const DOG = { ...SPECS.dog, stride: .9, lift: .1, neck: { at: [.12, -.1] }, head: { ...SPECS.dog.head, offset: -.42, h: .5 }, limits: { neck: 1.7, head: .9 } };
   const FOX = { size: 320, legs: [[-3, 3, 1.4], [7.6, 9.6, 1.4]], seed: 71 };
   FOX.path = at0(FOX.legs, [12, 1440], FOX.size, 1);  // patas da frente na água rasa da beirada
   const LAPS = { t0: 10.9, t1: 13.9, f: 2.5 };
-  // Mergulho da cabeça até a ponta do focinho ficar em y: bisseção em u (pescoço 1,7u, cabeça .9u), monotônica no alcance.
+  // Mergulho da cabeça até a ponta do focinho ficar em y (pescoço 1,7u, cabeça .9u): o focinho desce até um u* e depois
+  // volta para baixo do peito; bisseção em [0, u*] (u* = o mais baixo numa varredura de 20 passos; fora do alcance, u*).
   function dipTo(p, y) {
-    let lo = 0, hi = 1;
-    for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (turnHead(clonePose(p), 1.7 * m, .9 * m, DOG).joints.headTop[1] < y) lo = m; else hi = m; }
+    const tip = u => turnHead(clonePose(p), 1.7 * u, .9 * u, DOG).joints.headTop[1];
+    let lo = 0, hi = 0;
+    for (let i = 1; i <= 20; i++) if (tip(i / 20) > tip(hi)) hi = i / 20;
+    if (tip(hi) < y) return hi;
+    for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (tip(m) < y) lo = m; else hi = m; }
     return lo;
   }
   function fox(t) {
@@ -412,7 +422,8 @@ var EST = (() => {
   //     pose.face {expression: neutral | curious | surprised | happy, blink 0..1, mouth: null | m | e | a | o} e pose.emote;
   //     pose.limbs.armX.hand = open | point | fist. gear? (H: hat, backpack).
   //     P, por id/role: corredor (runner, adulto; passada longa, braços dobrados; air no voo da passada, nenhum pé no chão),
-  //     marta (greeter, heavy) e joao (greeter, adult): aperto de mão (joints.handR dos dois no mesmo ponto), abraço
+  //     marta (greeter, heavy) e joao (greeter, adult): aperto de mão (as mãos direitas lado a lado: wristR→handR de
+  //     cada um sobre o do outro, a ponta no pulso do outro, sacudindo), abraço (as cabeças não se tocam)
   //     (actor.front = membros que passam por cima do outro: desenhe esse braço depois dos dois corpos), conversa;
   //     lia (sitter, thin): actor.seated 0..1 (1 = sentada no banco: joints.pelvis .05 BL acima de bench.seatY, coxas
   //     sobre o assento, pés no chão); bia (child): actor.holds = 'item' depois de pegar a flor (mão armL, fist);

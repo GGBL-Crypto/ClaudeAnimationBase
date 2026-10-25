@@ -9,10 +9,25 @@ const d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]), T = ctx.EST.times, fra
 const range = (a, b, fps) => Array.from({ length: Math.floor((b - a) * fps) + 1 }, (_, i) => a + i / fps).filter(t => t <= b);
 const onScreen = (F, [x, y]) => { const { cx, cy, z } = F.cam, X = (x - cx) * z + 960, Y = (y - cy) * z + 540; return X > 0 && X < 1920 && Y > 0 && Y < 1080; };
 
-test('P handshake: the two right hand tips meet (<= 2 px) during the shake', () => {
+const ptSeg = (p, a, b) => { const L = d(a, b) ** 2, k = Math.max(0, Math.min(1, ((p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1])) / L)); return d(p, [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]); };
+
+test('P handshake: right hands side by side (tip at the other wrist, parallel, <= 2 px apart) with a pump', () => {
+  const ys = [];
   for (const t of range(T.P.shake[1], T.P.shake[2], 30)) {
-    const F = frame('P', t), a = by(F, 'joao').pose.joints.handR, b = by(F, 'marta').pose.joints.handR;
-    assert.ok(d(a, b) <= 2, `t=${t.toFixed(2)} mãos a ${d(a, b).toFixed(2)} px`);
+    const F = frame('P', t), A = by(F, 'joao').pose.joints, B = by(F, 'marta').pose.joints, ua = [A.handR[0] - A.wristR[0], A.handR[1] - A.wristR[1]], ub = [B.handR[0] - B.wristR[0], B.handR[1] - B.wristR[1]];
+    const far = Math.max(...[A.wristR, A.handR].map(p => ptSeg(p, B.wristR, B.handR)), ...[B.wristR, B.handR].map(p => ptSeg(p, A.wristR, A.handR)));
+    assert.ok(far <= 2, `t=${t.toFixed(2)} mãos a ${far.toFixed(2)} px uma da outra`);
+    assert.ok(d(A.handR, B.wristR) <= 3 && d(B.handR, A.wristR) <= 3, `t=${t.toFixed(2)} ponta no pulso do outro`);
+    assert.ok((ua[0] * ub[0] + ua[1] * ub[1]) / (Math.hypot(...ua) * Math.hypot(...ub)) < -.998, `t=${t.toFixed(2)} mãos paralelas`);
+    ys.push(A.handR[1]);
+  }
+  assert.ok(Math.max(...ys) - Math.min(...ys) > 8, 'sacode para cima e para baixo');
+});
+
+test('P hug: the two heads do not touch', () => {
+  for (const t of range(T.P.hug[0], T.P.hug[3], 15)) {
+    const F = frame('P', t), [a, b] = ['joao', 'marta'].map(id => by(F, id).pose.joints), r = J => d(J.headBase, J.headTop) / 2;
+    assert.ok(d(a.head, b.head) > r(a) + r(b), `t=${t.toFixed(2)} cabeças a ${d(a.head, b.head).toFixed(1)} px`);
   }
 });
 
