@@ -71,16 +71,14 @@
 
   // Mochila do explorador (gear 'backpack'): bolsa nas costas, entre os membros de lá e o corpo, e a alça por cima da
   // camisa, sob o braço de cá. Presa ao peito e à pelve da pose, inclina com o tronco ao agachar.
-  const HD = NatureArt.decor.human, build0 = HD.build;
-  HD.emoteAt = [2.3, 1.5, 2];  // emote à frente do rosto e maior: sobre a copa, a câmera fechada do susto o cortava
-  HD.build = (p, L) => { const G = build0(p, L); if (L.pack) G.push({ z: 1.5, draw: () => pack(p) }, { z: 5.45, draw: () => strap(p) }); return G; };
   function frameOf(p) {
     const [ch, pe] = p.spine, l = Math.hypot(ch.x - pe.x, ch.y - pe.y) || 1, ux = (ch.x - pe.x) / l, uy = (ch.y - pe.y) / l, f = p.facing;
     return (a, b) => [pe.x + (a * -uy * f + b * ux) * p.size, pe.y + (a * ux * f + b * uy) * p.size];  // a: à frente, b: para cima, em BL
   }
   const inkOf = col => mixCol(col, '#1A0E12', .62);
+  const cur = () => { const g = NatureArt.use(c); NatureArt.use(g); return g; };  // contexto atual (Kit.into troca o do NatureArt)
   function blob(pts, col, w) {
-    const n = pts.length, m = i => [(pts[i % n][0] + pts[(i + 1) % n][0]) / 2, (pts[i % n][1] + pts[(i + 1) % n][1]) / 2];
+    const c = cur(), n = pts.length, m = i => [(pts[i % n][0] + pts[(i + 1) % n][0]) / 2, (pts[i % n][1] + pts[(i + 1) % n][1]) / 2];
     c.beginPath(); c.moveTo(...m(n - 1)); for (let i = 0; i < n; i++) c.quadraticCurveTo(...pts[i], ...m(i)); c.closePath();
     const ys = pts.map(q => q[1]), g = c.createLinearGradient(0, Math.min(...ys), 0, Math.max(...ys));
     g.addColorStop(0, mixCol(col, P.sun, .4)); g.addColorStop(.5, col); g.addColorStop(1, mixCol(col, P.shade, .35));
@@ -98,6 +96,100 @@
     Kit.line(pts, inkOf(P.oliveDk), 4.4 * w); Kit.line(pts, P.oliveDk, 2.6 * w);
   }
 
+  // ---------- Esqueleto desenhado (ExpStyle.parts) ----------
+  // Membros, pescoço, pé, mão e cabeça só das juntas da pose (pose.joints), sem deslocamento próprio: macarrão de largura
+  // fixa (a do cartoon) com ponta redonda; na junta final (tornozelo, pulso, ponta da pata) o eixo para r antes, então a
+  // ponta chega na junta sem passar, e a bota, a mão ou a cabeça cobrem a junta. Pescoço de ponta reta até a base da
+  // cabeça. r = meia largura com o contorno (lw do cartoon). pass: 0 macarrão (contornos antes dos recheios, sem emenda
+  // nas juntas), 1 por cima (manga, cano da bota), 2 forma fechada no quadro da junta (sapato, mão).
+  const lwOf = p => p.size < 28 ? 0 : clamp(p.size * .03, 1.5, STYLE.outline.weight), d2 = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const short = (a, b, r) => { const k = r / (d2(a, b) || 1); return [b[0] + (a[0] - b[0]) * k, b[1] + (a[1] - b[1]) * k]; };
+  const mid = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
+  function partsOf(p) {
+    const J = p.joints, S = p.size, w = lwOf(p), out = [], add = (name, from, to, pts, r, cap, o = {}) => out.push({ name, from, to, pts, r, cap, pass: 0, ...o });
+    if (p.spec === 'human') {
+      const B = BODY[p.body || 'adult'];
+      for (const s of ['L', 'R']) {
+        const o = { limb: 'leg' + s, far: p.limbs['leg' + s].far, key: 'skin' }, r = .03 * S + w, kn = J['knee' + s], an = J['ankle' + s];
+        add('thigh' + s, 'hip' + s, 'knee' + s, [J['hip' + s], kn], r, 'round', o);
+        add('shin' + s, 'knee' + s, 'ankle' + s, [kn, short(kn, an, r)], r, 'round', o);
+        add('boot' + s, null, 'ankle' + s, [mid(kn, an, .7), short(kn, an, r + 2)], r + 2, 'round', { ...o, key: 'shoe', pass: 1 });  // cano da bota
+        add('foot' + s, 'ankle' + s, null, [an, J['toe' + s]], .3 * B.foot * S + w, 'round', { ...o, key: 'shoe', pass: 2, shape: 'shoe', kh: B.footH / B.foot });
+      }
+      for (const s of ['L', 'R']) {
+        const l = p.limbs['arm' + s], o = { limb: 'arm' + s, far: l.far, key: 'skin' }, r = .025 * S + w, sh = J['shoulder' + s], el = J['elbow' + s], wr = J['wrist' + s];
+        add('upperArm' + s, 'shoulder' + s, 'elbow' + s, [sh, el], r, 'round', o);
+        add('forearm' + s, 'elbow' + s, 'wrist' + s, [el, short(el, wr, r)], r, 'round', o);
+        add('sleeve' + s, 'shoulder' + s, 'elbow' + s, [sh, mid(sh, el, .35)], .044 * S + w, 'round', { ...o, key: 'shirt', pass: 1 });
+        add('hand' + s, 'wrist' + s, null, [wr, J['hand' + s]], .4 * B.hand * S + w, 'round', { ...o, pass: 2, shape: l.hand === 'fist' ? 'fist' : 'hand' });
+      }
+      add('neck', 'neck', 'headBase', [J.neck, J.headBase], .02 * S + w, 'butt', { key: 'skin' });
+    } else {
+      // Pata de formiga: fêmur e tíbia do cartoon (as de lá mais finas), tarso escuro sem contorno no último terço da tíbia.
+      const k = S / 100, j = (n, x) => J[`${n}.${x}`];
+      for (const n in p.limbs) {
+        const far = p.limbs[n].far, t = far ? .7 : 1, o = { limb: n, far, key: 'color' }, ru = w ? 1.65 * k * t + w : Math.max(.5, .03 * S), rl = w ? 1.3 * k * t + w : ru, rt = Math.max(.6, .9 * k * t), m = j(n, 'mid'), e = j(n, 'end');
+        add(`${n}.upper`, `${n}.root`, `${n}.mid`, [j(n, 'root'), m], ru, 'round', o);
+        add(`${n}.lower`, `${n}.mid`, `${n}.end`, [m, short(m, e, rl)], rl, 'round', o);
+        if (w) add(`${n}.tarsus`, null, `${n}.end`, [mid(m, e, .66), short(m, e, rt)], rt, 'round', { ...o, key: 'dark', ink: false, pass: 1 });
+      }
+      if (w && p.spec !== 'fly') add('neck', 'neck', 'headBase', [J.neck, J.headBase], 1.6 * k + w, 'butt', { key: 'dark' });  // a mosca: o tórax cobre
+    }
+    add('head', 'headBase', null, [J.headBase, J.headTop], d2(J.headBase, J.headTop) / 2, 'round');
+    return out;
+  }
+  // Formas fechadas no quadro da junta: a ao longo de pts[0] → pts[1], b de lado (> 0 para a sola ou o dorso da mão), em
+  // comprimentos do osso. Sapato: a sola vai de sob o tornozelo (kh = altura do tornozelo / pé) ao dedo, no chão.
+  const SHAPES = {
+    shoe: kh => [[-.24, .08], [-.14, kh], [.45, .55 * kh], [1, 0], [1.1, -.12], [.88, -.26], [.3, -.28], [-.06, -.32]],
+    hand: () => [[-.1, .38], [.5, .42], [.95, .28], [1.02, 0], [.9, -.28], [.62, -.34], [.64, -.62], [.38, -.66], [.2, -.42], [-.1, -.36]],
+    fist: () => [0, 1, 2, 3, 4, 5, 6, 7].map(i => [.42 + .48 * Math.cos(i * TAU / 8), .48 * Math.sin(i * TAU / 8)]),
+  };
+  function drawParts(p, L, list) {
+    const g = cur(), w = lwOf(p), hu = p.spec === 'human', line = pts => { g.beginPath(); g.moveTo(...pts[0]); for (const q of pts.slice(1)) g.lineTo(...q); };
+    const col = q => !q.far ? L[q.key] : hu ? mixCol(L[q.key], P.ink, .28) : mixCol(L.color, P.skyLow, .4);
+    const run = qs => {
+      g.lineJoin = 'round';
+      if (w) for (const q of qs) if (q.ink !== false) { line(q.pts); g.lineCap = q.cap; g.lineWidth = 2 * q.r; g.strokeStyle = inkOf(col(q)); g.stroke(); }
+      for (const q of qs) { line(q.pts); g.lineCap = q.cap; g.lineWidth = 2 * (q.r - (q.ink !== false ? w : 0)); g.strokeStyle = col(q); g.stroke(); }
+    };
+    for (const n of [0, 1]) run(list.filter(q => q.pass === n));
+    for (const q of list.filter(q => q.shape)) {
+      const [A, B] = q.pts, u = [B[0] - A[0], B[1] - A[1]], n = [-p.facing * u[1], p.facing * u[0]];
+      blob(SHAPES[q.shape](q.kh).map(([a, b]) => [A[0] + a * u[0] + b * n[0], A[1] + a * u[1] + b * n[1]]), col(q), w);
+    }
+  }
+  // Humano: as peças de membro e pescoço do cartoon saem e entram as partes; cabeça, cabelo, orelha e chapéu (presos
+  // juntos na cabeça) são levados por uma semelhança para o círculo da pose: centro da caixa da peça head (2, -8,5; meia
+  // altura 24 unidades, sem a orelha) em joints.head e meia altura = |headBase → headTop| / 2. Mochila e alça por cima.
+  const HP = CARTOON_PARTS.human.side, AP = CARTOON_PARTS.ant.side, HD = NatureArt.decor.human, AD = NatureArt.decor.ant, human0 = HD.build, ant0 = AD.build;
+  const LIMB = new Set([HP.thigh, HP.shin, HP.shoe, HP.upperArm, HP.forearm, HP.hand, HP.handPoint, HP.handFist, HP.neck, AP.femur, AP.tibia, AP.tarsus]), HEADS = new Set([HP.head, HP.hair, HP.ear, HP.hat]);
+  const noLimbs = G => G.filter(g => !g.list || !g.list.every(s => LIMB.has(s.q)));
+  HD.build = (p, L) => {
+    const G = noLimbs(human0(p, L)), Q = partsOf(p), hs = G.flatMap(g => g.list || []).filter(s => HEADS.has(s.q)), h = hs.find(s => s.q === HP.head);
+    const m = h.m, c0 = [m[0] * 2 - m[2] * 8.5 + m[4], m[1] * 2 - m[3] * 8.5 + m[5]], c1 = p.joints.head, k = d2(p.joints.headBase, p.joints.headTop) / 2 / 24 / h.k;
+    for (const s of hs) { const [a, b, cc, e, x, y] = s.m; s.m = [k * a, k * b, k * cc, k * e, c1[0] + k * (x - c0[0]), c1[1] + k * (y - c0[1])]; s.k *= k; }
+    for (const [n, l] of Object.entries(p.limbs)) G.push({ z: (l.foot ? 4 : 8) - (l.far ? 10 : 0), draw: () => drawParts(p, L, Q.filter(q => q.limb === n)) });
+    G.push({ z: 5.3, draw: () => drawParts(p, L, Q.filter(q => q.name === 'neck')) });
+    if (L.pack) G.push({ z: 1.5, draw: () => pack(p) }, { z: 5.45, draw: () => strap(p) });
+    return G;
+  };
+  // Formiga: as patas e o pescoço (o segundo talo, do tórax à cabeça) vêm das partes; a cintura fica.
+  AD.build = (p, L) => {
+    const G = noLimbs(ant0(p, L)), Q = partsOf(p);
+    for (const g of G) if (g.list?.[0]?.q === AP.stalk) g.list = g.list.slice(0, 1);
+    for (const [n, l] of Object.entries(p.limbs)) G.push({ z: l.far ? -8 : 2, draw: () => drawParts(p, L, Q.filter(q => q.limb === n)) });
+    G.push({ z: 2.9, draw: () => drawParts(p, L, Q.filter(q => q.name === 'neck')) });
+    return G;
+  };
+  // Formiga pequena (< 28 px: a forma chapada do cartoon), das mesmas partes: patas, segmentos e cabeça sem contorno.
+  function tiny(p, look) {
+    const L = { ...AD.look, ...look }, Q = partsOf(p), h = Q.find(q => q.name === 'head');
+    drawParts(p, { ...L, color: L.dark }, Q.filter(q => q.limb));
+    for (const g of p.spine) Kit.ellipse(g.x, g.y, g.r * 1.3, g.r, L.color, { rot: g.angle, stroke: false });
+    Kit.ellipse(...p.joints.head, h.r, h.r, L.color, { stroke: false });
+  }
+
   // Ator: some se hidden; alpha ao entrar e sair de túnel; flip em torno do meio do corpo; a folha atrás de quem a leva
   // (a folha é maior que a formiga: por cima, a escondia inteira no túnel).
   function actor(a) {
@@ -107,15 +199,16 @@
     if (a.flip) { const m = (p.spine[0].x + p.spine.at(-1).x) / 2; c.translate(m, 0); c.scale(a.flip, 1); c.translate(-m, 0); }
     if (p.carry) { const l = p.carry; A().leafPiece(l.x, l.y, l.w, l.h, l.angle, P.leaf); p = { ...p, carry: null }; }
     const e = a.kind === 'human' && p.emote; if (e) p = { ...p, emote: null };
-    A().creature(p, a.role === 'hero' ? LOOK : a.kind === 'human' ? { pack: a.gear?.includes('backpack') } : DEEP[a.role] || {});
+    const look = a.role === 'hero' ? LOOK : a.kind === 'human' ? { pack: a.gear?.includes('backpack') } : DEEP[a.role] || {};
+    if (a.kind === 'ant' && p.size < 28) tiny(p, look); else A().creature(p, look);
     if (e) bang(p, e);
     c.restore();
   }
-  // Emote do explorador ('?', '!'): grosso, com borda creme, à frente do rosto; entra na mola (e.k passa de 1) e cresce
-  // mais um pouco no pico, um pop.
+  // Emote do explorador ('?', '!'): grosso, com borda creme, à frente e acima do rosto (sobre a copa, a câmera fechada do
+  // susto o cortava), do tamanho de antes (r = .15 BL); entra na mola (e.k passa de 1) e cresce mais um pouco no pico, um pop.
   function bang(p, e) {
     const k = Math.min(e.k, ease(e.a)); if (k <= 0) return;
-    const r = SPECS.human.head.r * p.size * HD.headScale, [ax, ay, sz] = HD.emoteAt, x = p.head.x + p.facing * r * ax, y = p.head.y - r * ay - HD.neck * p.size / 100;
+    const r = .15 * p.size, sz = 2, x = p.joints.head[0] + p.facing * .2 * p.size, y = p.joints.head[1] - .17 * p.size;
     c.save(); c.translate(x, y); c.scale(1.15 * k, 1.15 * k); c.rotate(p.facing * .12);
     c.font = `900 ${r * sz}px "Arial Black", "Segoe UI", sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
     c.lineWidth = .34 * r; c.strokeStyle = P.cloud; c.strokeText(e.sym, 0, 0);
@@ -287,6 +380,7 @@
   }
 
   window.ExpStyle = {
+    parts: (a, F) => partsOf(a.pose).map(q => ({ actor: a.id, ...q })),
     draw(F) {
       ({ close, wide, name, trail })[F.shot](F);
       for (const s of F.texts) Kit.text(s.text, s.x, s.y, s.size, P.ink, { k: s.k });
