@@ -14,7 +14,8 @@ window.ExpStyle = {
     for (const [x, y, w, h] of Wd.chambers || []) { c.strokeStyle = '#8a6a4a'; c.lineWidth = 2 / z; c.strokeRect(x - w / 2, y - h, w, h); }
     for (const tr of Wd.trees || []) line([[tr.x, tr.y], [tr.x, tr.y - tr.h]], '#7a9a6a', 6);
     for (const pl of Wd.plants || []) line([[pl.x, pl.y], [pl.x, pl.y - pl.h]], '#5aa04a', 3);
-    if (Wd.bench) { const b = Wd.bench, xb = b.x + b.back * b.w / 2; line([[b.x - b.w / 2, b.seatY], [b.x + b.w / 2, b.seatY]], '#8a5a2a', 6); line([[xb, b.seatY - b.backH], [xb, g(xb)]], '#8a5a2a', 4); line([[b.x - b.back * b.w / 2, b.seatY], [b.x - b.back * b.w / 2, g(b.x)]], '#8a5a2a', 4); }
+    if (Wd.log) { const L = Wd.log, pts = []; for (let x = L.x0; x <= L.x1; x += 10) pts.push([x, L.top(x)]); line(pts, '#8a5a2a', 3); }
+    if (Wd.bench) { const b = Wd.bench, l = b.x - b.w / 2, r = b.x + b.w / 2; line([[l, b.seatY], [r, b.seatY]], '#8a5a2a', 6); for (const x of [l + 10, r - 10]) line([[x, b.seatY], [x, g(x)]], '#8a5a2a', 4); if (b.back) line([[b.x + b.back * b.w / 2, b.seatY - b.backH], [b.x + b.back * b.w / 2, b.seatY]], '#8a5a2a', 4); else line([[l, b.seatY - b.backH], [r, b.seatY - b.backH]], '#8a5a2a', 4); }
     if (Wd.item) ring(Wd.item.x, Wd.item.y, Wd.item.r, '#e04090', 4);
     for (const e of [...(Wd.splashes || []), ...(Wd.ripples || [])]) { const a = F.t - e.t0; ring(e.x, e.y, e.r * (.3 + a), '#2a70c0'); }
     const ink = a => a.role === 'hero' ? '#e0352b' : a.air ? '#2050c0' : '#202020';

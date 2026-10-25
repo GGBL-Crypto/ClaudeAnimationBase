@@ -150,24 +150,24 @@ var EST = (() => {
   // conversa), achado (a criança acha uma flor no chão e mostra ao avô), banco (a moça levanta e anda; a câmera a segue
   // até a conversa). depth = ordem de desenho e também a distância z (px) do verificador de atravessamento: corredor −300,
   // banco −150, par 0, avô e criança 200.
-  const GP = 900, gP = () => GP, TP = { encontro: 6, achado: 17, banco: 24 }, lerp2 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
+  const GP = 900, gP = () => GP, TP = { encontro: 6, achado: 17.5, banco: 24 }, lerp2 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
   // Deslocamento com partidas e paradas (pauseLost de crowd.js): cada trecho [t0, t1, v, r] parte do repouso em t0 e para
   // em t1 com rampas de cosseno de r s, andando v · (t1 − t0) BL; t0 < 0 = já entra andando.
   const go = (t, legs) => legs.reduce((s, [t0, t1, v, r = .7]) => s + v * (pauseLost(t, t0, 1e4, r) - pauseLost(t, t1, 1e4, r)), 0);
   const span = (t, a, b, r = .3) => ease(seg(t, a, a + r)) * (1 - ease(seg(t, b - r, b)));  // 0 → 1 → 0 em [a, b]
   // Pessoa: tipo de corpo, altura (px), sentido (1 = para a direita), trechos e ref [t, x] (pelve em x no instante t).
-  // mood = chaves de mood(); talk = [[t0, t1], ...] em que fala (talk() dá a boca).
+  // mood = chaves de mood(); talk = [[t0, t1], ...] em que fala (talk() dá a boca); ground = chão próprio (padrão gP).
   function person(id, type, size, dir, legs, ref, o = {}) {
     const spec = o.spec || humanSpec(type), x0 = ref[1] - dir * size * go(ref[0], legs);
-    return { id, type, size, dir, legs, spec, path: makePath([[x0, GP], [x0 + dir * 2e4, GP]]), v: Math.max(...legs.map(l => Math.abs(l[2]))), talk: [], ...o };
+    return { id, type, size, dir, legs, spec, path: makePath([[x0, GP], [x0 + dir * 2e4, GP]]), v: Math.max(...legs.map(l => Math.abs(l[2]))), talk: [], ground: gP, ...o };
   }
   // Pose da pessoa em t: s dos trechos (ou o.s), corpo abaixado o.d BL, inclinação o.lean, gestos e mãos; rosto por mood e talk.
   function pose(c, t, o = {}) {
     const s = o.s ?? go(t, c.legs), m = mood(t, c.mood, c.seed), mouth = c.talk.map(([a, b]) => talk(t, c.seed, a, b)).find(x => x) || null;
     const moving = o.moving ?? clamp(Math.abs(speedOf(u => go(u, c.legs), t)) / c.v);
-    return creaturePose(lowered(c.spec, o.d || 0), { path: c.path, s, size: c.size, ground: gP, t, seed: c.seed, moving, lean: o.lean || 0, gesture: o.gesture, hands: o.hands, expression: m.expression, blink: m.blink, emote: m.emote, sq: m.sq, mouth });
+    return creaturePose(lowered(c.spec, o.d || 0), { path: c.path, s, size: c.size, ground: c.ground, t, seed: c.seed, moving, lean: o.lean || 0, gesture: o.gesture, hands: o.hands, expression: m.expression, blink: m.blink, emote: m.emote, sq: m.sq, mouth });
   }
-  const actorP = (c, p, s, o = {}) => ({ id: c.id, kind: 'human', role: c.role, layer: 1, depth: c.depth, pose: p, track: c.path.at(s * c.size), ground: gP, ...o });
+  const actorP = (c, p, s, o = {}) => ({ id: c.id, kind: 'human', role: c.role, layer: 1, depth: c.depth, pose: p, track: c.path.at(s * c.size), ground: c.ground, ...o });
   // Fala com as mãos: nos trechos de fala, as pontas das duas mãos passeiam à frente do peito (ruído por semente).
   function talkHands(c, p, t) {
     const k = Math.max(0, ...c.talk.map(([a, b]) => span(t, a, b, .35))), S = c.size;
@@ -178,16 +178,19 @@ var EST = (() => {
     });
   }
 
-  // Corredor: passada longa (bipedRun, sem duplo apoio: no voo nenhum pé apoia, a.air), braços dobrados à frente.
+  // Corredor: passada longa (bipedRun, sem duplo apoio: no voo nenhum pé apoia, a.air), braços dobrados à frente. Corre
+  // numa alameda do fundo: menor (300 px) e com o chão 110 px acima (mais longe), atrás de todos; passa por Marta e pelo
+  // avô no primeiro segundo e sai do quadro antes de 3 s.
   const RUN = (() => { const R = humanSpec('adult'); return { ...R, gait: 'bipedRun', stride: 1.3, lift: .13, limbs: R.limbs.map(l => l.foot ? l : { ...l, rest: [.07, .19] }) }; })();
-  const RUNNER = person('corredor', 'adult', 400, -1, [[-6, 60, 2.2]], [0, 3300], { spec: RUN, seed: 41, depth: -300, role: 'runner', mood: [[0, 'neutral']] });
+  const RUNNER = person('corredor', 'adult', 300, -1, [[-6, 60, 2.6]], [0, 1700], { spec: RUN, seed: 41, depth: -300, role: 'runner', mood: [[0, 'neutral']], ground: () => GP - 110 });
   // Par: Marta espera (de frente para a direita); João chega pela direita, aperta a mão dela (9–11 s), os dois dão um passo
-  // (11,2–12 s), se abraçam (12–14,3 s), recuam um passo (de costas, 14,4–15,2 s) e conversam (fala alternada com as mãos).
-  const B = person('marta', 'heavy', 380, 1, [[11.2, 11.6, .099, .4], [14.4, 14.8, -.21, .4]], [0, 1402], { seed: 22, depth: 0, role: 'greeter',
+  // (11,2–12 s) até ficarem a 110 px, se abraçam (12–14,3 s), recuam um passo (de costas, 14,4–15,2 s) e conversam (fala
+  // alternada com as mãos).
+  const B = person('marta', 'heavy', 380, 1, [[11.2, 11.6, .28, .4], [14.4, 14.8, -.4, .4]], [0, 1402], { seed: 22, depth: 0, role: 'greeter',
     mood: [[0, 'neutral'], [2.5, 'curious', '?'], [7.4, 'happy', '!']], talk: [[16.4, 18.4], [20.6, 22.4], [24.8, 26.6], [28.8, 30.5]] });
-  const A = person('joao', 'adult', 400, -1, [[3.6, 8.2, .75], [11.2, 11.6, .094, .4], [14.4, 14.8, -.2, .4]], [9, 1597], { seed: 21, depth: 0, role: 'greeter',
+  const A = person('joao', 'adult', 400, -1, [[3.6, 8.2, .75], [11.2, 11.6, .266, .4], [14.4, 14.8, -.38, .4]], [9, 1597], { seed: 21, depth: 0, role: 'greeter',
     mood: [[0, 'neutral'], [7.8, 'happy', '!']], talk: [[14.4, 16.2], [18.6, 20.4], [22.6, 24.6], [26.8, 28.6]] });
-  const SHAKE = [9, 9.5, 10.6, 11], HUG = [12, 12.6, 13.7, 14.3], HUG_HEAD = { A: [-.35, -.3], B: [.15, .4] };
+  const SHAKE = [9, 9.5, 10.6, 11], HUG = [12, 12.6, 13.7, 14.3], HUG_HEAD = { A: [.1, .05], B: [.1, .05] };
   // Aperto de mão: as duas mãos direitas lado a lado na mesma reta, uma sobre a outra (a ponta de cada uma no pulso da
   // outra), em torno de C (entre os ombros, .2 BL abaixo), que bombeia 3 vezes por segundo. u = de João para Marta;
   // devolve os gestos (pulso no alvo, tipDir = direção da mão: o pulso dobra).
@@ -199,17 +202,18 @@ var EST = (() => {
   }
   function pairP(t) {
     const hs = ease(seg(t, SHAKE[0], SHAKE[1])) * (1 - ease(seg(t, SHAKE[2], SHAKE[3]))), hg = ease(seg(t, HUG[0], HUG[1])) * (1 - ease(seg(t, HUG[2], HUG[3])));
-    const o = { lean: 1.3 * hg }, a0 = pose(A, t, o), b0 = pose(B, t, o), ga = talkHands(A, a0, t), gb = talkHands(B, b0, t);
+    const o = { lean: .6 * hg }, a0 = pose(A, t, o), b0 = pose(B, t, o), ga = talkHands(A, a0, t), gb = talkHands(B, b0, t);
     let front = false;
     if (hs) { const [x, y] = shake(a0, b0, t, hs); ga.push(x); gb.push(y); }
-    if (hg) {  // abraço: as mãos dele nas costas dela, perto dos ombros; as dela nas costas dele, mais baixo
-      const back = (p, c, dy) => [p.joints.chest[0] - c.dir * .5 * BODY[c.type].girth * c.size, p.joints.chest[1] + dy * c.size];
-      ga.push(...['armR', 'armL'].map((limb, i) => ({ limb, target: handTo(a0, A.spec, limb, back(b0, B, .01 + .07 * i)), k: hg })));
-      gb.push(...['armL', 'armR'].map((limb, i) => ({ limb, target: handTo(b0, B.spec, limb, back(a0, A, .14 + .08 * i)), k: hg })));
+    if (hg) {  // abraço de lado: o braço de perto passa por cima do ombro do outro e a ponta da mão fica atrás das costas,
+      // além da silhueta do peito (círculo de raio girth no peito) do outro lado; o de longe abraça a cintura, escondido atrás
+      // do corpo do outro. around(p, c, h, out): ponto nas costas de c, h BL acima do peito, out px para fora da silhueta.
+      const around = (p, c, h, out) => { const J = p.joints, r = BODY[c.type].girth * c.size, dy = h * c.size; return [J.chest[0] - c.dir * (Math.sqrt(Math.max(0, r * r - dy * dy)) + out), J.chest[1] - dy]; };
+      ga.push({ limb: 'armR', target: handTo(a0, A.spec, 'armR', around(b0, B, .07, 8)), k: hg }, { limb: 'armL', target: handTo(a0, A.spec, 'armL', around(b0, B, -.12, -25)), k: hg });
+      gb.push({ limb: 'armL', target: handTo(b0, B.spec, 'armL', around(a0, A, .02, 8)), k: hg }, { limb: 'armR', target: handTo(b0, B.spec, 'armR', around(a0, A, -.14, -18)), k: hg });
       front = hg > .5;
     }
-    // Quem ouve acena devagar. No abraço as caras não se encostam: ele ergue o queixo por cima do ombro dela, ela baixa
-    // o rosto junto ao peito dele.
+    // Quem ouve acena devagar. No abraço as cabeças ficam lado a lado, quase neutras, um pouco baixas para o ombro do outro.
     const nodOf = (c, other) => .12 * Math.max(0, Math.sin(TAU * .7 * t + c.seed)) * Math.max(0, ...other.talk.map(([a, b]) => span(t, a, b, .4)));
     const pa = turnHead(pose(A, t, { ...o, gesture: ga }), nodOf(A, B) + HUG_HEAD.A[0] * hg, HUG_HEAD.A[1] * hg), pb = turnHead(pose(B, t, { ...o, gesture: gb }), nodOf(B, A) + HUG_HEAD.B[0] * hg, HUG_HEAD.B[1] * hg);
     return [actorP(A, pa, go(t, A.legs), front ? { front: ['armR'] } : {}), actorP(B, pb, go(t, B.legs), front ? { front: ['armL'] } : {})];
@@ -242,11 +246,12 @@ var EST = (() => {
     const p = turnHead(pose(c, t, { ...o, gesture: [...legs, ...arms] }), .06 * noise1(c.seed, t * .3), -.08 * k * Math.max(0, noise1(c.seed + 1, t * .25)));
     return actorP(c, p, s, { seated: k });
   }
-  // Banco de perfil (assento visto de lado, encosto atrás dela): o assento fica .05 BL abaixo da pelve sentada (a coxa, de
-  // meia largura ~.05 BL, apoia nele).
+  // Banco de praça visto de frente (comprido em x, w = .95 BL dela; encosto atrás do assento, em profundidade, por toda a
+  // largura: back = 0), com ela sentada no meio: o assento fica .05 BL abaixo da pelve sentada (a coxa, de meia largura
+  // ~.05 BL, apoia nele).
   const BENCH = (() => {
-    const p = lia(10).pose, c = LIA, S = c.size, x = p.joints.pelvis[0] + c.dir * .05 * S;
-    return { x, seatY: p.joints.pelvis[1] + .05 * S, w: .3 * S, back: -c.dir, backH: .3 * S, depth: -150 };
+    const p = lia(10).pose, c = LIA, S = c.size;
+    return { x: p.joints.pelvis[0], seatY: p.joints.pelvis[1] + .05 * S, w: .95 * S, back: 0, backH: .32 * S, depth: -150 };
   })();
 
   // Avô (idoso) e criança: o avô chega pela direita devagar e espera; a criança entra pela esquerda, vê a flor no chão,
@@ -278,8 +283,9 @@ var EST = (() => {
 
   function frameP(t) {
     const shot = t < TP.encontro ? 'praca' : t < TP.achado ? 'encontro' : t < TP.banco ? 'achado' : 'banco';
-    const cam = shot === 'praca' ? { cx: lerp(880, 960, t / TP.encontro), cy: 180, z: .5 } : shot === 'encontro' ? { cx: 1500, cy: 900 - 410 / 1.1, z: lerp(1.1, 1.22, ease(seg(t, 6, 17))) }
-      : shot === 'achado' ? { cx: 260, cy: 900 - 420 / 1.25, z: 1.25 } : { cx: kf(t, [[24, -560], [26, -560], [30, 700]]), cy: 900 - 400 / 1.05, z: 1.05 };
+    // banco: ela no banco, a criança e o avô inteiros (a flor ainda à mostra); de 26,5 s a câmera vai até a conversa.
+    const cam = shot === 'praca' ? { cx: lerp(880, 960, t / TP.encontro), cy: 180, z: .5 } : shot === 'encontro' ? { cx: 1500, cy: 900 - 410 / 1.1, z: lerp(1.1, 1.22, ease(seg(t, 6, TP.achado))) }
+      : shot === 'achado' ? { cx: 260, cy: 900 - 420 / 1.25, z: 1.25 } : { cx: kf(t, [[24, -170], [26.5, -170], [30, 980]]), cy: 900 - 380 / 1.3, z: 1.3 };
     const kid = kidP(t);
     const F = { scene: 'P', shot, t, lt: t - (TP[shot] || 0), cam, texts: [], world: {
       ground: gP, bench: BENCH, item: kid.item, fountain: { x: 2350, y: GP, r: 260, depth: -400 },
@@ -297,7 +303,8 @@ var EST = (() => {
   // do lago (gN continua sob a água); água em WY a partir de LAKE.x0 (≈ 1440). Planos: margem (aberto: a raposa chega trotando e fareja o chão, a borboleta voa, um
   // peixe salta, besouro e formigas no chão), bebe (a raposa para na beirada e bebe; um peixe salta perto e ela ergue a
   // cabeça), chao (rente ao chão: um pássaro pousa e saltita, bica o chão; o besouro passa; a fila de formigas; a borboleta).
-  // depth (ordem e z do verificador): plantas −200, formigas −100, raposa e peixes 0, pássaro 100, borboleta 150, besouro 160.
+  // depth (ordem e z do verificador): plantas −200, formigas −100, raposa e peixes 0, tronco 120, pássaro 140, borboleta 150,
+  // besouro 160 (anda em cima do tronco caído, longe da fila de formigas).
   const WY = 940, gN = x => 900 + 6 * Math.sin(x * .004) + 180 * ease(clamp((x - 1150) / 900)), TN = { bebe: 9, chao: 19 };
   const LAKE = { waterY: WY, x0: (() => { let a = 1150, b = 2050; for (let i = 0; i < 40; i++) { const m = (a + b) / 2; if (gN(m) < WY) a = m; else b = m; } return a; })(), x1: 6000 };
   const lineN = (x0, dir) => makePath([[x0, 0], [x0 + dir * 2e4, 0]]);
@@ -308,31 +315,37 @@ var EST = (() => {
 
   // Raposa (SPECS.dog com pescoço mais longo, quase horizontal, e mais solto: limits = pescoço 1,7 e cabeça .9 rad; no
   // repouso o eixo da cabeça, headBase → headTop (ponta do focinho), fica quase na horizontal; os estilos podem desenhar
-  // cão ou raposa): trota, para e fareja o chão (3,6–6,9 s), trota até a beirada (para em 10,3 s) e bebe (10,2–14,4 s:
+  // cão ou raposa): trota, para e fareja o chão (3,6–6,9 s), trota até a beirada (para em 10,3 s) e bebe (10,2–15,5 s, plena 11,2–14 s:
   // a ponta do focinho, joints.headTop, vai à linha d'água e lambe 2,5 vezes por segundo, com uma onda a cada lambida);
-  // o salto do peixe (13,6 s) faz ela erguer a cabeça e olhar.
-  const DOG = { ...SPECS.dog, stride: .9, lift: .1, neck: { at: [.12, -.1] }, head: { ...SPECS.dog.head, offset: -.42, h: .5 }, limits: { neck: 1.7, head: .9 } };
+  // as patas ficam na margem seca (antes de LAKE.x0) e só o pescoço leva o focinho até a água. O salto do peixe (13,6 s)
+  // faz ela erguer a cabeça devagar (14–15,6 s) e olhar, um pouco acima da horizontal. Cauda baixa, quase na horizontal (raposa).
+  const FOX_X = 1360, DOG = { ...SPECS.dog, stride: .9, lift: .1, neck: { at: [.12, -.1] }, head: { ...SPECS.dog.head, offset: -.46, h: .5 }, limits: { neck: 1.7, head: .9 },
+    appendages: SPECS.dog.appendages.map(ap => ap.name === 'tail' ? { ...ap, angle: Math.PI - .3, lengths: [.12, .12, .1], motion: { lag: .3, amp: .12, freq: 1.2, gravity: .3 } } : ap) };
   const FOX = { size: 320, legs: [[-3, 3, 1.4], [7.6, 9.6, 1.4]], seed: 71 };
-  FOX.path = at0(FOX.legs, [12, 1440], FOX.size, 1);  // patas da frente na água rasa da beirada
-  const LAPS = { t0: 10.9, t1: 13.9, f: 2.5 };
-  // Mergulho da cabeça até a ponta do focinho ficar em y (pescoço 1,7u, cabeça .9u): o focinho desce até um u* e depois
-  // volta para baixo do peito; bisseção em [0, u*] (u* = o mais baixo numa varredura de 20 passos; fora do alcance, u*).
-  function dipTo(p, y) {
-    const tip = u => turnHead(clonePose(p), 1.7 * u, .9 * u, DOG).joints.headTop[1];
-    let lo = 0, hi = 0;
-    for (let i = 1; i <= 20; i++) if (tip(i / 20) > tip(hi)) hi = i / 20;
+  FOX.path = at0(FOX.legs, [12, FOX_X], FOX.size, 1);
+  const LAPS = { t0: 11.2, t1: 13.9, f: 2.5 };
+  // Mergulho da cabeça até a ponta do focinho ficar em y (pescoço DIP[0]·u, cabeça DIP[1]·u): o focinho desce até um u*
+  // e depois volta para baixo do peito; bisseção em [0, u*] (u* = o mais baixo numa varredura de 20 passos; fora do
+  // alcance, u*). Com win = [a, b], só nessa janela (em torno da solução do quadro de referência: sem saltos entre quadros).
+  const DIP = [1, .3];
+  function dipTo(p, y, win) {
+    const tip = u => turnHead(clonePose(p), DIP[0] * u, DIP[1] * u, DOG).joints.headTop[1];
+    let lo = win ? win[0] : 0, hi = lo;
+    for (let i = 1; i <= 20; i++) { const u = win ? lerp(win[0], win[1], i / 20) : i / 20; if (tip(u) > tip(hi)) hi = u; }
     if (tip(hi) < y) return hi;
     for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (tip(m) < y) lo = m; else hi = m; }
     return lo;
   }
   function fox(t) {
-    const c = FOX, s = go(t, c.legs), sniff = span(t, 3.6, 6.9, .6), drink = span(t, 10.2, 14.4, .5), look = span(t, 13.95, 30, .5);
-    let p = creaturePose(lowered(DOG, .08 * drink), { path: c.path, s, size: c.size, ground: gN, t, seed: c.seed, gait: 'trot', moving: clamp(Math.abs(speedOf(u => go(u, c.legs), t)) / 1.4), expression: t > 13.9 ? 'surprised' : 'neutral' });
+    const c = FOX, s = go(t, c.legs), sniff = span(t, 3.6, 6.9, .6), drink = ease(seg(t, 10.2, 11.2)) * (1 - ease(seg(t, 14, 15.5))), look = ease(seg(t, 14.1, 15.6));
+    let p = creaturePose(lowered(DOG, .14 * drink), { path: c.path, s, size: c.size, ground: gN, t, seed: c.seed, gait: 'trot', moving: clamp(Math.abs(speedOf(u => go(u, c.legs), t)) / 1.4), expression: t > 13.9 ? 'surprised' : 'neutral' });
     if (sniff) p = turnHead(p, (1.1 + .1 * noise1(c.seed, t * 2)) * sniff, .5 * sniff, DOG);
-    if (drink) { const lap = t > LAPS.t0 && t < LAPS.t1 ? 7 * Math.max(0, Math.sin(TAU * LAPS.f * (t - LAPS.t0))) : 0, u = dipTo(p, WY - lap); p = turnHead(p, 1.7 * u * drink, .9 * u * drink, DOG); }
-    if (look) p = turnHead(p, -.25 * look, -.2 * look, DOG);
+    if (drink) { const lap = t > LAPS.t0 && t < LAPS.t1 ? 7 * Math.max(0, Math.sin(TAU * LAPS.f * (t - LAPS.t0))) : 0, u = dipTo(p, WY - lap, FOX.win); p = turnHead(p, DIP[0] * u * drink, DIP[1] * u * drink, DOG); }
+    if (look) p = turnHead(p, -.2 * look, -.15 * look, DOG);
     return actorN('raposa', 'dog', p, c.path.at(s * c.size), { role: 'fox' });
   }
+
+  FOX.win = (() => { const c = FOX, p = creaturePose(lowered(DOG, .14), { path: c.path, s: go(12, c.legs), size: c.size, ground: gN, t: 12, seed: c.seed, gait: 'trot', moving: 0 }), u = dipTo(p, WY); return [Math.max(0, u - .2), Math.min(1, u + .2)]; })();
 
   // Peixe que salta: nada escondido sob a água, sobe na direção da saída, sai em xa no instante tj, faz o arco balístico
   // (toss, ápice ap px acima da água) até xb em dur s e mergulha. Caminho = subida + arco amostrado + descida; s por
@@ -346,17 +359,18 @@ var EST = (() => {
     const sOf = t => { const u = t - tj; if (u < 0) return Math.max(0, La + v0 * u); if (u < dur) { const f = u / dur * n, i = Math.min(n - 1, Math.floor(f)); return La + lerp(d[i], d[i + 1], f - i); } return La + d[n] + Math.min(La, v0 * (u - dur)); };
     return { id, size, seed, path, sOf, tj, dur, xa, xb };
   }
-  const FISH = [jumper('peixe1', 2000, 2280, 5.8, .95, 230, 140, 81), jumper('peixe2', 1720, 1960, 13.6, .9, 210, 140, 82)];
+  const FISH = [jumper('peixe1', 2000, 2300, 5.6, 1.15, 380, 140, 81), jumper('peixe2', 1720, 1980, 13.6, 1, 300, 140, 82)];
   const fish = (f, t) => {
     const s = f.sOf(t), p = creaturePose(SPECS.fish, { path: f.path, s: s / f.size, size: f.size, t, seed: f.seed, moving: 1 });
     const hidden = [...p.spine.map(q => q.y - q.r), p.joints.headTop[1], p.joints.headBase[1]].every(y => y > WY);
     return actorN(f.id, 'fish', p, f.path.at(s), { air: true, hidden, role: 'fish' });
   };
 
-  // Pássaro: voa (gait 'fly') de cima à direita e pousa em x = 700 às 21,1 s (desacelera até parar; nos últimos .4 s as
-  // pernas descem até os pés do pouso); depois saltita para a esquerda (pés juntos, hop), para, bica o chão e olha o besouro que chega.
-  const BIRD = { size: 120, seed: 91, land: 21.1, fly0: 19.3, legs: [[21.8, 22.6, 1.2], [23.6, 24.2, 1.2]] };
-  BIRD.path = lineN(700, -1);
+  // Pássaro: voa (gait 'fly') de cima à direita e pousa em x = 1060 às 21,1 s (desacelera até parar; nos últimos .4 s as
+  // pernas descem até os pés do pouso); depois dá um salto para a esquerda (pés juntos, hop), para, bica o chão e olha o besouro
+  // que chega pelo tronco.
+  const BIRD = { size: 120, seed: 91, land: 21.1, fly0: 19.3, x: 1060, legs: [[21.8, 22.5, 1.2]] };
+  BIRD.path = lineN(BIRD.x, -1);
   BIRD.W = creaturePose(SPECS.bird, { path: BIRD.path, s: 0, size: BIRD.size, ground: gN, t: BIRD.land, seed: BIRD.seed, moving: 0 });
   BIRD.fly = (() => { const [x, y] = BIRD.W.joints.spine0; return makePath([[x + 1300, y - 700], [x + 750, y - 330], [x + 380, y - 50], [x + 150, y - 4], [x, y]]); })();  // chega na horizontal
   function bird(t) {
@@ -364,12 +378,12 @@ var EST = (() => {
     if (t < c.land) {
       const u = seg(t, c.fly0, c.land), sp = c.fly.length * (1 - (1 - u) ** 2), kl = ease(seg(t, c.land - .4, c.land));
       const gesture = kl ? ['legL', 'legR'].map(l => ({ limb: l, target: c.W.limbs[l].end, k: kl })) : undefined;
-      return actorN('passaro', 'bird', creaturePose(SPECS.bird, { path: c.fly, s: sp / S, size: S, t, seed: c.seed, gait: 'fly', gesture }), c.fly.at(sp), { air: true, depth: 100 });
+      return actorN('passaro', 'bird', creaturePose(SPECS.bird, { path: c.fly, s: sp / S, size: S, t, seed: c.seed, gait: 'fly', gesture }), c.fly.at(sp), { air: true, depth: 140 });
     }
     const s = go(t, c.legs), peck = Math.max(span(t, 24.6, 25.1, .12), span(t, 25.4, 25.9, .12), span(t, 27.9, 28.4, .12));
     const p = turnHead(creaturePose(SPECS.bird, { path: c.path, s, size: S, ground: gN, t, seed: c.seed, moving: clamp(Math.abs(speedOf(u => go(u, c.legs), t)) / 1.2) }), .6 * peck, .5 * peck);
     const q = c.path.at(s * S);  // trilho na altura do corpo pousado (contínuo com o fim do voo)
-    return actorN('passaro', 'bird', p, { ...q, y: c.W.joints.spine0[1] + gN(q.x) - gN(700) }, { air: !Object.values(p.limbs).some(l => l.foot && l.stance), depth: 100 });
+    return actorN('passaro', 'bird', p, { ...q, y: c.W.joints.spine0[1] + gN(q.x) - gN(c.x) }, { air: !Object.values(p.limbs).some(l => l.foot && l.stance), depth: 140 });
   }
 
   // Borboleta (variante local de voador, kind 'butterfly'; asas por pose.wings, como a forídea): voa devagar por um caminho
@@ -377,19 +391,22 @@ var EST = (() => {
   const BFLY = { id: 'butterfly', gait: 'fly', flyer: { freq: 3.2, hover: .35 }, views: ['side'], stride: 0, lift: 0,
     spine: [{ offset: 0, r: .1 }, { offset: .3, r: .07 }], head: { offset: -.15, r: .07 }, limbs: [],
     appendages: [1, -1].map(side => ({ name: side > 0 ? 'antennaL' : 'antennaR', attach: 'head', side, at: [.04, -.04], angle: -1, lengths: [.16, .06], motion: { amp: .12, freq: 1.1 } })) };
-  const FLUT = { size: 80, seed: 95, path: makePath([[-1300, 450], [-600, 600], [-100, 520], [400, 660], [900, 560], [1300, 420], [1800, 330], [2300, 380], [2200, 560], [1600, 640],
+  const FLUT = { size: 120, seed: 95, path: makePath([[-1300, 450], [-600, 600], [-100, 520], [400, 660], [900, 560], [1300, 420], [1800, 330], [2300, 380], [2200, 560], [1600, 640],
     [1100, 600], [700, 720], [350, 640], [0, 720], [-500, 600], [-1300, 520]]) };
   function butterfly(t) {
     const c = FLUT, sp = c.path.length * (t + 1) / 33;
     return actorN('borboleta', 'butterfly', creaturePose(BFLY, { path: c.path, s: sp / c.size, size: c.size, t, seed: c.seed, gait: 'fly' }), c.path.at(sp), { air: true, depth: 150 });
   }
 
-  // Besouro: anda devagar para a direita pela margem, para um pouco (12–14 s) e segue. Corpo um pouco mais alto que o de
+  // Besouro: em cima de um tronco caído (LOG, na frente da fila de formigas), entra em cena às 18 s (fora do quadro), anda
+  // devagar para a direita, para (21,5–24 s) e segue até parar antes da ponta (27,7 s). Corpo um pouco mais alto que o de
   // SPECS.beetle (élitros h .23 em vez de .15): de lado, o círculo dos élitros (r .21) não entra no chão.
+  const LOG = { x0: 480, x1: 1060, h: 38, depth: 120 };
+  LOG.top = x => gN(x) - LOG.h * ease(clamp((x - LOG.x0) / 110)) * ease(clamp((LOG.x1 - x) / 110));
   const BEETLE_N = { ...SPECS.beetle, spine: [{ ...SPECS.beetle.spine[0], h: .16 }, { ...SPECS.beetle.spine[1], h: .23 }], head: { ...SPECS.beetle.head, h: .15 } };
-  const BEETLE = { size: 90, seed: 97, legs: [[-5, 12, .45], [14, 60, .45]] };
-  BEETLE.path = at0(BEETLE.legs, [0, -700], BEETLE.size, 1);
-  const beetle = t => { const c = BEETLE, s = go(t, c.legs), p = creaturePose(BEETLE_N, { path: c.path, s, size: c.size, ground: gN, t, seed: c.seed, moving: clamp(Math.abs(speedOf(u => go(u, c.legs), t)) / .45) }); return actorN('besouro', 'beetle', p, c.path.at(s * c.size), { depth: 160 }); };
+  const BEETLE = { size: 90, seed: 97, legs: [[18, 21.5, .45], [24, 27, .45]] };
+  BEETLE.path = at0(BEETLE.legs, [18, 640], BEETLE.size, 1);
+  const beetle = t => { const c = BEETLE, s = go(t, c.legs), p = creaturePose(BEETLE_N, { path: c.path, s, size: c.size, ground: LOG.top, t, seed: c.seed, moving: clamp(Math.abs(speedOf(u => go(u, c.legs), t)) / .45) }); return actorN('besouro', 'beetle', p, c.path.at(s * c.size), { depth: 160, ground: LOG.top }); };
   // Formigas: fila de fundo para a esquerda (makeCrowd, como em H), algumas com pedacinhos de folha.
   // Saem do formigueiro (NEST, os primeiros 40 px escondidos).
   const NEST = { x: 1100, y: gN(1100), r: 60, depth: -100 }, ANTS_N = makeCrowd([lane([[1100, 0], [-1600, 0]], 30, 1.1, 2.4, { id: 'fila', ground: gN, role: 'line', carry: .4, seed: 99, t1: 30, depth: -100, hide: [40, 0] })]);
@@ -398,13 +415,13 @@ var EST = (() => {
     .map(([x, kind, h], i) => ({ x, y: gN(x), kind, h, seed: i + 1, depth: -200 }));
   function frameN(t) {
     const shot = t < TN.bebe ? 'margem' : t < TN.chao ? 'bebe' : 'chao';
-    const cam = shot === 'margem' ? { cx: lerp(650, 760, t / TN.bebe), cy: 427, z: .55 } : shot === 'bebe' ? { cx: 1450, cy: 682, z: 1.25 } : { cx: lerp(470, 400, seg(t, 19, 30)), cy: 740, z: 2 };
+    const cam = shot === 'margem' ? { cx: lerp(650, 760, t / TN.bebe), cy: 427, z: .55 } : shot === 'bebe' ? { cx: 1450, cy: 682, z: 1.25 } : { cx: lerp(1020, 960, seg(t, 19, 30)), cy: 900 - 330 / 1.6, z: 1.6 };
     // Respingos (1,2 s) na saída e na entrada de cada salto; ondas (3 s) nos mesmos pontos e a cada lambida da raposa.
     const splashes = FISH.flatMap(f => [[f.xa, f.tj], [f.xb, f.tj + f.dur]]).filter(([, t0]) => t >= t0 && t - t0 < 1.2).map(([x, t0]) => ({ x, y: WY, t0, r: 70 }));
     const laps = []; for (let i = 0; LAPS.t0 + (i + .25) / LAPS.f < LAPS.t1; i++) laps.push(LAPS.t0 + (i + .25) / LAPS.f);
     const ripples = [...FISH.flatMap(f => [[f.xa, f.tj, 120], [f.xb, f.tj + f.dur, 120]]), ...laps.map(t0 => [FOX_SNOUT, t0, 40])].filter(([, t0]) => t >= t0 && t - t0 < 3).map(([x, t0, r]) => ({ x, y: WY, t0, r }));
-    const F = { scene: 'N', shot, t, lt: t - (TN[shot] || 0), cam, texts: [], world: { ground: gN, lake: LAKE, nest: NEST, splashes, ripples, plants: PLANTS } };
-    F.actors = [...people(ANTS_N, t), beetle(t), fox(t), ...FISH.map(f => fish(f, t)), ...(t >= BIRD.fly0 ? [bird(t)] : []), butterfly(t)];
+    const F = { scene: 'N', shot, t, lt: t - (TN[shot] || 0), cam, texts: [], world: { ground: gN, lake: LAKE, nest: NEST, log: LOG, splashes, ripples, plants: PLANTS } };
+    F.actors = [...people(ANTS_N, t), ...(t >= 18 ? [beetle(t)] : []), fox(t), ...FISH.map(f => fish(f, t)), ...(t >= BIRD.fly0 ? [bird(t)] : []), butterfly(t)];
     return F;
   }
   const FOX_SNOUT = fox(12).pose.joints.headTop[0];
@@ -436,16 +453,19 @@ var EST = (() => {
   //     salto, wings.open = 0 = asas dobradas).
   //   butterfly (N): borboleta (pose.spec 'butterfly', EST.specs.butterfly: tórax, abdome, cabeça, antenas antennaL/R;
   //     sem pernas); air sempre; asas por pose.wings (phase 0..1 do batimento, freq 3,2 Hz).
-  //   beetle (N): besouro (EST.specs.beetle = SPECS.beetle com o corpo mais alto); spine[0] pronoto, spine[1] élitros.
+  //   beetle (N): besouro (EST.specs.beetle = SPECS.beetle com o corpo mais alto); spine[0] pronoto, spine[1] élitros;
+  //     anda sobre world.log (actor.ground = log.top); só existe de 18 s em diante.
   // world (além de ground: x → y do chão):
   //   A, H: ver frameA/frameH (nest, tunnels, chambers, fungus, tree, roots, clouds, far, hill, mist, back, front, rock, antGround).
-  //   P: bench {x (meio do assento), seatY (topo do assento), w (largura do assento, de perfil), back (−1: encosto à
-  //     esquerda do assento, em x − w/2; +1 à direita), backH (altura do encosto acima do assento), depth};
+  //   P: bench {x (meio do assento), seatY (topo do assento), w (largura do assento), back, backH (altura do encosto acima
+  //     do assento), depth}: back = 0 = banco de praça visto de frente, encosto atrás do assento (em profundidade) por toda
+  //     a largura w, de seatY − backH até seatY; back = ±1 = encosto de perfil numa ponta (x ± w/2) (não usado agora);
   //     item {kind: 'flower', x, y (centro), r, held, by?, limb?}: no chão (y = chão − r) até ser pega; depois x, y = ponta
   //     da mão (joints.handL de bia) em todo quadro; fountain {x, y (chão), r, depth}; trees [{x, y, h, seed, depth}];
   //     lamps [{x, y, h, seed, depth}] (postes).
   //   N: lake {waterY, x0 (beirada: daí para a direita é água; o chão, gN, segue como fundo sob ela), x1};
-  //     nest {x, y, r, depth} (formigueiro de onde sai a fila); splashes [{x, y, t0, r}] (respingo, vivo por 1,2 s:
+  //     nest {x, y, r, depth} (formigueiro de onde sai a fila); log {x0, x1, h, depth, top: x → y do topo} (tronco caído:
+  //     topo h px acima do chão no meio, descendo nas pontas em 110 px; desenhe na frente das formigas); splashes [{x, y, t0, r}] (respingo, vivo por 1,2 s:
   //     idade = F.t − t0); ripples [{x, y, t0, r}] (onda circular, viva por 3 s; r = raio final); plants [{x, y, kind:
   //     tree | flower | grass | reed, h, seed, depth}].
   function frame(scene, t) {
@@ -453,7 +473,7 @@ var EST = (() => {
     F.actors.sort((a, b) => a.layer - b.layer || a.depth - b.depth);
     return F;
   }
-  return { frame, times: { CUT1, T2, FLY_IN, NAME, P: { ...TP, shake: SHAKE, hug: HUG, grab: GRAB, seated: [5.3, 24.4] }, N: { ...TN, drink: [10.7, 13.9], laps: LAPS } }, specs: { butterfly: BFLY, dog: DOG, beetle: BEETLE_N, runner: RUN } };
+  return { frame, times: { CUT1, T2, FLY_IN, NAME, P: { ...TP, shake: SHAKE, hug: HUG, grab: GRAB, seated: [5.3, 24.4] }, N: { ...TN, drink: [11.2, 13.95], laps: LAPS } }, specs: { butterfly: BFLY, dog: DOG, beetle: BEETLE_N, runner: RUN } };
 })();
 // Os planos chamam o estilo; fora do navegador (verificador de movimento) não há timeline.
 if (typeof shotsById === 'function') shotsById(Object.fromEntries(PROJECT.storyboard.map(s => [s.id, t => ExpStyle.draw(EST.frame(({ 'estilos-h': 'H', 'estilos-p': 'P', 'estilos-n': 'N' })[PROJECT.id] || 'A', t))])));

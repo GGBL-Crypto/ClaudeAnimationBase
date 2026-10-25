@@ -20,14 +20,15 @@ var BODY = (() => {
 
 // Especificação humana do tipo de corpo (id 'human', body = tipo). Pelve na altura do quadril de pé; peito, base do
 // pescoço (collar), base da cabeça (neck) e eixo da cabeça numa linha inclinada stoop; ombros .015 abaixo da base do
-// pescoço; braços pendem quase retos; passada e altura do pé na escala da perna.
+// pescoço; braços pendem quase retos, a mão um pouco atrás do meio do corpo (.3 girth: ao lado da coxa, não na
+// virilha); passada e altura do pé na escala da perna.
 function humanSpec(type = 'adult') {
   const b = BODY[type], H = SPECS.human;
   if (!b) throw new Error(`Tipo de corpo desconhecido: ${type}`);
   const hip = b.footH + .97 * (b.thigh + b.shin), s = Math.sin(b.stoop), c = Math.cos(b.stoop), sh = b.collar - .015, up = b.spine + b.collar + b.neck + b.r;
   const chest = { offset: -b.spine * s, r: b.girth, h: hip + b.spine * c };
   const head = { offset: -up * s, r: b.r, h: hip + up * c, axis: b.stoop - Math.PI / 2 };
-  const limb = lb => lb.foot ? { ...lb, l1: b.thigh, l2: b.shin, l3: b.foot, h3: b.footH } : { ...lb, along: sh * s, h: sh * c, l1: b.upperArm, l2: b.forearm, l3: b.hand, rest: [0, .92 * (b.upperArm + b.forearm)] };
+  const limb = lb => lb.foot ? { ...lb, l1: b.thigh, l2: b.shin, l3: b.foot, h3: b.footH } : { ...lb, along: sh * s, h: sh * c, l1: b.upperArm, l2: b.forearm, l3: b.hand, rest: [-.3 * b.girth, .92 * (b.upperArm + b.forearm)] };
   return { ...H, body: type, stride: H.stride * (b.thigh + b.shin) / .49, lift: H.lift * (b.thigh + b.shin) / .49, spine: [chest, { offset: 0, r: .9 * b.girth, h: hip }], neck: { at: [b.collar * s, -b.collar * c] }, head, limbs: H.limbs.map(limb) };
 }
 

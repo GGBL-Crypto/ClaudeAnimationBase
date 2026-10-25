@@ -91,3 +91,22 @@ test('P and N: every bone keeps one length for the whole scene (per actor)', () 
     }
   }
 });
+
+test('N fox: paws stay on the dry bank while drinking, tail hangs low, the head lifts smoothly', () => {
+  let prev = null;
+  for (const t of range(10, 17, 30)) {
+    const F = frame('N', t), p = by(F, 'raposa').pose, J = p.joints, tail = p.appendages.tail;
+    if (t >= T.N.drink[0] && t <= T.N.drink[1]) for (const l of ['LF', 'RF']) assert.ok(J[l + '.toe'][0] < F.world.lake.x0, `t=${t.toFixed(2)} pata ${l} na água`);
+    assert.ok(tail.at(-1)[1] > tail[0][1] - .05 * p.size, `t=${t.toFixed(2)} cauda erguida`);
+    const a = Math.atan2(J.headTop[1] - J.headBase[1], J.headTop[0] - J.headBase[0]);
+    if (prev !== null) assert.ok(Math.abs(a - prev) < .08, `t=${t.toFixed(2)} cabeça gira ${(a - prev).toFixed(2)} rad num quadro`);
+    if (t > 15.5) assert.ok(a > -.7, `t=${t.toFixed(2)} focinho erguido demais (${a.toFixed(2)})`);
+    prev = a;
+  }
+});
+
+test('P bench is a park bench: seat at least .9 BL of the sitter, backrest along the full width', () => {
+  const F = frame('P', 10), b = F.world.bench, S = by(F, 'lia').pose.size;
+  assert.ok(b.w >= .9 * S && b.back === 0 && b.backH > 0);
+});
+
