@@ -222,14 +222,27 @@
     if (q.kind === 'flower') { loop(tip[0], tip[1], .13 * h, .11 * h, 0, 2.4, { fill: P.paper, col, seed: 220 + sd }); dot(tip[0], tip[1], .045 * h, col); brush([[x + lean * .2, y - .3 * h], [x + lean * .2 + .14 * h, y - .42 * h]], 2.2, { seed: 230 + sd, t0: 0, t1: .8, col }); }
     else loop(lerp(x, tip[0], .78), y - .78 * h, .035 * h, .12 * h, Math.atan2(lean, h), 2.4, { fill: col, col, seed: 240 + sd });  // espiga da taboa
   }
-  // Banco de perfil (P): assento, pés e encosto. O assento encosta no traço da coxa de quem senta: seatY fica .05 BL
-  // abaixo da pelve (meia largura de uma coxa grossa); aqui sobe até a meia largura do traço de palito (w = .3 BL).
+  // Banco de frente (P): encosto de duas tábuas atrás do assento em toda a largura (seatY − backH até seatY), assento
+  // de tábua grossa, pés até o chão. O assento encosta no traço da coxa de quem senta: seatY fica .05 BL abaixo da pelve
+  // (meia largura de uma coxa grossa); aqui sobe até a meia largura do traço de palito (w = .95 BL de quem senta).
   function bench(B, F) {
-    const S = B.w / .3, top = B.seatY - .05 * S + lw(S * z) * 1.1 / z / 2, x0 = B.x - B.w / 2, x1 = B.x + B.w / 2, bk = B.back < 0 ? x0 : x1, gy = F.world.ground(B.x), wd = lw(B.w * z) * .9;
-    brush([[x0 - .03 * B.w, top + .02 * B.w], [x1 + .03 * B.w, top + .02 * B.w]], wd * 1.5, { seed: 130, t0: .05, t1: .05 });
-    [x0 + .08 * B.w, x1 - .08 * B.w].forEach((xx, i) => brush([[xx, top + .03 * B.w], [xx, gy]], wd, { seed: 131 + i, t0: 0, t1: 0 }));
-    brush([[bk, top], [bk - B.back * .06 * B.w, top - B.backH]], wd, { seed: 133, t0: 0, t1: .1 });
-    brush([[bk - B.back * .02 * B.w, top - .55 * B.backH], [bk - B.back * .08 * B.w, top - B.backH]], wd * 2.2, { seed: 134, t0: .1, t1: .1 });
+    const S = B.w / .95, top = B.seatY - .05 * S + lw(S * z) * 1.1 / z / 2, x0 = B.x - B.w / 2, x1 = B.x + B.w / 2, gy = F.world.ground(B.x), wd = lw(.3 * S * z) * .9, th = .035 * S;
+    for (const xx of [x0 + .06 * B.w, x1 - .06 * B.w]) brush([[xx, top], [xx, top - B.backH]], wd, { seed: 133 + (xx > B.x), t0: 0, t1: .05 });  // postes do encosto
+    for (const [k, sd] of [[.2, 135], [.62, 136]]) { const y = top - B.backH * (1 - k), pts = [[x0, y - .5 * th], [x1, y - .5 * th], [x1, y + .5 * th], [x0, y + .5 * th]]; fillPts(pts, P.paper); brush([...pts, pts[0]], wd * .8, { raw: true, seed: sd, t0: .02, t1: .02 }); }
+    for (const xx of [x0 + .1 * B.w, x1 - .1 * B.w]) brush([[xx, top + th], [xx, gy]], wd, { seed: 131 + (xx > B.x), t0: 0, t1: 0 });  // pés
+    const seat = [[x0 - .02 * B.w, top], [x1 + .02 * B.w, top], [x1 + .02 * B.w, top + th], [x0 - .02 * B.w, top + th]];
+    fillPts(seat, P.paper); brush([...seat, seat[0]], wd * 1.2, { raw: true, seed: 130, t0: .02, t1: .02 });
+  }
+  // Tronco caído (N): contorno do topo (log.top) ao chão, casca em riscos, anel do corte na ponta da direita.
+  function log(Lg, F) {
+    const g = F.world.ground, n = 24, top = [], bot = [];
+    for (let i = 0; i <= n; i++) { const x = lerp(Lg.x0, Lg.x1, i / n); top.push([x, Lg.top(x)]); bot.push([x, g(x)]); }
+    const pts = [...top, ...bot.reverse()], w = lw(Lg.h * z) * 1.1;
+    fillPts(pts, mixCol(P.paper, P.ink, .06));
+    for (let i = 1; i < 9; i++) { const x = lerp(Lg.x0, Lg.x1, (i + .3 * hash(i + 40)) / 9.5), y0 = Lg.top(x), y1 = g(x); brush([[x - 18, lerp(y0, y1, .3)], [x + 22, lerp(y0, y1, .45)]], w * .5, { seed: 180 + i, t0: .3, t1: .3, col: mixCol(P.ink, P.paper, .4) }); }
+    brush([...top], w, { raw: true, seed: 190, t0: .05, t1: .05 });
+    const xm = Lg.x1 - 60, ym = (Lg.top(xm) + g(xm)) / 2, rr = (g(xm) - Lg.top(xm)) / 2;
+    loop(xm, ym, rr * .55, rr * .95, 0, w * .9, { fill: P.paper, seed: 191 }); loop(xm, ym, rr * .25, rr * .45, 0, w * .5, { seed: 192 });
   }
   // Flor (P, world.item): pétalas na cor de destaque em volta do miolo de tinta, maior que r (legível no plano aberto).
   // No chão: deitada sobre o chão (y + r), haste no chão; na mão: a haste passa pela ponta da mão (x, y), a flor acima.
@@ -662,10 +675,11 @@
       c.resetTransform(); c.fillStyle = P.paper; c.fillRect(0, 0, W, H);
       world(F);
       boil = Math.floor(F.t * 12);  // o traço dos seres ferve a 12 qps; o cenário fica parado
-      let B = F.world.bench;
+      // Objetos do mundo com profundidade (banco, tronco): desenhados antes do primeiro ser de depth igual ou maior.
+      const props = [F.world.bench && [F.world.bench, bench], F.world.log && [F.world.log, log]].filter(Boolean).sort((u, v) => u[0].depth - v[0].depth);
       const DRAW = { ant, fly, dog, bird, fish, butterfly, beetle, human };
       for (const a of F.actors) {
-        if (B && a.depth >= B.depth) { cam(F, 1); bench(B, F); B = null; }  // banco atrás de quem tem a mesma profundidade
+        while (props.length && a.depth >= props[0][0].depth) { const [o, fn] = props.shift(); cam(F, 1); fn(o, F); }
         if (a.hidden) continue;
         cam(F, a.layer); const P0 = a.pose;
         if (a.flip) { const m = (P0.spine[0].x + P0.spine.at(-1).x) / 2; c.translate(m, 0); c.scale(a.flip, 1); c.translate(-m, 0); }
@@ -673,7 +687,7 @@
         DRAW[a.kind](a, F);
         c.globalAlpha = 1;
       }
-      if (B) { cam(F, 1); bench(B, F); }
+      for (const [o, fn] of props) { cam(F, 1); fn(o, F); }
       if (F.world.item) { cam(F, 1); flower(F.world.item); }
       for (const a of F.actors) if (a.front && !a.hidden) { cam(F, a.layer); c.globalAlpha = a.alpha ?? 1; human(a, F, true); c.globalAlpha = 1; }  // abraço: braço por cima do outro corpo
       boil = 0;
