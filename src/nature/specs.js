@@ -2,7 +2,11 @@
 // spine[i] = {offset atrás de s, r, h altura do centro na vista lateral}; spine[0] é o segmento da frente.
 // limbs: attach (índice da coluna), along (à frente da raiz), side (1 esquerda, -1 direita), l1/l2, rest [dx, dy]
 // (dy: para baixo na lateral, para fora na superior), bend (lado do joelho voltado para a direita), foot, key (fase na
-// marcha; padrão = name), swing (perna cujo balanço o braço espelha), h (altura extra da raiz).
+// marcha; padrão = name), swing (perna cujo balanço o braço espelha), h (altura extra da raiz), l3 (pé ou mão: osso do
+// tornozelo ao dedo ou do pulso à ponta da mão), h3 (altura do tornozelo sobre o chão; o dedo fica no chão).
+// neck.at [dx, dy]: base do pescoço a partir do spine[0] (lateral; padrão o centro). head.axis: eixo base → topo da
+// cabeça voltado para a direita (padrão 0, à frente; humano −PI/2, para cima). O pescoço mede a distância de repouso da
+// base até a base da cabeça (centro − r · eixo); ver JOINT_LIMITS em creature.js.
 // appendages: attach ('head' ou índice), at [dx, dy], angle (voltado para a direita), lengths, motion, side.
 
 // Antena geniculada da formiga: escapo, cotovelo e funículo. o.antennae = 'explore' (varre devagar) ou 'tap' (toca o chão).
@@ -20,14 +24,16 @@ function caudalMotion(t, seed, o, k) {
 
 var SPECS = {
   human: {
-    id: 'human', gait: 'bipedWalk', views: ['side'], stride: .75, lift: .07,
-    spine: [{ offset: 0, r: .11, h: .68 }, { offset: 0, r: .1, h: .48 }],  // peito e pelve, empilhados
-    head: { offset: 0, r: .065, h: .915 },
+    // Adulto (BODY.adult de skeleton.js; humanSpec(tipo) dá os outros corpos): de pé, tornozelo .04 + .97 da perna até a
+    // pelve, coluna, peito até a base do pescoço (.11), pescoço .05 e cabeça 2r: o topo da cabeça fica em 1 BL.
+    id: 'human', body: 'adult', gait: 'bipedWalk', views: ['side'], stride: .75, lift: .07,
+    spine: [{ offset: 0, r: .11, h: .715 }, { offset: 0, r: .1, h: .5153 }],  // peito e pelve, empilhados
+    neck: { at: [0, -.11] }, head: { offset: 0, r: .0625, h: .9375, axis: -Math.PI / 2 },
     limbs: [
-      { name: 'legL', key: 'L', foot: true, attach: 1, along: 0, side: 1, l1: .25, l2: .25, rest: [0, .5], bend: -1 },
-      { name: 'legR', key: 'R', foot: true, attach: 1, along: 0, side: -1, l1: .25, l2: .25, rest: [0, .5], bend: -1 },
-      { name: 'armL', swing: 'legL', attach: 0, along: 0, h: .1, side: 1, l1: .17, l2: .16, rest: [0, .3], bend: 1 },
-      { name: 'armR', swing: 'legR', attach: 0, along: 0, h: .1, side: -1, l1: .17, l2: .16, rest: [0, .3], bend: 1 },
+      { name: 'legL', key: 'L', foot: true, attach: 1, along: 0, side: 1, l1: .245, l2: .245, l3: .15, h3: .04, rest: [0, .5], bend: -1 },
+      { name: 'legR', key: 'R', foot: true, attach: 1, along: 0, side: -1, l1: .245, l2: .245, l3: .15, h3: .04, rest: [0, .5], bend: -1 },
+      { name: 'armL', swing: 'legL', attach: 0, along: 0, h: .095, side: 1, l1: .17, l2: .145, l3: .1, rest: [0, .29], bend: 1 },
+      { name: 'armR', swing: 'legR', attach: 0, along: 0, h: .095, side: -1, l1: .17, l2: .145, l3: .1, rest: [0, .29], bend: 1 },
     ],
     appendages: [{ name: 'hair', attach: 'head', at: [-.03, -.04], angle: Math.PI - .4, lengths: [.04, .04, .04], motion: { lag: .2, amp: .12, freq: 1, gravity: .45 } }],
     carry: { attach: 0, at: [.14, .02] },
@@ -36,12 +42,12 @@ var SPECS = {
     id: 'dog', gait: 'quadWalk', views: ['side', 'top'], stride: .6, lift: .08,
     // Pernas de desenho de TV, mas não de dachshund: a parte visível sob o corpo (h − .23) é ~3/4 da do 8d (.46 − .23).
     spine: [{ offset: 0, r: .15, h: .41 }, { offset: .25, r: .14, h: .41 }, { offset: .5, r: .14, h: .42 }],
-    head: { offset: -.2, r: .11, h: .59 },
-    limbs: [
-      { name: 'LF', foot: true, attach: 0, along: .03, side: 1, l1: .22, l2: .24, rest: [0, .12], bend: 1 },
-      { name: 'RF', foot: true, attach: 0, along: .03, side: -1, l1: .22, l2: .24, rest: [0, .12], bend: 1 },
-      { name: 'LH', foot: true, attach: 2, along: -.03, side: 1, l1: .23, l2: .24, rest: [0, .12], bend: 1 },
-      { name: 'RH', foot: true, attach: 2, along: -.03, side: -1, l1: .23, l2: .24, rest: [0, .12], bend: 1 },
+    neck: { at: [.08, -.08] }, head: { offset: -.2, r: .11, h: .59 },
+    limbs: [  // pata: osso l3 do tornozelo (h3 acima do chão) aos dedos
+      { name: 'LF', foot: true, attach: 0, along: .03, side: 1, l1: .22, l2: .19, l3: .07, h3: .05, rest: [0, .12], bend: 1 },
+      { name: 'RF', foot: true, attach: 0, along: .03, side: -1, l1: .22, l2: .19, l3: .07, h3: .05, rest: [0, .12], bend: 1 },
+      { name: 'LH', foot: true, attach: 2, along: -.03, side: 1, l1: .23, l2: .19, l3: .07, h3: .05, rest: [0, .12], bend: 1 },
+      { name: 'RH', foot: true, attach: 2, along: -.03, side: -1, l1: .23, l2: .19, l3: .07, h3: .05, rest: [0, .12], bend: 1 },
     ],
     organic: { nod: .02, flex: .012 },  // cabeça acena e coluna flexiona no ritmo das patas dianteiras
     appendages: [
@@ -87,10 +93,10 @@ var SPECS = {
     id: 'bird', gait: { duty: .45, offsets: { L: 0, R: 0 } }, hop: true, flyer: { freq: 6 }, views: ['side', 'top'], stride: .4, lift: .12,
     organic: { bob: 0, twist: 0 },  // salta: o corpo já sobe e desce com os pés
     spine: [{ offset: 0, r: .17, h: .3 }, { offset: .22, r: .12, h: .32 }],
-    head: { offset: -.2, r: .1, h: .46 },
-    limbs: [
-      { name: 'legL', key: 'L', foot: true, attach: 0, along: -.04, side: 1, l1: .15, l2: .16, rest: [0, .3], bend: 1 },
-      { name: 'legR', key: 'R', foot: true, attach: 0, along: -.04, side: -1, l1: .15, l2: .16, rest: [0, .3], bend: 1 },
+    neck: { at: [.05, -.1] }, head: { offset: -.2, r: .1, h: .46 },
+    limbs: [  // dedos: osso l3 do tornozelo, quase rente ao chão
+      { name: 'legL', key: 'L', foot: true, attach: 0, along: -.04, side: 1, l1: .15, l2: .14, l3: .08, h3: .02, rest: [0, .3], bend: 1 },
+      { name: 'legR', key: 'R', foot: true, attach: 0, along: -.04, side: -1, l1: .15, l2: .14, l3: .08, h3: .02, rest: [0, .3], bend: 1 },
     ],
     appendages: [{ name: 'tail', attach: 1, at: [-.1, -.02], angle: Math.PI + .3, lengths: [.16], motion: { amp: .12, freq: 1.5 } }],
   },

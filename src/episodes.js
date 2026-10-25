@@ -1413,7 +1413,7 @@ AnimationPlatform.registerProject({
 (() => {
   const base = AnimationPlatform.projects['sauva-operaria'], cut = 20, compatibleStyles = ['debug', 'tv', 'palito', 'aquarela', 'flat', 'papel', 'nanquim', 'silhueta'].map(s => 'exp-' + s);
   const storyboard = base.storyboard.filter(s => s.start < cut).map(s => ({ ...s, end: Math.min(s.end, cut), reads: s.reads.filter(r => r.start < cut).map(r => ({ ...r, end: Math.min(r.end, cut) })) }));
-  const scripts = [...['noise', 'path', 'gait', 'creature', 'specs', 'env', 'crowd'].map(f => `src/nature/${f}.js`), 'src/scenes/exp-estilos.js'], common = { style: 'exp-debug', compatibleStyles, scripts, chapters: undefined, reviewTimes: undefined };
+  const scripts = [...['noise', 'path', 'gait', 'creature', 'specs', 'skeleton', 'env', 'crowd'].map(f => `src/nature/${f}.js`), 'src/scenes/exp-estilos.js'], common = { style: 'exp-debug', compatibleStyles, scripts, chapters: undefined, reviewTimes: undefined };
   AnimationPlatform.registerProject({ ...base, ...common, id: 'estilos-a', title: 'Estilos 2D: saúva, 0–20 s', duration: cut, storyboard });
   AnimationPlatform.registerProject({ ...base, ...common, id: 'estilos-h', title: 'Estilos 2D: explorador e formigas', duration: 8, audio: undefined,
     storyboard: [{ id: 'h1', start: 0, end: 8, event: 'Um explorador de mochila anda na trilha, para, se agacha e olha uma fila de formigas, surpreso.', transition: 'corte', reads: [{ start: 0, end: 8, text: '(sem narração)' }] }] });

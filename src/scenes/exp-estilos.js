@@ -30,14 +30,8 @@ var EST = (() => {
       return { id: a.id, kind: 'ant', role: ln.role, layer: ln.layer ?? 1, depth: ln.depth ?? 0, pose, track: ln.path.at(a.s), ground: ln.ground || pathGround(ln.path, a.s), hidden: a.hidden, alpha };
     });
   }
-  // Move a cabeça (e o que está preso nela) depois de creaturePose; da > 0 baixa o olhar (nod() do c01).
-  function nod(p, dx, dy, da) {
-    const hx = p.head.x + p.facing * dx * p.size, hy = p.head.y + dy * p.size, a = p.facing * da, co = Math.cos(a), si = Math.sin(a);
-    const move = ([x, y]) => { x += hx - p.head.x; y += hy - p.head.y; return [hx + (x - hx) * co - (y - hy) * si, hy + (x - hx) * si + (y - hy) * co]; };
-    for (const ap of SPECS[p.spec].appendages) if (ap.attach === 'head') p.appendages[ap.name] = p.appendages[ap.name].map(move);
-    p.head = { x: hx, y: hy, angle: p.head.angle + a };
-    return p;
-  }
+  // Aceno depois de creaturePose: gira pescoço (dn) e cabeça (dh), > 0 baixa o olhar; os ossos não esticam (skeleton.js).
+  const nod = (p, dn, dh) => turnHead(p, dn, dh);
   // Progresso com parada (o modelo de pausa de crowd.js): anda a v BL/s desde t0 e para em ta, com rampa de r s.
   const stopAt = (t, s0, t0, v, ta, r) => s0 + v * (Math.max(t, t0) - t0) - v * pauseLost(t, ta, 1e4, r);
   const speedOf = (f, t) => (f(t + 1 / 60) - f(t - 1 / 60)) * 30;
@@ -111,7 +105,7 @@ var EST = (() => {
       F.actors.push(...people(BACK_2, t));
       const up = anticipate(t, T2 + 2, .12, .2), lean = 1.2 * spring(t, T2 + 1.55, 5, 10), sq = .05 * (spring(t, T2 + 1.6, 6, 14) + spring(t, T2 + 5.6, 7, 16));
       let p = hero(HP2, s, HS2, g2, t, { moving: clamp(v), lean, drag: -1.5 * spring(t, T2 + 1.4, 3, 6), antennae: 'explore', sq });
-      p = nod(p, .01 * up, -.02 * up, -.25 * up + .12 * up * Math.sin(t * 2.3));
+      p = nod(p, -.15 * up, -.2 * up + .12 * up * Math.sin(t * 2.3));
       const k1 = ease(seg(t, T2 + 5.2, T2 + 5.55)), sx = 1 - 2 * k1;
       F.actors.push({ id: 'hero', kind: 'ant', role: 'hero', layer: 1, depth: 0, pose: p, track: HP2.at(s * HS2), ground: g2, flip: Math.sign(sx || 1) * Math.max(.18, Math.abs(sx)) });
       const nk = Math.min(seg(t, NAME, NAME + .4), 1 - seg(t, LEMON - .3, LEMON));
@@ -128,18 +122,20 @@ var EST = (() => {
   const sHum = t => stopAt(t, 1, 0, .7, 2.63, .8), crouch = t => ease(seg(t, 3.7, 4.6)) + .06 * spring(t, 4.6, 6, 12);
   const MOOD = [[0, 'neutral'], [3.2, 'curious', '?'], [5.3, 'surprised', '!']];
   function human(t, gesture) {
-    const k = crouch(t), m = mood(t, MOOD, 3), drop = [.21, .21], H = SPECS.human;
-    const spec = { ...H, spine: H.spine.map((g, i) => ({ ...g, h: g.h - k * drop[i] })), head: { ...H.head, h: H.head.h - k * .23 } };
+    // Agachar: pelve, peito e cabeça descem juntos (.3 BL) e o tronco inclina ~45°; os joelhos dobram na IK e a cabeça segue o pescoço.
+    const k = crouch(t), m = mood(t, MOOD, 3), H = humanSpec('adult'), d = .3 * k;
+    const spec = { ...H, spine: H.spine.map(g => ({ ...g, h: g.h - d })), head: { ...H.head, h: H.head.h - d } };
     const s = sHum(t), v = speedOf(sHum, t) / .7;
-    return creaturePose(spec, { path: HPH, s, size: HSH, ground: gH, t, seed: 3, moving: clamp(v), lean: 1.4 * k, expression: m.expression, blink: m.blink, emote: m.emote, sq: m.sq, gesture });
+    return creaturePose(spec, { path: HPH, s, size: HSH, ground: gH, t, seed: 3, moving: clamp(v), lean: 6 * k, expression: m.expression, blink: m.blink, emote: m.emote, sq: m.sq, gesture });
   }
   function frameH(t) {
     const look = ease(seg(t, 4.3, 5)), k = crouch(t);
-    // Mãos nos joelhos ao agachar: segunda passada com o gesto apontando para o joelho da primeira.
+    // Antes de agachar, o pé de trás dá um passo para junto do da frente (senão o joelho dele desce abaixo do chão); mão no
+    // joelho ao agachar: segunda passada com o pulso no joelho da primeira (a mão sai do pulso, por cima dele).
     let p = human(t);
-    const knee = p.limbs.legL.mid;
-    p = human(t, { limb: 'armL', target: [knee[0] + .02 * HSH, knee[1] - .02 * HSH], k: clamp(1.2 * k) });
-    p = nod(p, .03 * look, .02 * look, .45 * look - .1 * ease(seg(t, 5.3, 5.5)) * (1 - ease(seg(t, 6.2, 7))));
+    const kS = ease(seg(t, 3.35, 3.75)), x1 = p.joints.ankleL[0] - .06 * HSH, lift = .05 * HSH * Math.sin(Math.PI * kS);
+    p = human(t, [{ limb: 'armL', target: p.limbs.legL.mid, k: clamp(1.2 * k) }, { limb: 'legR', target: [x1, gH(x1) - BODY.adult.footH * HSH - lift], k: kS }]);
+    p = nod(p, .25 * look, .4 * look - .1 * ease(seg(t, 5.3, 5.5)) * (1 - ease(seg(t, 6.2, 7))));
     const [cx, cy, z] = kf(t, [[3, [960, 540, 1]], [6.5, [960, 700, 1.45]]]);
     const F = { scene: 'H', shot: 'trail', t, lt: t, cam: { cx, cy, z }, world: { ground: gH, antGround: gA }, texts: [] };
     F.actors = [...people(ANTS_H, t), { id: 'human', kind: 'human', role: 'explorer', gear: ['hat', 'backpack'], layer: 1, depth: 0, pose: p, track: HPH.at(sHum(t) * HSH), ground: gH }];
