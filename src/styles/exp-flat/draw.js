@@ -162,33 +162,44 @@ window.ExpStyle = (() => {
   // cabeça, <membro>.end): o pé, a mão, a cabeça ou o disco da pata cobrem a junta.
   const d2 = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]), unit2 = (a, b) => { const d = d2(a, b) || 1; return [(b[0] - a[0]) / d, (b[1] - a[1]) / d]; };
   const mid = ([a, b]) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  // Larguras em BL por tipo de ser: pescoço, cabeça (fração da meia altura dela) e pata [coxa, canela, pé] (as de lá ×.82;
+  // hind = traseiras do cão, mais grossas).
+  const KW = {
+    ant: { neck: .03, head: .92, leg: [.011, .0077, .0099] }, fly: { neck: .0225, head: .95 }, beetle: { neck: .03, head: .9, leg: [.015, .01, .012] },
+    dog: { neck: .058, head: .8, leg: [.045, .026, .028], hind: [.06, .028, .028] }, bird: { neck: .07, head: 1, leg: [.024, .011, .01] },
+    fish: { neck: .09, head: .9 }, butterfly: { neck: .03, head: 1 },
+  };
+  // Ponta redonda que termina no dedo, com a sola rente: recua r no eixo e sobe r na normal de cima.
+  const sole = (a, b, r) => { const u = unit2(a, b); let n = [u[1], -u[0]]; if (n[1] > 0) n = [-n[0], -n[1]]; return [b[0] - r * (u[0] - n[0]), b[1] - r * (u[1] - n[1])]; };
   function partsOf(a) {
     const p = a.pose, J = p.joints, S = p.size, out = [], part = (name, from, to, pts, r, cap) => out.push({ actor: a.id, name, from, to, pts, r, cap });
     const hl = d2(J.headBase, J.headTop) / 2;
     if (a.kind === 'human') {
-      part('torso', 'pelvis', 'chest', [J.pelvis, J.chest], BODY[p.body || 'adult'].girth * S, 'round');  // topo arredondado chega à base do pescoço
+      const g = BODY[p.body || 'adult'].girth, k = clamp(Math.sqrt(g / .11), .85, 1.25);  // corpo largo, braços e pernas mais grossos
+      part('torso', 'pelvis', 'chest', [J.pelvis, J.chest], g * S, 'butt');  // o ombro (disco de raio r no peito) chega à base do pescoço
       part('neck', 'neck', 'headBase', [J.neck, J.headBase], .028 * S, 'butt');
       part('head', 'headBase', null, [J.headBase, J.headTop], hl, 'round');
       for (const s of ['L', 'R']) {
-        const j = k => J[k + s], hr = .028 * S, hu = unit2(j('wrist'), j('hand')), fr = .032 * S, fu = unit2(j('ankle'), j('toe'));
-        let n = [fu[1], -fu[0]]; if (n[1] > 0) n = [-n[0], -n[1]];  // normal do pé para cima: a sola fica rente ao chão no dedo
-        part('upperArm' + s, 'shoulder' + s, 'elbow' + s, [j('shoulder'), j('elbow')], .036 * S, 'round');
-        part('forearm' + s, 'elbow' + s, 'wrist' + s, [j('elbow'), j('wrist')], .026 * S, 'butt');
+        const j = k => J[k + s], hr = .028 * S, hu = unit2(j('wrist'), j('hand')), fr = .032 * S;
+        part('upperArm' + s, 'shoulder' + s, 'elbow' + s, [j('shoulder'), j('elbow')], .036 * k * S, 'round');
+        part('forearm' + s, 'elbow' + s, 'wrist' + s, [j('elbow'), j('wrist')], .026 * k * S, 'butt');
         part('hand' + s, 'wrist' + s, null, [j('wrist'), [j('hand')[0] - hr * hu[0], j('hand')[1] - hr * hu[1]]], hr, 'round');  // a ponta redonda termina na ponta da mão
-        part('thigh' + s, 'hip' + s, 'knee' + s, [j('hip'), j('knee')], .046 * S, 'round');
-        part('shin' + s, 'knee' + s, 'ankle' + s, [j('knee'), j('ankle')], .038 * S, 'butt');
-        part('foot' + s, 'ankle' + s, null, [j('ankle'), [j('toe')[0] - fr * (fu[0] - n[0]), j('toe')[1] - fr * (fu[1] - n[1])]], fr, 'round');
+        part('thigh' + s, 'hip' + s, 'knee' + s, [j('hip'), j('knee')], .046 * k * S, 'round');
+        part('shin' + s, 'knee' + s, 'ankle' + s, [j('knee'), j('ankle')], .036 * k * S, 'butt');
+        part('foot' + s, 'ankle' + s, null, [j('ankle'), sole(j('ankle'), j('toe'), fr)], fr, 'round');
       }
       return out;
     }
-    const ant = a.kind !== 'fly';
-    part('neck', 'neck', 'headBase', [J.neck, J.headBase], (ant ? .35 : .25) * hl, 'butt');
-    part('head', 'headBase', null, [J.headBase, J.headTop], (ant ? .92 : .95) * hl, 'round');
-    if (ant) for (const [name, l] of Object.entries(p.limbs)) {  // pata: afila para o pé; as de lá mais finas
-      const w = (l.far ? .018 : .022) * S, j = k => `${name}.${k}`;
-      part(j('upper'), j('root'), j('mid'), [J[j('root')], J[j('mid')]], w / 2, 'round');
-      part(j('lower'), j('mid'), j('end'), [J[j('mid')], J[j('end')]], .35 * w, 'butt');
-      part(j('foot'), j('end'), null, [J[j('end')]], .45 * w, 'round');
+    const W = KW[a.kind] || KW.ant;
+    part('neck', 'neck', 'headBase', [J.neck, J.headBase], W.neck * S, 'butt');
+    part('head', 'headBase', null, [J.headBase, J.headTop], W.head * hl, 'round');
+    if (W.leg) for (const [name, l] of Object.entries(p.limbs)) {  // pata: afila para o pé; as de lá mais finas
+      const j = k => `${name}.${k}`, [w1, w2, w3] = (W.hind && /H$/.test(name) ? W.hind : W.leg).map(v => v * S * (l.far ? .82 : 1));
+      if (!J[j('root')]) continue;
+      part(j('upper'), j('root'), j('mid'), [J[j('root')], J[j('mid')]], w1, 'round');
+      part(j('lower'), j('mid'), j('end'), [J[j('mid')], J[j('end')]], w2, 'butt');
+      if (J[j('toe')]) part(j('tip'), j('end'), j('toe'), [J[j('end')], sole(J[j('end')], J[j('toe')], w3)], w3, 'round');
+      else part(j('foot'), j('end'), null, [J[j('end')]], w3, 'round');
     }
     return out;
   }
@@ -250,36 +261,162 @@ window.ExpStyle = (() => {
     if (!mono) wing(1.2, .2);
   }
   const FLYK = { body: P.fly, dk: mixCol(P.fly, P.ink, .5), lt: P.flyLt, leg: mixCol(P.fly, P.ink, .4) };
-  // Explorador em cápsulas: perna e braço de lá, mochila, perna de cá, tronco, cabeça com rosto e chapéu, braço de cá.
-  function human(a, K) {
+  // Normal "de cima" do eixo u de uma cabeça ou corpo de perfil (dir = para onde olha).
+  const upN = (u, dir) => dir > 0 ? [u[1], -u[0]] : [-u[1], u[0]];
+  // Raposa (kind dog): patas de lá, cauda cheia de ponta branca, tronco em cápsula com peito claro, patas de cá (meia
+  // preta), pescoço e cabeça em gota: crânio perto da base e focinho que termina na ponta (joints.headTop), orelhas em pé.
+  const FOXK = { body: '#D9662B', dk: '#A8461E', lt: '#F2A061', white: '#FBF3E4', sock: '#3E2A24', far: '#8E3C1C', eye: P.ink };
+  function dog(a, K) {
+    const p = a.pose, S = p.size, dir = p.facing, Q = byName(a), J = p.joints, mono = K === MONO, L = Object.entries(p.limbs), sp = p.spine;
+    const leg = (n, far) => { stroke(Q[n + '.upper'], far ? K.far : K.body); stroke(Q[n + '.lower'], far ? mixCol(K.sock, P.ink, .3) : K.sock); stroke(Q[n + '.tip'], far ? mixCol(K.sock, P.ink, .3) : K.sock); };
+    for (const [n, l] of L) if (l.far) leg(n, true);
+    const tail = p.appendages.tail;
+    if (tail) { line(tail, K.dk, .1 * S); line(tail.slice(0, -1), K.body, .085 * S); line(tail.slice(-2), K.white, .075 * S); }
+    const pts = sp.map(q => [q.x, q.y]);
+    line(pts, K.dk, 2 * sp[1].r); line(pts.map(([x, y]) => [x - .01 * S, y - .015 * S]), K.body, 1.75 * sp[1].r);
+    ell(sp[0].x + dir * .04 * S, sp[0].y + .05 * S, .1 * S, .08 * S, 0, K.white);  // peito claro
+    if (!mono) line(pts.map(([x, y]) => [x - .02 * S, y - .07 * S]).slice(0, 2), K.lt, .05 * S);
+    for (const [n, l] of L) if (!l.far) leg(n, false);
+    stroke(Q.neck, K.dk); stroke(Q.neck, K.body, .8, -.008 * S, -.008 * S);
+    const [B, T] = Q.head.pts, hl = d2(B, T) / 2, u = unit2(B, T), n = upN(u, dir), r = Q.head.r, at2 = (s, h) => [B[0] + s * u[0] + h * n[0], B[1] + s * u[1] + h * n[1]];
+    const sk = at2(.5 * hl, 0), ear = (k, col) => { c.beginPath(); c.moveTo(...at2(.35 * hl + k, .55 * r)); c.lineTo(...at2(.25 * hl + k, 1.75 * r)); c.lineTo(...at2(.95 * hl + k, .6 * r)); c.closePath(); c.fillStyle = col; c.fill(); };
+    ear(-.25 * hl, K.far);
+    c.beginPath(); c.arc(sk[0], sk[1], r, 0, TAU); c.fillStyle = K.dk; c.fill();
+    c.beginPath(); c.moveTo(...at2(.45 * hl, .95 * r)); c.quadraticCurveTo(...at2(1.4 * hl, .6 * r), ...T); c.quadraticCurveTo(...at2(1.3 * hl, -.55 * r), ...at2(.45 * hl, -.98 * r)); c.closePath(); c.fillStyle = K.body; c.fill();
+    c.beginPath(); c.arc(sk[0], sk[1], .9 * r, 0, TAU); c.fillStyle = K.body; c.fill();
+    c.beginPath(); c.moveTo(...at2(.55 * hl, -.85 * r)); c.quadraticCurveTo(...at2(1.4 * hl, -.45 * r), ...T); c.quadraticCurveTo(...at2(1.3 * hl, -.1 * r), ...at2(.7 * hl, -.15 * r)); c.closePath(); c.fillStyle = K.white; c.fill();  // focinho e bochecha brancos
+    ear(0, K.body); if (!mono) { const e = at2(.62 * hl, .42 * r); ell(e[0], e[1], .2 * r, .12 * r, Math.atan2(u[1], u[0]), K.sock); }  // miolo da orelha
+    const nose = at2(2 * hl - .13 * r, .02 * r); ell(nose[0], nose[1], .13 * r, .11 * r, 0, K.sock);  // a ponta do nariz fica em headTop
+    if (!mono) {
+      const e = at2(.95 * hl, .35 * r), b = clamp(p.face.blink), sur = p.face.expression === 'surprised';
+      if (b > .7) line([[e[0] - .14 * r, e[1]], [e[0] + .14 * r, e[1]]], K.eye, .06 * r);
+      else { ell(e[0], e[1], (sur ? .2 : .16) * r, (sur ? .22 : .13) * r * (1 - b), Math.atan2(u[1], u[0]), K.eye); ell(e[0] - .04 * r, e[1] - .05 * r, .05 * r, .05 * r, 0, '#FFFFFF'); }
+    }
+  }
+  // Pássaro: pernas finas com dedos, cauda em leque, corpo em gota, asa (dobrada no dorso ou batendo no voo), pescoço,
+  // cabeça redonda com bico à frente (quadro do rosto, pose.head.angle) e olho.
+  const BIRDK = { body: '#3E7FB0', dk: '#285C86', lt: '#8CC2E2', belly: '#F4E3BE', wing: '#22506F', beak: '#F2A23A', leg: '#C9773A', eye: P.ink };
+  function bird(a, K) {
+    const p = a.pose, S = p.size, dir = p.facing, Q = byName(a), L = Object.entries(p.limbs), [b0, b1] = p.spine, w = p.wings || { phase: 0, open: 0 }, mono = K === MONO;
+    const leg = (n, far) => { for (const k of ['upper', 'lower', 'tip']) stroke(Q[`${n}.${k}`], far ? mixCol(K.leg, P.ink, .35) : K.leg); };
+    for (const [n, l] of L) if (l.far) leg(n, true);
+    const tail = p.appendages.tail;
+    if (tail) { const [t0, t1] = [tail[0], tail.at(-1)], u = unit2(t0, t1), n = [-u[1], u[0]], s = .05 * S; c.beginPath(); c.moveTo(t0[0], t0[1]); c.lineTo(t1[0] + n[0] * s, t1[1] + n[1] * s); c.lineTo(t1[0] - n[0] * s, t1[1] - n[1] * s); c.closePath(); c.fillStyle = K.wing; c.fill(); }
+    const flap = (k, col) => {  // asa aberta: elipse que gira no ombro com a fase do batimento
+      const ang = -Math.PI / 2 - dir * (.3 + 1.1 * Math.cos(TAU * w.phase)) + k, bx = b0.x - dir * .02 * S, by = b0.y - .08 * S, Lw = .42 * S;
+      ell(bx + Math.cos(ang) * Lw / 2 - dir * .08 * S, by + Math.sin(ang) * Lw / 2, Lw / 2, .09 * S, ang, col);
+    };
+    if (w.open && !mono) flap(.15, K.dk);
+    blob(b1.x, b1.y, b1.r * 1.25, b1.r * .9, b1.angle, K, false);
+    blob(b0.x, b0.y, b0.r * 1.1, b0.r * .95, b0.angle, K);
+    if (!mono) ell(b0.x + dir * .05 * S, b0.y + .07 * S, b0.r * .75, b0.r * .55, 0, K.belly);
+    if (w.open) flap(0, K.wing); else ell(b0.x - dir * .07 * S, b0.y - .02 * S, .17 * S, .08 * S, dir * -.25, K.wing);  // asa dobrada no dorso
+    for (const [n, l] of L) if (!l.far) leg(n, false);
+    stroke(Q.neck, K.dk); stroke(Q.neck, K.body, .85);
+    const [hx, hy] = mid(Q.head.pts), r = Q.head.r;
+    blob(hx, hy, r, r, 0, K);
+    local(hx, hy, p.head.angle, dir, () => {
+      c.beginPath(); c.moveTo(.75 * r, -.25 * r); c.lineTo(1.65 * r, .05 * r); c.lineTo(.8 * r, .3 * r); c.closePath(); c.fillStyle = K.beak; c.fill();
+      if (!mono) { const b = clamp(p.face.blink); if (b > .7) line([[.15 * r, -.15 * r], [.45 * r, -.15 * r]], K.eye, .08 * r); else { ell(.3 * r, -.15 * r, .16 * r, .16 * r * (1 - b), 0, K.eye); ell(.25 * r, -.21 * r, .05 * r, .05 * r, 0, '#FFFFFF'); } }
+    });
+  }
+  // Peixe: contorno pelos raios da coluna (dorso escuro, ventre claro), nadadeira caudal em V, peitoral, cabeça oval com olho.
+  const FISHK = { body: '#7FAEC0', dk: '#3F6E86', lt: '#D8ECF0', belly: '#E8F2EE', fin: '#5E8FA6', eye: P.ink };
+  function fish(a, K) {
+    const p = a.pose, S = p.size, dir = p.facing, Q = byName(a), sp = p.spine, mono = K === MONO, ap = p.appendages;
+    if (ap.caudal) { const [t0, t1] = [ap.caudal[0], ap.caudal.at(-1)], u = unit2(t0, t1), n = [-u[1], u[0]], s = .13 * S; c.beginPath(); c.moveTo(t0[0], t0[1]); c.lineTo(t1[0] + n[0] * s + u[0] * .04 * S, t1[1] + n[1] * s + u[1] * .04 * S); c.lineTo(t1[0] - .03 * S * u[0], t1[1] - .03 * S * u[1]); c.lineTo(t1[0] - n[0] * s + u[0] * .04 * S, t1[1] - n[1] * s + u[1] * .04 * S); c.closePath(); c.fillStyle = K.fin; c.fill(); }
+    const side = k => sp.map((q, i) => { const A = sp[i - 1] || q, B = sp[i + 1] || q, u = unit2([B.x, B.y], [A.x, A.y]), nn = upN(u, 1); return [q.x + k * q.r * nn[0], q.y + k * q.r * nn[1]]; });
+    const hull = (k, col, dy = 0) => { const top = side(k), bot = side(-k).reverse(); c.beginPath(); [...top, ...bot].forEach(([x, y], i) => i ? c.lineTo(x, y + dy) : c.moveTo(x, y + dy)); c.closePath(); c.fillStyle = col; c.fill(); for (const q of sp) ell(q.x, q.y + dy, q.r * k, q.r * k, 0, col); };
+    hull(1, K.dk); hull(.88, K.body, .02 * S);
+    if (!mono) { const bl = side(-.55); line(bl.slice(0, 4), K.belly, .09 * S); line(side(.45).slice(0, 4), K.lt, .03 * S); }
+    if (ap.pectoral) line(ap.pectoral, K.fin, .05 * S);
+    stroke(Q.neck, K.dk);
+    headBlob(Q.head, K, !mono);
+    if (!mono) { const [B, T] = Q.head.pts, u = unit2(B, T), n = upN(u, dir), hl = d2(B, T) / 2, e = [B[0] + 1.25 * hl * u[0] + .3 * Q.head.r * n[0], B[1] + 1.25 * hl * u[1] + .3 * Q.head.r * n[1]]; ell(e[0], e[1], .22 * Q.head.r, .22 * Q.head.r, 0, '#FFFFFF'); ell(e[0] + .04 * hl * u[0], e[1] + .04 * hl * u[1], .12 * Q.head.r, .12 * Q.head.r, 0, K.eye); }
+  }
+  // Borboleta: asa de lá, corpo fino (tórax e abdome em cápsula), pescoço, cabeça, antenas com ponta, asa de cá; as asas
+  // giram no tórax com a fase do batimento (pose.wings).
+  const BFLYK = { body: '#3A3346', dk: '#241F2E', lt: '#6E6680', wing: '#4FA3D9', wingDk: '#2B6E9E', spot: '#F4E3BE', far: '#3B7FAE' };
+  function butterfly(a, K) {
+    const p = a.pose, S = p.size, dir = p.facing, Q = byName(a), [th, ab] = p.spine, w = p.wings || { phase: 0, open: 1 }, mono = K === MONO;
+    const wing = (col, edge, k) => {
+      const ang = -Math.PI / 2 - dir * (.15 + .75 * Math.cos(TAU * w.phase)) + dir * k, s = .55 * S;
+      for (const [L, wd, off, cl] of [[s, .3 * S, 0, col], [.7 * s, .24 * S, .55, edge]]) {
+        const a2 = ang - dir * off, cx = th.x + Math.cos(a2) * L / 2, cy = th.y + Math.sin(a2) * L / 2;
+        ell(cx, cy, L / 2, wd / 2, a2, cl);
+        if (!mono && cl === col) { ell(cx + Math.cos(a2) * L * .28, cy + Math.sin(a2) * L * .28, .07 * S, .05 * S, a2, K.wingDk); ell(cx + Math.cos(a2) * L * .3, cy + Math.sin(a2) * L * .3, .03 * S, .03 * S, 0, K.spot); }
+      }
+    };
+    wing(mono ? K.dk : K.far, mono ? K.dk : K.wingDk, .25);
+    line([[th.x, th.y], [ab.x, ab.y]], K.body, .1 * S); ell(th.x, th.y, th.r, th.r * .9, 0, K.body);
+    stroke(Q.neck, K.body); headBlob(Q.head, K, false);
+    for (const ap of Object.values(p.appendages)) { line(ap, K.dk, .015 * S); const e = ap.at(-1); ell(e[0], e[1], .025 * S, .025 * S, 0, K.dk); }
+    wing(K.wing, K.wingDk, 0);
+  }
+  // Besouro: patas de lá, élitros em cúpula (costura e realce), pronoto, patas de cá, pescoço, cabeça e antenas.
+  const BEETK = { body: '#2F6E5A', dk: '#1B3F36', lt: '#8FD4B0', leg: '#1F2430', far: '#141820', eye: '#E8F2EE' };
+  function beetle(a, K) {
+    const p = a.pose, S = p.size, Q = byName(a), [pr, el] = p.spine, L = Object.entries(p.limbs), mono = K === MONO;
+    const leg = (n, col) => { for (const k of ['upper', 'lower', 'foot']) stroke(Q[`${n}.${k}`], col); };
+    for (const [n, l] of L) if (l.far) leg(n, K.far);
+    blob(el.x, el.y, el.r * 1.15, el.r * .85, el.angle, K);
+    if (!mono) line([[el.x - Math.cos(el.angle) * el.r, el.y - Math.sin(el.angle) * el.r - .05 * S], [el.x + Math.cos(el.angle) * el.r, el.y + Math.sin(el.angle) * el.r - .05 * S]], K.dk, .012 * S);
+    for (const [n, l] of L) if (!l.far) leg(n, K.leg);
+    stroke(Q.neck, K.dk);
+    blob(pr.x, pr.y, pr.r * 1.2, pr.r * .9, pr.angle, K);
+    headBlob(Q.head, K, false);
+    if (!mono) { const [hx, hy] = mid(Q.head.pts); ell(hx + p.facing * .3 * Q.head.r, hy - .2 * Q.head.r, .22 * Q.head.r, .22 * Q.head.r, 0, K.eye); }
+    for (const ap of Object.values(p.appendages)) line(ap, K.leg, .012 * S);
+  }
+  // Roupas de cada pessoa de P (o explorador de H usa a paleta); shorts = canela de pele; hair = cor do cabelo.
+  const OUTFIT = {
+    corredor: { shirt: '#3E8FB0', shirtDk: '#2A6A86', pants: '#2A3F52', pantsDk: '#1E2E3C', boot: '#E9E4D8', skin: '#C68A5E', skinDk: '#A06A44', hair: '#2A1E1A', shorts: 1 },
+    marta: { shirt: '#B5536B', shirtDk: '#8A3A50', pants: '#4A3A5A', pantsDk: '#352A42', boot: '#3A2A2E', skin: '#8D5A3B', skinDk: '#6E4229', hair: '#1E1614' },
+    joao: { shirt: '#5E9C84', shirtDk: '#3F7A64', pants: '#3D5A73', pantsDk: '#2A3F52', boot: '#5A3A2E', skin: '#F0B48A', skinDk: '#D08A64', hair: '#7A4A2A' },
+    lia: { shirt: '#E8D29A', shirtDk: '#C2A866', pants: '#6E4A6E', pantsDk: '#523652', boot: '#3D3340', skin: '#F3C9A5', skinDk: '#D6A07A', hair: '#B5652E' },
+    bia: { shirt: '#E07A5F', shirtDk: '#B85A42', pants: '#3D5A73', pantsDk: '#2A3F52', boot: '#D8603E', skin: '#C68A5E', skinDk: '#A06A44', hair: '#2A1E1A' },
+    avo: { shirt: '#8C9DA6', shirtDk: '#677A84', pants: '#5A4A3E', pantsDk: '#45382E', boot: '#3A2A22', skin: '#F0B48A', skinDk: '#D08A64', hair: '#E8E4DC' },
+  };
+  const OK = new Map(), outfit = id => { if (!OK.has(id)) OK.set(id, { ...P, ...OUTFIT[id] }); return OK.get(id); };
+  // Pessoa em cápsulas: perna e braço de lá, mochila, perna de cá, quadril, tronco, pescoço, cabeça com rosto e cabelo (ou
+  // chapéu), braço de cá. mode: 'all' (sombra), 'body' (sem os membros de actor.front) ou 'front' (só eles, por cima do outro).
+  function human(a, K, mode = 'all') {
     const p = a.pose, S = p.size, dir = p.facing, J = p.joints, Q = byName(a), R = Q.head.r, [hx, hy] = mid(Q.head.pts), mono = K === MONO, Ls = Object.entries(p.limbs);
-    const ch = { x: J.chest[0], y: J.chest[1] }, pv = { x: J.pelvis[0], y: J.pelvis[1] };
-    const leg = (s, far) => { stroke(Q['thigh' + s], far ? K.pantsDk : K.pants); stroke(Q['shin' + s], far ? K.pantsDk : K.pants); stroke(Q['foot' + s], far ? mixCol(K.boot, P.ink, .4) : K.boot); };
+    const ch = { x: J.chest[0], y: J.chest[1] }, pv = { x: J.pelvis[0], y: J.pelvis[1] }, gear = a.gear || [], T = Q.torso, g = T.r, hat = gear.includes('hat');
+    const leg = (s, far) => { stroke(Q['thigh' + s], far ? K.pantsDk : K.pants); stroke(Q['shin' + s], K.shorts ? (far ? K.skinDk : K.skin) : far ? K.pantsDk : K.pants); stroke(Q['foot' + s], far ? mixCol(K.boot, P.ink, .4) : K.boot); };
     const arm = (s, far) => { stroke(Q['upperArm' + s], far ? K.shirtDk : K.shirt); stroke(Q['forearm' + s], far ? K.skinDk : K.skin); stroke(Q['hand' + s], far ? K.skinDk : K.skin); };
-    for (const [n, l] of Ls) if (l.far) (l.foot ? leg : arm)(n.slice(-1), true);
-    // mochila nas costas
-    const ta = Math.atan2(ch.y - pv.y, ch.x - pv.x) + Math.PI / 2;  // inclinação do tronco: a mochila acompanha
-    local(ch.x, ch.y, ta, 1, () => {  // colada às costas: a borda da frente entra sob o tronco
-      const bx = -dir * .16 * S;
-      c.beginPath(); c.roundRect(bx - .075 * S, -.07 * S, .15 * S, .27 * S, .045 * S); c.fillStyle = K.packDk; c.fill();
-      c.beginPath(); c.roundRect(bx - .07 * S - dir * .012 * S, -.08 * S, .14 * S, .25 * S, .04 * S); c.fillStyle = K.pack; c.fill();
-      c.beginPath(); c.roundRect(bx - dir * .03 * S - .04 * S, .07 * S, .08 * S, .08 * S, .02 * S); c.fillStyle = K.packDk; c.fill();
+    const front = new Set(mode === 'all' ? [] : a.front || []);
+    if (mode === 'front') { for (const n of front) arm(n.slice(-1), p.limbs[n].far); return; }
+    for (const [n, l] of [...Ls].sort((u, v) => u[1].foot - v[1].foot)) if (l.far && !front.has(n)) (l.foot ? leg : arm)(n.slice(-1), true);  // o braço de lá fica atrás da perna de lá
+    const ta = Math.atan2(ch.y - pv.y, ch.x - pv.x) + Math.PI / 2;  // quadro do tronco: x para a frente (dir), y desce para a pelve
+    if (gear.includes('backpack')) local(ch.x, ch.y, ta, 1, () => {  // colada às costas, do ombro à cintura: a borda da frente entra sob o tronco
+      const bx = -dir * (g + .045 * S), L = d2(J.chest, J.pelvis);
+      c.beginPath(); c.roundRect(bx - .075 * S, -.04 * S, .15 * S, L + .02 * S, .045 * S); c.fillStyle = K.packDk; c.fill();
+      c.beginPath(); c.roundRect(bx - .07 * S - dir * .012 * S, -.05 * S, .14 * S, L, .04 * S); c.fillStyle = K.pack; c.fill();
+      c.beginPath(); c.roundRect(bx - dir * .03 * S - .04 * S, .45 * L, .08 * S, .08 * S, .02 * S); c.fillStyle = K.packDk; c.fill();
     });
     for (const [n, l] of Ls) if (!l.far && l.foot) leg(n.slice(-1), false);
-    stroke(Q.torso, K.shirtDk); stroke(Q.torso, K.shirt, .86, -.011 * S, -.011 * S);
-    ell(pv.x, pv.y + .03 * S, .1 * S, .065 * S, 0, K.pants);
-    line([[pv.x - .1 * S, pv.y - .025 * S], [pv.x + .1 * S, pv.y - .025 * S]], K.boot, .022 * S);
-    local(ch.x, ch.y, ta, 1, () => {  // alça sobre o ombro, da mochila ao peito, e a da cintura
-      c.beginPath(); c.moveTo(-dir * .1 * S, -.06 * S); c.quadraticCurveTo(-dir * .02 * S, -.15 * S, dir * .06 * S, -.06 * S); c.quadraticCurveTo(dir * .09 * S, .04 * S, dir * .05 * S, .13 * S);
+    // Quadril: meia elipse da calça sob a pelve (o tronco cobre a metade de cima; embaixo para rente à coxa e ao assento).
+    local(pv.x, pv.y, ta, 1, () => ell(0, 0, .92 * g, .05 * S, 0, K.pants));
+    // Tronco: faixa do peito à pelve com o ombro redondo em cima (disco de raio r no peito), sombra e cor por dentro.
+    stroke(T, K.shirtDk); ell(ch.x, ch.y, g, g, 0, K.shirtDk);
+    stroke(T, K.shirt, .86, -.011 * S, -.011 * S); ell(ch.x - .011 * S, ch.y - .011 * S, .86 * g, .86 * g, 0, K.shirt);
+    local(pv.x, pv.y, ta, 1, () => line([[-.9 * g, -.012 * S], [.9 * g, -.012 * S]], K.pantsDk, .022 * S));  // cinto
+    if (gear.includes('backpack')) local(ch.x, ch.y, ta, 1, () => {  // alça sobre o ombro, da mochila ao peito
+      c.beginPath(); c.moveTo(-dir * .7 * g, -.04 * S); c.quadraticCurveTo(-dir * .1 * g, -1.05 * g, dir * .55 * g, -.4 * g); c.quadraticCurveTo(dir * .8 * g, .3 * g, dir * .5 * g, 1.1 * g);
       c.strokeStyle = K.packDk; c.lineWidth = .026 * S; c.lineCap = 'round'; c.stroke();
-      line([[-dir * .09 * S, .17 * S], [dir * .06 * S, .19 * S]], K.packDk, .02 * S);
     });
     stroke(Q.neck, K.skinDk);
     if (p.appendages.hair) line(p.appendages.hair, K.hair, .05 * S);
     local(hx, hy, p.head.angle, dir, () => {
       ell(0, 0, R, R, 0, K.skinDk); ell(-.05 * R, -.06 * R, R * .93, R * .93, 0, K.skin);
+      if (!hat) {  // cabelo: calota atrás e em cima, com franja curta
+        c.beginPath(); c.arc(0, 0, R * 1.04, Math.PI * .62, Math.PI * 1.72); c.quadraticCurveTo(.2 * R, -.55 * R, -.25 * R, -.35 * R); c.quadraticCurveTo(-.45 * R, .1 * R, -.42 * R, .7 * R); c.closePath();
+        c.fillStyle = K.hair; c.fill();
+      }
       ell(-.2 * R, .08 * R, .15 * R, .2 * R, 0, K.skinDk);  // orelha
-      if (!mono) face(p, R);
+      if (!mono) face(p, R, K);
+      if (!hat) return;
       // chapéu de explorador: copa, faixa e aba
       const jolt = p.face.expression === 'surprised' ? clamp(p.emote ? p.emote.k : 1, 0, 1.3) : 0;  // susto: o chapéu salta e inclina para trás
       c.translate(-.6 * R, -(.5 + .35 * jolt) * R); c.rotate(-.32 * jolt); c.translate(.6 * R, .5 * R);
@@ -288,24 +425,32 @@ window.ExpStyle = (() => {
       ell(.05 * R, -.5 * R, 1.42 * R, .19 * R, 0, K.hatDk);
       if (!mono) ell(-.45 * R, -1.02 * R, .3 * R, .14 * R, -.4, '#F2E2B8');
     });
-    for (const [n, l] of Ls) if (!l.far && !l.foot) arm(n.slice(-1), false);
+    for (const [n, l] of Ls) if (!l.far && !l.foot && !front.has(n)) arm(n.slice(-1), false);
     if (p.emote && !mono) emote(p, .1 * S);  // selo no tamanho de antes da cabeça do esqueleto
   }
-  // Rosto no quadro local da cabeça (x para a frente): olhos de ponto, sobrancelhas, nariz, bochecha e boca por expressão.
-  function face(p, R) {
-    const e = p.face.expression, b = clamp(p.face.blink), sur = e === 'surprised', cur = e === 'curious';
-    ell(.95 * R, .14 * R, .13 * R, .12 * R, 0, P.skinDk);  // nariz
-    ell(.55 * R, .3 * R, .14 * R, .1 * R, 0, rgba('#F08A7A', .45));
+  // Rosto no quadro local da cabeça (x para a frente): olhos de ponto, sobrancelhas, nariz, bochecha e boca por expressão;
+  // na fala, a boca da sílaba (pose.face.mouth: m fechada, e pequena, a aberta, o redonda). happy = olhos em arco.
+  function face(p, R, K) {
+    const e = p.face.expression, b = clamp(p.face.blink), sur = e === 'surprised', cur = e === 'curious', hap = e === 'happy', mo = p.face.mouth, lip = '#6A2B2B';
+    ell(.95 * R, .14 * R, .13 * R, .12 * R, 0, K.skinDk);  // nariz
+    ell(.55 * R, .3 * R, .14 * R, .1 * R, 0, rgba('#F08A7A', hap ? .7 : .45));
     for (const [ex, ey, k, near] of [[.4 * R, -.06 * R, 1, true], [.78 * R, -.08 * R, .78, false]]) {
       if (b > .7) line([[ex - .08 * R * k, ey], [ex + .08 * R * k, ey]], P.ink, .045 * R);
       else if (sur) { ell(ex, ey - .04 * R, .2 * R * k, .25 * R * k * (1 - b), 0, '#FFFFFF'); ell(ex + .04 * R, ey - .04 * R, .07 * R * k, .08 * R * k * (1 - b), 0, P.ink); }
+      else if (hap) { c.beginPath(); c.moveTo(ex - .1 * R * k, ey + .03 * R); c.quadraticCurveTo(ex, ey - .12 * R, ex + .1 * R * k, ey + .03 * R); c.strokeStyle = P.ink; c.lineWidth = .055 * R; c.lineCap = 'round'; c.stroke(); }
       else ell(ex, ey, .075 * R * k, .1 * R * k * (1 - b), 0, P.ink);
-      const lift = sur ? .36 : cur && near ? .15 : 0, tilt = cur && near ? -.06 : sur ? -.03 : .02;
-      line([[ex - .11 * R * k, -.3 * R - lift * R + tilt * R], [ex + .11 * R * k, -.32 * R - lift * R - tilt * R]], P.hair, .055 * R);
+      const lift = sur ? .36 : hap ? .1 : cur && near ? .15 : 0, tilt = cur && near ? -.06 : sur ? -.03 : .02;
+      line([[ex - .11 * R * k, -.3 * R - lift * R + tilt * R], [ex + .11 * R * k, -.32 * R - lift * R - tilt * R]], mixCol(K.hair, P.ink, .45), .055 * R);
     }
-    if (sur) ell(.6 * R, .5 * R, .1 * R, .14 * R, 0, '#6A2B2B');
-    else if (cur) ell(.62 * R, .48 * R, .06 * R, .05 * R, 0, '#6A2B2B');
-    else { c.beginPath(); c.moveTo(.45 * R, .45 * R); c.quadraticCurveTo(.6 * R, .52 * R, .72 * R, .44 * R); c.strokeStyle = '#6A2B2B'; c.lineWidth = .05 * R; c.stroke(); }
+    const mx = .6 * R, my = .47 * R;
+    if (mo === 'm') line([[mx - .1 * R, my], [mx + .1 * R, my]], lip, .05 * R);
+    else if (mo === 'e') ell(mx, my, .13 * R, .05 * R, 0, lip);
+    else if (mo === 'a') { ell(mx, my + .02 * R, .12 * R, .13 * R, 0, lip); ell(mx, my + .09 * R, .07 * R, .04 * R, 0, '#E07A7A'); }
+    else if (mo === 'o') ell(mx, my + .01 * R, .07 * R, .09 * R, 0, lip);
+    else if (sur) ell(mx, my + .03 * R, .1 * R, .14 * R, 0, lip);
+    else if (cur) ell(mx + .02 * R, my, .06 * R, .05 * R, 0, lip);
+    else if (hap) { c.beginPath(); c.moveTo(mx - .17 * R, my - .04 * R); c.quadraticCurveTo(mx, my + .26 * R, mx + .15 * R, my - .05 * R); c.closePath(); c.fillStyle = lip; c.fill(); }
+    else { c.beginPath(); c.moveTo(mx - .15 * R, my - .02 * R); c.quadraticCurveTo(mx, my + .05 * R, mx + .12 * R, my - .03 * R); c.strokeStyle = lip; c.lineWidth = .05 * R; c.lineCap = 'round'; c.stroke(); }
   }
   // Emote em selo redondo chapado ao lado do chapéu, com mola de escala.
   function emote(p, R) {
@@ -317,31 +462,36 @@ window.ExpStyle = (() => {
     c.fillStyle = '#FFFFFF'; c.font = `700 ${1.3 * r}px "Segoe UI", Arial, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(sym, x, y + .06 * r);
     c.restore();
   }
-  // Um ator: câmera da camada, sombra (mono), virada, achatar/esticar a partir dos pés.
-  function actor(a, F, mono) {
+  // Um ator: câmera da camada, sombra (mono), virada (só A). O corpo não se deforma por pose.sq (mudaria os ossos).
+  // front = só os membros de actor.front, por cima de quem está à frente.
+  const BEAST = { dog: [dog, FOXK], bird: [bird, BIRDK], fish: [fish, FISHK], butterfly: [butterfly, BFLYK], beetle: [beetle, BEETK] };
+  function actor(a, F, mono, front = false) {
     const p = a.pose; at(a.layer);
     c.save();
     if (mono) skew(a.gy);
     if (a.flip) { const m = (p.spine[0].x + p.spine.at(-1).x) / 2; c.translate(m, 0); c.scale(a.flip, 1); c.translate(-m, 0); }
-    if (p.sq) { const fs = Object.values(p.limbs).filter(l => l.foot), x = (p.spine[0].x + p.spine.at(-1).x) / 2, y = fs.length ? Math.max(...fs.map(l => l.end[1])) : p.spine[0].y; c.translate(x, y); c.scale(1 + .5 * p.sq, 1 - p.sq); c.translate(-x, -y); }
     c.globalAlpha = a.alpha ?? 1;
-    if (a.kind === 'human') human(a, mono ? MONO : P);
+    if (a.kind === 'human') human(a, mono ? MONO : OUTFIT[a.id] ? outfit(a.id) : P, front ? 'front' : mono ? 'all' : 'body');
     else if (a.kind === 'fly') fly(a, mono ? MONO : a.layer < 1 ? hazed(FLYK, .3) : FLYK);
+    else if (BEAST[a.kind]) BEAST[a.kind][0](a, mono ? MONO : BEAST[a.kind][1]);
     else {
       const under = a.role === 'tunnel' || a.role === 'garden';
       ant(a, mono ? MONO : antPal(a.role === 'hero', under ? P.cave : P.haze, under ? .12 : Math.round((1 - a.layer) * 10) / 10 * .7));
     }
     c.restore();
   }
-  // Grupo de atores: sombras longas de quem pisa o chão, depois os corpos.
-  function group(F, list) {
+  // Grupo de atores: sombras longas de quem pisa o chão (e dos adereços), depois corpos e adereços por profundidade (o
+  // adereço antes do ator de mesma profundidade) e, por último, os braços de actor.front. prop = {depth, draw, shadow?, gy?}.
+  function group(F, list, props = []) {
     list = list.filter(a => !a.hidden);
-    const cast = list.filter(a => a.kind !== 'fly' && a.ground && a.role !== 'tunnel' && a.role !== 'garden');
+    const cast = list.filter(a => a.ground && a.kind !== 'fly' && a.kind !== 'fish' && a.kind !== 'butterfly' && !(a.kind === 'bird' && a.air) && a.role !== 'tunnel' && a.role !== 'garden');
     for (const a of cast) { const p = a.pose; a.gy = a.ground((p.spine[0].x + p.spine.at(-1).x) / 2); }
-    if (cast.length) shade(cast.map(a => () => actor(a, F, true)));
-    for (const a of list) actor(a, F, false);
+    const sh = [...props.filter(q => q.shadow).map(q => () => { at(1); skew(q.gy); q.shadow(); }), ...cast.map(a => () => actor(a, F, true))];
+    if (sh.length) shade(sh);
+    const items = [...props.map(q => ({ layer: 1, depth: q.depth, draw: () => { at(1); q.draw(); } })), ...list.map(a => ({ layer: a.layer ?? 1, depth: a.depth || 0, draw: () => actor(a, F, false) }))];
+    items.sort((u, v) => u.layer - v.layer || u.depth - v.depth).forEach(i => i.draw());
+    for (const a of list) if (a.front) actor(a, F, false, true);
   }
-
   // Partículas (1/3 da densidade antiga): pólen só junto do capim da superfície; esporos só dentro e em volta das
   // câmaras. Posição pura de t e da câmera.
   function motes(F) {
@@ -370,13 +520,166 @@ window.ExpStyle = (() => {
     c.globalAlpha = 1;
   }
 
+  // ---------- P (praça) e N (lago) ----------
+  const SHK = new Proxy({}, { get: () => '#16304A' });  // sombra chapada dos adereços
+  // Cidade ao longe (camada f): blocos chapados na névoa com janelas em grade, por semente da coluna.
+  function city(f, base) {
+    at(f); const [x0, x1] = span(f), col = mixCol(P.far, P.haze, .5), win = mixCol(P.haze, '#FFFFFF', .4);
+    for (let i = Math.floor(x0 / 150); i * 150 < x1; i++) {
+      const w = 95 + 50 * hash(i * 3 + 1), h = 150 + 260 * hash(i * 5 + 2), x = i * 150 + 30 * hash(i);
+      c.fillStyle = col; c.fillRect(x, base - h, w, h + 300);
+      c.fillStyle = win; for (let y = base - h + 22; y < base - 30; y += 36) for (let u = x + 14; u < x + w - 16; u += 28) c.fillRect(u, y, 10, 16);
+    }
+  }
+  // Poste: base, haste, braço curvo e luminária com luz quente (fonte de luz: brilho fraco de dia).
+  function lamp({ x, y, h, seed }, K) {
+    c.fillStyle = K.post; c.beginPath(); c.roundRect(x - .022 * h, y - .05 * h, .044 * h, .05 * h, 4); c.fill();
+    c.fillRect(x - .009 * h, y - h, .018 * h, h);
+    c.beginPath(); c.moveTo(x, y - h); c.quadraticCurveTo(x, y - 1.06 * h, x + .08 * h, y - 1.05 * h); c.strokeStyle = K.post; c.lineWidth = .014 * h; c.lineCap = 'round'; c.stroke();
+    c.beginPath(); c.moveTo(x + .05 * h, y - 1.06 * h); c.lineTo(x + .13 * h, y - 1.06 * h); c.lineTo(x + .115 * h, y - 1.02 * h); c.lineTo(x + .065 * h, y - 1.02 * h); c.closePath(); c.fill();
+    if (K === SHK) return;
+    ell(x + .09 * h, y - 1.01 * h, .025 * h, .014 * h, 0, '#FFE7A8'); glow(x + .09 * h, y - 1.0 * h, .12 * h, '#FFD27A', .25);
+  }
+  const LAMPK = { post: '#3D4756' };
+  // Banco de perfil: pés de ferro, assento de ripa com topo em seatY e encosto na ponta de trás (bench.back).
+  function bench(b, gy, K) {
+    const x0 = b.x - b.w / 2, th = .1 * b.w, xb = b.x + b.back * b.w / 2, pw = .06 * b.w;
+    c.fillStyle = K.iron;
+    for (const lx of [x0 + .1 * b.w, x0 + .9 * b.w]) c.fillRect(lx - pw / 2, b.seatY, pw, gy - b.seatY);
+    c.beginPath(); c.moveTo(xb - pw / 2, b.seatY + th); c.lineTo(xb + b.back * .06 * b.w - pw / 2, b.seatY - b.backH); c.lineTo(xb + b.back * .06 * b.w + pw / 2, b.seatY - b.backH); c.lineTo(xb + pw / 2, b.seatY + th); c.closePath(); c.fill();
+    c.fillStyle = K.wood; c.beginPath(); c.roundRect(x0 - .04 * b.w, b.seatY, 1.08 * b.w, th, th / 2); c.fill();
+    for (const k of [.35, .75]) { c.beginPath(); c.roundRect(xb + b.back * .04 * b.w * k - .07 * b.w, b.seatY - b.backH * k - .05 * b.w, .14 * b.w, .1 * b.w, .05 * b.w); c.fill(); }
+    if (K === SHK) return;
+    c.fillStyle = K.woodLt; c.fillRect(x0, b.seatY + .015 * b.w, b.w, .025 * b.w);
+  }
+  const BENCHK = { iron: '#3D4756', wood: '#B07A4A', woodLt: '#D8A26A' };
+  // Chafariz: bacia de pedra, água na bacia, pedestal com prato e jatos em arco; gotas descem pelo arco (puras de t).
+  function fountain({ x, y, r }, t, K) {
+    const st = K.stone, top = y - .32 * r;
+    if (K !== SHK) { c.fillStyle = 'rgba(143,208,224,.9)'; c.fillRect(x - .9 * r, top - .03 * r, 1.8 * r, .06 * r); }
+    c.fillStyle = st; c.fillRect(x - .07 * r, y - .78 * r, .14 * r, .5 * r);
+    c.beginPath(); c.ellipse(x, y - .78 * r, .3 * r, .1 * r, 0, 0, Math.PI); c.fill();
+    if (K !== SHK) {
+      const jet = (sd, s) => { c.beginPath(); c.moveTo(x, y - .86 * r); c.quadraticCurveTo(x + s * .35 * r, y - 1.25 * r, x + s * .72 * r, top); c.strokeStyle = 'rgba(200,236,244,.85)'; c.lineWidth = .03 * r; c.stroke();
+        for (let i = 0; i < 5; i++) { const u = frac(t * .9 + i / 5 + sd), q = 1 - u, px = q * q * x + 2 * q * u * (x + s * .35 * r) + u * u * (x + s * .72 * r), py = q * q * (y - .86 * r) + 2 * q * u * (y - 1.25 * r) + u * u * top; ell(px, py, .022 * r, .022 * r, 0, '#E8F8FC'); } };
+      jet(0, 1); jet(.5, -1);
+      line([[x, y - .86 * r], [x, y - (1.15 + .05 * Math.sin(t * 3)) * r]], 'rgba(220,244,250,.9)', .05 * r);
+    }
+    c.fillStyle = st; c.beginPath(); c.roundRect(x - r, top, 2 * r, .32 * r, .05 * r); c.fill();
+    if (K === SHK) return;
+    c.fillStyle = K.stoneLt; c.fillRect(x - r, top, 2 * r, .05 * r);
+    c.fillStyle = K.stoneDk; c.fillRect(x + .55 * r, top + .05 * r, .45 * r, .27 * r);
+  }
+  const STONEK = { stone: '#B4BEC2', stoneLt: '#DCE3E4', stoneDk: '#97A3A8' };
+  // Flor: no chão, deitada (caule para trás); na mão, o punho segura o caule e a flor sobe acima dele (k de 0 a 1 em .3 s).
+  function flower(it, t, grab) {
+    const r = it.r, k = it.held ? ease(seg(t, grab, grab + .3)) : 0, bx = it.x, by = it.y - 2.2 * r * k, e = lerp2([it.x - 1.8 * r, it.y + r], [it.x + .2 * r, it.y + 1.1 * r], k);
+    line([[bx, by], e], P.leafDk, .3 * r);
+    for (let i = 0; i < 5; i++) { const a = i / 5 * TAU + .3; ell(bx + Math.cos(a) * .55 * r, by + Math.sin(a) * .55 * r, .5 * r, .5 * r, 0, '#E86A9A'); }
+    ell(bx, by, .38 * r, .38 * r, 0, '#FFD45A');
+  }
+  const lerp2 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
+  // Plantas da margem: árvore, flor, capim e taboa (caule, folhas e espiga), balançando por ruído.
+  const FLOWC = ['#F2C14E', '#E86A9A', '#FBF6EA', '#B98BE0'];
+  function plant(q, t) {
+    const { x, y, h, seed } = q, sw = .07 * noise1(seed, t * .6);
+    if (q.kind === 'tree') return tree(x, y + 4, h, TREE, seed);
+    const blade = (a, hh, col, w) => { const tx = x + hh * Math.sin(a + sw), ty = y - hh * Math.cos(a + sw); c.beginPath(); c.moveTo(x - w, y); c.quadraticCurveTo(x + (tx - x) * .3, y - (y - ty) * .6, tx, ty); c.quadraticCurveTo(x + (tx - x) * .5, y - (y - ty) * .4, x + w, y); c.fillStyle = col; c.fill(); };
+    if (q.kind === 'grass') { for (const [a, k] of [[-.4, .7], [-.12, 1], [.2, .85], [.45, .6]]) blade(a, h * k, mixCol(P.grassDk, P.grass, .25), .07 * h); return; }
+    const tip = [x + h * Math.sin(sw), y - h * Math.cos(sw)];
+    if (q.kind === 'reed') {
+      blade(-.25, .75 * h, P.grassDk, .04 * h); blade(.3, .6 * h, mixCol(P.grassDk, P.grass, .3), .04 * h);
+      line([[x, y], tip], '#6E8F4E', .025 * h);
+      const u = [Math.sin(sw), -Math.cos(sw)]; ell(x + u[0] * .8 * h, y + u[1] * .8 * h, .09 * h, .03 * h, Math.atan2(u[1], u[0]), '#7A4A2A');
+      return;
+    }
+    blade(-.5, .35 * h, P.leafDk, .06 * h); blade(.45, .3 * h, P.leaf, .06 * h);
+    c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + .1 * h, y - .5 * h, ...tip); c.strokeStyle = P.leafDk; c.lineWidth = .04 * h; c.stroke();
+    const col = FLOWC[seed % 4];
+    for (let i = 0; i < 5; i++) { const a = i / 5 * TAU; ell(tip[0] + Math.cos(a) * .1 * h, tip[1] + Math.sin(a) * .1 * h, .09 * h, .09 * h, 0, col); }
+    ell(tip[0], tip[1], .07 * h, .07 * h, 0, '#F2A23A');
+  }
+  // Água do lago por cima de tudo que está abaixo de waterY à direita da beirada (peixe submerso, patas na água rasa): da
+  // superfície ao fundo (o chão segue sob ela), com a margem de areia molhada no fundo.
+  function water(L, g, t) {
+    at(1); const [x0, x1] = span(1), xa = Math.max(L.x0, x0), xb = Math.min(L.x1, x1), st = 14 / cam.z;
+    if (xb <= xa) return;
+    const bed = []; for (let x = xa; x <= xb + st; x += st) bed.push([x, Math.max(L.waterY, g(x))]);
+    line(bed, mixCol(P.path, P.grassDk, .35), 10);
+    c.beginPath(); c.moveTo(xa, L.waterY); for (const [x, y] of bed) c.lineTo(x, y); c.lineTo(bed.at(-1)[0], L.waterY); c.closePath();
+    c.globalAlpha = .85; c.fillStyle = vgrad(L.waterY, L.waterY + 160, ['#62B2C4', '#3A86A0', '#2A6A84']); c.fill(); c.globalAlpha = 1;
+    c.fillStyle = 'rgba(214,240,242,.35)'; c.fillRect(xa, L.waterY, xb - xa, 10);
+    line([[xa, L.waterY], [xb, L.waterY]], '#D6F0F2', 4);
+    for (let i = Math.floor(xa / 190); i * 190 < xb; i++) {  // reflexos: traços claros que vão e voltam
+      const u = i * 190 + 60 * hash(i * 7) + 18 * Math.sin(t * .8 + i), v = L.waterY + 18 + 70 * hash(i * 3 + 1);
+      if (u > L.x0 + 20) line([[u, v], [u + 40 + 30 * hash(i), v]], 'rgba(214,240,242,.45)', 3);
+    }
+  }
+  function ripples(list, t) {
+    for (const q of list) {
+      const k = clamp((t - q.t0) / 3), rx = q.r * (.15 + .85 * (1 - (1 - k) ** 2));
+      for (const f of [1, .6]) { c.beginPath(); c.ellipse(q.x, q.y + 2, rx * f, .2 * rx * f, 0, 0, TAU); c.strokeStyle = `rgba(232,246,248,${(.85 * (1 - k)).toFixed(3)})`; c.lineWidth = 3; c.stroke(); }
+    }
+  }
+  function splashes(list, t) {
+    for (const q of list) {
+      const age = t - q.t0, k = age / 1.2, s = q.r;
+      if (k < .45) { c.beginPath(); c.moveTo(q.x - .5 * s, q.y); c.lineTo(q.x - .3 * s, q.y - s * Math.sin(Math.PI * k / .45)); c.lineTo(q.x, q.y - .2 * s); c.lineTo(q.x + .3 * s, q.y - .9 * s * Math.sin(Math.PI * k / .45)); c.lineTo(q.x + .5 * s, q.y); c.closePath(); c.fillStyle = 'rgba(232,246,248,.85)'; c.fill(); }
+      for (let i = 0; i < 9; i++) {
+        const a = -Math.PI / 2 + (i - 4) * .32 + .2 * (hash(q.t0 * 13 + i) - .5), v = s * (2.2 + hash(q.t0 * 7 + i)), px = q.x + Math.cos(a) * v * age, py = q.y + Math.sin(a) * v * age + 2.6 * s * age * age;
+        if (py < q.y + 4) ell(px, py, (1 - k) * .07 * s + 1.5, (1 - k) * .07 * s + 1.5, 0, '#E8F6F8');
+      }
+    }
+  }
+  const farP = x => 690 + 30 * Math.sin(x * .0019 + 1) + 10 * Math.sin(x * .006), midP = x => 840 + 14 * Math.sin(x * .004 + .4);
+  const farN = x => 700 + 60 * Math.sin(x * .0016 + 2) + 16 * Math.sin(x * .007), midN = x => 880 + 16 * Math.sin(x * .0045 + 1.2);
+  function drawP(F) {
+    const w = F.world, g = w.ground, GY = g(cam.cx), far = mixCol(P.far, P.haze, .3);
+    SHY = .2; sky(GY - 30); clouds(F);
+    city(.25, 790); band(.35, farP, vgrad(640, 900, [mixCol(far, P.haze, .2), far]));
+    at(.6); for (const [x, s] of [[-900, 1], [-200, .8], [700, 1.1], [1500, .9], [2400, 1]]) tree(x, midP(x) + 6, 300 * s, hazed(TREE, .35), x);
+    band(.6, midP, vgrad(800, 1000, [mixCol(P.mid, P.haze, .25), mixCol(P.mid, P.haze, .1)]));
+    band(1, x => g(x) - 40, vgrad(GY - 40, GY, [P.grass, P.grassDk]));
+    tufts(1, x => g(x) - 40, 40, 18, P.grassDk, F.t, 17);
+    // Calçada: pedra clara com juntas em perspectiva (raios a partir do centro da câmera) e faixas que se afastam.
+    band(1, g, vgrad(GY, GY + 500, ['#E2D7C2', '#C9BBA2']));
+    at(1); const [x0, x1] = span(1);
+    for (let x = Math.floor(x0 / 140) * 140; x < x1; x += 140) line([[x, GY], [x + (x - cam.cx) * .9, GY + 600]], 'rgba(150,132,104,.35)', 2.5);
+    for (const d of [26, 70, 140, 250, 420]) line([[x0, GY + d], [x1, GY + d]], 'rgba(150,132,104,.3)', 2.5);
+    line([[x0, GY], [x1, GY]], '#F2EADA', 4);
+    const props = [...w.trees.map(q => ({ depth: q.depth, draw: () => tree(q.x, q.y + 4, q.h, TREE, q.seed) })),
+      ...w.lamps.map(q => ({ depth: q.depth, gy: q.y, draw: () => lamp(q, LAMPK), shadow: () => lamp(q, SHK) })),
+      { depth: w.fountain.depth, gy: w.fountain.y, draw: () => fountain(w.fountain, F.t, STONEK), shadow: () => fountain(w.fountain, F.t, SHK) },
+      { depth: w.bench.depth, gy: g(w.bench.x), draw: () => bench(w.bench, g(w.bench.x), BENCHK), shadow: () => bench(w.bench, g(w.bench.x), SHK) }];
+    group(F, F.actors, props);
+    if (w.item) { at(1); flower(w.item, F.t, EST.times.P.grab); }
+  }
+  function drawN(F) {
+    const w = F.world, g = w.ground, L = w.lake, far = mixCol(P.far, P.haze, .3);
+    SHY = .2; sky(L.waterY - 60); clouds(F);
+    band(.3, farN, vgrad(620, 900, [mixCol(far, P.haze, .15), far]));
+    at(.6); for (const [x, s] of [[-700, 1], [100, .8], [900, 1.1], [1700, .9], [2500, 1], [3300, .85]]) tree(x, midN(x) + 6, 260 * s, hazed(TREE, .35), x);
+    band(.6, midN, vgrad(840, 1000, [mixCol(P.mid, P.haze, .25), mixCol(P.mid, P.haze, .1)]));
+    band(.6, x => L.waterY - 34, vgrad(L.waterY - 40, L.waterY, [mixCol('#62B2C4', P.haze, .35), '#62B2C4']));  // o lago ao longe, sob a outra margem
+    const GY = g(cam.cx);
+    band(1, g, vgrad(GY, GY + 400, [P.grass, P.grassDk]));
+    at(1); const [x0, x1] = span(1), pts = []; for (let x = x0; x <= Math.min(x1, L.x0); x += 14) pts.push([x, g(x)]);
+    if (pts.length > 1) line(pts, P.grassLt, 5 / Math.sqrt(cam.z));
+    tufts(1, x => x < L.x0 - 60 ? g(x) : 1e5, 44, 18, mixCol(P.grassDk, P.grass, .3), F.t, 23);
+    if (w.nest) { const k = w.nest.r / 150; c.save(); c.translate(w.nest.x, w.nest.y); c.scale(k, k); mound(0, 0); c.restore(); }
+    group(F, F.actors, w.plants.map(q => ({ depth: q.depth, draw: () => plant(q, F.t) })));
+    water(L, g, F.t); at(1); ripples(w.ripples, F.t); splashes(w.splashes, F.t);
+  }
+
   // Perfis do plano H (o mundo dele só traz o chão).
   const farH = x => 600 + 55 * Math.sin(x * .0021 + .3) + 18 * Math.sin(x * .007), midH = x => 770 + 28 * Math.sin(x * .0042 + 1.7) + 9 * Math.sin(x * .013);
 
   return {
     parts: a => partsOf(a),
     draw(F) {
-      cam = F.cam; const w = F.world, sh = F.shot, back = F.actors.filter(a => a.layer < 1), fore = F.actors.filter(a => a.layer >= 1);
+      cam = F.cam;
+      if (F.scene === 'P' || F.scene === 'N') { (F.scene === 'P' ? drawP : drawN)(F); motes(F); c.resetTransform(); return; }
+      const w = F.world, sh = F.shot, back = F.actors.filter(a => a.layer < 1), fore = F.actors.filter(a => a.layer >= 1);
       SHY = sh === 'wide' ? .05 : .2;
       sky(w.ground(cam.cx) - 30); clouds(F);
       const far = mixCol(P.far, P.haze, .3);
