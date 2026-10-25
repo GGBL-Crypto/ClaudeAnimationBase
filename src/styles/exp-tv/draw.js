@@ -537,11 +537,26 @@
     Kit.poly([[x - r, y], [x - .95 * r, y - .32 * r], [x + .95 * r, y - .32 * r], [x + r, y]], st, { weight: 3 });
     Kit.ellipse(x, y - .32 * r, .9 * r, .06 * r, wt);
   }
-  function bench({ x, seatY: y, w, back, backH }, gy) {
-    const col = P.wood, dk = mixCol(P.wood, P.ink, .4), xb = x + back * .44 * w;
-    for (const s of [-1, 1]) Kit.line([[x + s * .36 * w, y + 10], [x + s * .4 * w, gy]], dk, 10);
-    Kit.poly([[xb - 7, y], [xb - 7 + back * 10, y - backH], [xb + 7 + back * 10, y - backH], [xb + 7, y]], col, { weight: 4 });  // encosto
-    Kit.poly([[x - w / 2, y], [x + w / 2, y], [x + w / 2, y + 14], [x - w / 2, y + 14]], col, { weight: 4 });  // assento: topo em seatY
+  // Banco de frente: encosto de duas tábuas atrás do assento, em toda a largura w (de seatY - backH até seatY), assento
+  // com o topo em seatY (encosta na coxa) e pés até o chão.
+  function bench({ x, seatY: y, w, backH }, gy) {
+    const col = P.wood, dk = mixCol(P.wood, P.ink, .4), x0 = x - w / 2, x1 = x + w / 2;
+    for (const s of [-1, 1]) Kit.line([[x + s * .42 * w, y + 10], [x + s * .44 * w, gy]], dk, 10);  // pés
+    for (const s of [-1, 1]) Kit.line([[x + s * .46 * w, y], [x + s * .46 * w, y - backH]], dk, 9);  // postes do encosto
+    for (const k of [.12, .55]) { const yy = y - backH * (1 - k); Kit.poly([[x0, yy], [x1, yy], [x1, yy + .3 * backH], [x0, yy + .3 * backH]], col, { weight: 4 }); }  // tábuas
+    Kit.poly([[x0, y], [x1, y], [x1, y + 14], [x0, y + 14]], col, { weight: 4 });  // assento: topo em seatY
+  }
+  // Tronco caído (N): corpo do topo (log.top) ao chão, riscos de casca e anel do corte na ponta da direita.
+  function fallenLog(Lg, g) {
+    const n = 24, top = [], bot = [], bark = mixCol(P.wood, P.ink, .45);
+    for (let i = 0; i <= n; i++) { const x = lerp(Lg.x0, Lg.x1, i / n); top.push([x, Lg.top(x)]); bot.push([x, g(x) + 4]); }
+    Kit.poly([...top, ...bot.reverse()], P.wood, { weight: 4, smooth: false });
+    for (let i = 1; i < 9; i++) {  // casca: riscos inclinados, fixos por hash
+      const x = lerp(Lg.x0, Lg.x1, (i + .3 * hash(i + 40)) / 9.5), y0 = Lg.top(x), y1 = g(x);
+      Kit.line([[x - 12, lerp(y0, y1, .25 + .1 * hash(i + 50))], [x + 16, lerp(y0, y1, .5 + .15 * hash(i + 60))]], bark, 4, { smooth: false });
+    }
+    const xm = Lg.x1 - 60, ym = (Lg.top(xm) + g(xm)) / 2, rr = (g(xm) - Lg.top(xm)) / 2;  // corte: anéis
+    Kit.ellipse(xm, ym, .55 * rr, .95 * rr, mixCol(P.wood, P.cloud, .45), { stroke: true }); Kit.ellipse(xm, ym, .25 * rr, .5 * rr, mixCol(P.wood, P.ink, .2), { stroke: true });
   }
   // Flor (item): no chão, deitada com o caule para trás; segura, o caule sai da ponta da mão para cima e a flor no alto.
   function flower(it) {
@@ -633,7 +648,8 @@
     Kit.poly([[N.x - 1.3 * N.r, N.y + 6], [N.x - .5 * N.r, N.y - .45 * N.r], [N.x + .5 * N.r, N.y - .5 * N.r], [N.x + 1.3 * N.r, N.y + 6]], EARTH, { smooth: true, weight: 3 });
     Kit.ellipse(N.x, N.y - .12 * N.r, .35 * N.r, .12 * N.r, P.line);
     grass(t, x0, Math.min(x1, L.x0 - 60), g, 26, 14, 30, 0);
-    actors(F, 1);
+    const Lg = w.log, dl = a => !Lg || a.depth < Lg.depth;  // tronco antes do primeiro ser de depth >= log.depth
+    actors(F, 1, dl); if (Lg) fallenLog(Lg, g); actors(F, 1, a => !dl(a));
     water(g, L, t, x0, x1);
     w.ripples.forEach(q => ripple(q, t)); w.splashes.forEach(s => splash(s, t));
     Kit.camEnd();
