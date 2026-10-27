@@ -36,9 +36,11 @@ window.ExpStyle = (() => {
     p = c.createPattern(cv, 'repeat'); TEX.set(key, p); return p;
   }
   // Preenche o caminho atual com o papel col (tom pela semente), a textura presa em (ox, oy) do mundo e na escala da tela.
-  function fillP(col, seed, ox = 0, oy = 0) {
-    const p = paper(col, Math.floor(hash(seed * 1.37 + .5) * 3)), m = c.getTransform(), s = 1 / Math.hypot(m.a, m.b);
-    p.setTransform(new DOMMatrix([s, 0, 0, s, ox, oy])); c.fillStyle = p; c.fill();
+  // PK > 0 (POV): a textura na escala da peça (1 texel = 1 / PK do mundo), presa a ela quando a câmera avança.
+  let PK = 0;
+  function fillP(col, seed, ox = 0, oy = 0, rule = 'nonzero') {
+    const p = paper(col, Math.floor(hash(seed * 1.37 + .5) * 3)), m = c.getTransform(), s = PK ? 1 / PK : 1 / Math.hypot(m.a, m.b);
+    p.setTransform(new DOMMatrix([s, 0, 0, s, ox, oy])); c.fillStyle = p; c.fill(rule);
   }
   const poly = pts => { c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]); c.closePath(); };
   // Sombra projetada em px de tela (o canvas não escala sombras): d = deslocamento, b = desfoque.
@@ -189,7 +191,7 @@ window.ExpStyle = (() => {
   const girthK = p => Math.sqrt(((typeof BODY !== 'undefined' && BODY[p.body]) || { girth: .11 }).girth / .11);  // braços e pernas pelo tipo de corpo
   function parts(a, F) {
     const p = a.pose, J = p.joints, S = p.size, out = [], add = (name, from, to, r, cap, pts = [J[from], J[to]]) => out.push({ actor: a.id, name, from, to, pts, r, cap });
-    const R = d2(J.headBase, J.headTop) / 2, w = Math.max(S * .035, 1.4 / (F.cam?.z || 1)), lg = LEG[p.spec];
+    const R = d2(J.headBase, J.headTop) / 2, w = Math.max(S * .035, 1.4 / (a.zoom || F.cam?.z || 1)), lg = LEG[p.spec];
     if (p.spec === 'human') {
       const k = girthK(p) * S;
       for (const s of 'LR') {
@@ -236,7 +238,8 @@ window.ExpStyle = (() => {
     const p = a.pose, S = p.size, [col, dk] = ANT[a.role] || [P.ant, P.antDk], fy = p.facing, seed = sid(a.id), px = S * Z, w = Math.max(S * .035, 1.4 / Z);
     const Q = partsOf(a, F);
     const legs = far => { for (const [n, l] of Object.entries(p.limbs)) if (l.far === far) { cut(Q[n + '.upper'], .74, far ? dk : col, seed + 3); cut(Q[n + '.lower'], .57, far ? dk : col, seed + 4); if (px > 120) pin(l.mid, w * .45); } };
-    legs(true); cut(Q.neck, 1, dk, seed + 2);  // pescoço sob o tórax
+    // Pescoço: tira que afina do tórax até o meio da cabeça, sob as duas peças (nada de bloco solto entre elas).
+    legs(true); piece(strip(Q.neck.pts[0], [p.head.x, p.head.y], 2.2 * Q.neck.r, 1.3 * Q.neck.r), dk, seed + 2);
     const [g, pe, th] = [p.spine[2], p.spine[1], p.spine[0]], n = px > 60 ? 16 : 10;
     piece(blob(frame(g.x, g.y, g.angle, fy), -g.r * .15, 0, g.r * 1.3, g.r * .95, n, seed + 5), col, seed + 5);
     piece(blob(frame(pe.x, pe.y, pe.angle, fy), 0, 0, pe.r * 1.2, pe.r, 7, seed + 6), dk, seed + 6);
@@ -260,13 +263,25 @@ window.ExpStyle = (() => {
       const an = -2.6 + .8 * Math.sin(TAU * ph + k), co = Math.cos(an), si = Math.sin(an), r0 = [-S * .02, -th.r * .6];
       piece(blob(fr0, S * .3, 0, S * .3, S * .09, 12, 70 + k, 0, .03).map(([x, y]) => ff(r0[0] + x * co - y * si, r0[1] + x * si + y * co)), col, 70 + k);
     };
+    const legs = far => { for (const [n, l] of Object.entries(p.limbs)) if (!!l.far === far && Q[n + '.upper']) { cut(Q[n + '.upper'], .7, far ? shade(P.fly) : P.fly, 65); cut(Q[n + '.lower'], .45, far ? shade(P.fly) : P.fly, 66); } };
     c.globalAlpha *= .85; wing(1.2, mixCol(P.wing, P.fly, .25)); c.globalAlpha /= .85;
+    legs(true);
     piece(blob(frame(ab.x, ab.y, ab.angle, fy), 0, 0, ab.r * 1.5, ab.r, 10, 61), P.fly, 61);
     cut(Q.neck, 1, P.fly, 60);
     piece(blob(ff, 0, 0, th.r * 1.2, th.r * 1.05, 10, 62), P.fly, 62);
     const hr = Q.head.r / .92, hf = frame(p.head.x, p.head.y, p.head.angle, fy);
+    legs(false);
+    piece(strip(hf(hr * .5, hr * .5), hf(hr * .75, hr * 1.25), hr * .16, hr * .1), shade(P.fly), 67);  // probóscide
     piece(blob(hf, 0, 0, hr, hr * .92, 9, 63), P.fly, 63);
-    poly(blob(hf, hr * .3, -hr * .2, hr * .38, hr * .38, 8, 64)); c.fillStyle = '#8A2A1E'; c.fill();
+    // Olho composto: papel vermelho-escuro grande, com facetas claras (de perto) e um brilho.
+    const er = hr * .62, ex = hr * .22, ey = -hr * .12, sd = SD; SD = Math.min(SD, 2);
+    piece(blob(hf, ex, ey, er, er * 1.1, 12, 64), '#8A2A1E', 64); SD = sd;
+    if (S * Z > 50) {
+      c.fillStyle = 'rgba(255,190,160,.38)';
+      for (let i = 0; i < 46; i++) { const a = TAU * hash(i * 1.7), r = Math.sqrt(hash(i * 2.3)) * er * .92, [x, y] = hf(ex + r * Math.cos(a), ey + r * Math.sin(a) * 1.1); c.beginPath(); c.arc(x, y, er * .075, 0, TAU); c.fill(); }
+      const [hx, hy] = hf(ex - er * .3, ey - er * .45); c.fillStyle = 'rgba(255,250,235,.8)'; c.beginPath(); c.arc(hx, hy, er * .16, 0, TAU); c.fill();
+    }
+    piece(strip(hf(hr * .7, -hr * .55), hf(hr * 1.3, -hr * 1.05), hr * .09, hr * .03), P.fly, 68);  // arista da antena
     c.globalAlpha *= .85; wing(0, P.wing); c.globalAlpha /= .85;
   }
   // Papéis de cada pessoa (por id): camisa, calça (shorts: canela de pele), pele, cabelo e penteado (short | bun | long |
@@ -599,7 +614,219 @@ window.ExpStyle = (() => {
 
   // ---------- planos ----------
   const farH = x => 610 + 40 * Math.sin(x * .002 + 2) + 14 * Math.sin(x * .007), hillH = x => 770 + 22 * Math.sin(x * .0032 + 1);
+  // ---------- POV (exp-pov) ----------
+  // A protagonista é a câmera: perspectiva por wz (k = FOCAL / (wz − cz)), giro e respiração em torno do meio da tela.
+  // Antenas, mandíbulas, folha carregada e carona ficam presas à cabeça: px de tela, sem o giro. Papel do mundo com a
+  // textura presa à peça e na escala dela (PK): de perto a fibra cresce, em vez de deslizar.
+  let PV = null;
+  const atW = (wz, jx = 0, jy = 0) => { const { cm, R } = PV, k = PV.FOC / (wz - cm.cz); Z = k; c.setTransform(...R); c.transform(k, 0, 0, k, 960 - cm.cx * k + jx, 540 - cm.cy * k + jy); return k; };
+  const pj = (x, y, wz) => { const { cm } = PV, k = PV.FOC / Math.max(1, wz - cm.cz); return [960 + (x - cm.cx) * k, 540 + (y - cm.cy) * k]; };
+  const atR = () => { Z = 1; c.setTransform(...PV.R); };
+  const atS = () => { Z = 1; c.setTransform(1, 0, 0, 1, 0, 0); };
+  const jit = (s, a = 2.4) => [(hash(DRAW * 1.7 + s) - .5) * a, (hash(DRAW * 2.9 + s * 1.3) - .5) * a];
+  const holed = (outer, hole) => { c.beginPath(); for (const pts of [outer, hole]) { c.moveTo(...pts[0]); for (const q of pts.slice(1)) c.lineTo(...q); c.closePath(); } };
+  const glow = (pts, x, y, r, a) => { c.save(); poly(pts); c.clip(); const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(255,248,200,${a})`); g.addColorStop(1, 'rgba(255,248,200,0)'); c.fillStyle = g; c.fillRect(x - r, y - r, 2 * r, 2 * r); c.restore(); };
+  function povSky() {
+    atR(); SD = 0; PK = 0;
+    poly([[-300, -300], [2220, -300], [2220, 620], [-300, 620]]); fillP(P.sky, 81);
+    const g = c.createRadialGradient(380, 60, 0, 380, 60, 760); g.addColorStop(0, 'rgba(255,242,195,.8)'); g.addColorStop(1, 'rgba(255,242,195,0)'); c.fillStyle = g; c.fillRect(-300, -300, 2520, 920);
+    // Paredão de capim no horizonte: duas fileiras de lâminas rasgadas, a de trás mais clara e fria.
+    for (const [col, y0, hh, st, sd] of [[P.canopyLt, 556, 330, 22, 83], [P.far, 564, 200, 31, 84]]) {
+      const pts = [[2220, 700], [-300, 700]];
+      for (let x = -300, i = 0; x <= 2220; x += st, i++) { const h = hh * (.3 + .7 * hash(sd + i * .37)); pts.push([x, y0 - h * .15], [x + st * .45, y0 - h]); }
+      SD = 2; SB = 2; piece(torn(pts, sd, 12, 2), col, sd);
+    }
+  }
+  // Chão: papel de terra até o horizonte, a trilha limpa no meio e, presos ao chão em fileiras de wz, pedrinhas, grãos,
+  // manchas rasgadas e restos de folha (o solo nunca fica liso; tudo corre com a perspectiva).
+  function povGround(o = {}) {
+    const cz = PV.cm.cz, far = o.far || cz + 6000, col = o.col || P.soil;
+    atR(); SD = 0; PK = 0;
+    poly([pj(-3000, 0, cz + 6), pj(-3000, 0, far), pj(3000, 0, far), pj(3000, 0, cz + 6)]); fillP(col, 85);
+    if (o.trail !== false) { poly([pj(-62, 0, cz + 6), pj(-50, 0, far), pj(50, 0, far), pj(62, 0, cz + 6)]); fillP(mixCol(P.path, col, .5), 86); }
+    PK = 10; const st = 11, i0 = Math.ceil((cz + 16) / st), i1 = Math.floor(Math.min(far, cz + 1000) / st);
+    for (let i = i1; i >= i0; i--) for (let j = 0; j < 7; j++) {
+      const h = q => hash(i * 7.13 + j * 1.91 + q), wz = i * st + st * h(1), x = (h(2) - .5) * 560, kd = h(3), s = i * 13 + j;
+      const k = atW(wz); if (Math.abs((x - PV.cm.cx) * k) > 1250) continue;
+      const r = kd < .35 ? 1.2 + 2.4 * h(4) : kd < .7 ? .5 + .8 * h(4) : 2 + 4 * h(4), dk = (o.dim || 0) + .5 * clamp((wz - cz) / 900);
+      SD = clamp(k * .12, .4, 6); SB = 1;
+      if (kd < .35) piece(blob(fr0, x, -r * .5, r * 1.3, r * .7, 9, s), mixCol(mixCol(P.stone, P.soilDk, h(5) * .6), col, dk), s);  // pedrinha
+      else if (kd < .7) { poly(blob(fr0, x, -.1, r, r * .4, 6, s)); c.fillStyle = h(5) > .5 ? 'rgba(60,35,20,.4)' : 'rgba(255,240,215,.3)'; c.fill(); }  // grão
+      else if (kd < .9) { SD = 0; piece(torn(blob(fr0, x, 0, r * 2.2, r * .35, 10, s), s, 1.5, .5), mixCol(h(5) > .5 ? P.soilDk : '#9A6A42', col, .25 + dk), s); }  // mancha rasgada, deitada
+      else piece(blob(fr0, x, -.3, r, r * .3, 7, s, h(6) * 3), mixCol(h(5) > .5 ? P.leafDk : '#C9A24A', col, dk), s);  // resto de folha
+    }
+  }
+  // Lâmina de capim: tira cortada que afina até a ponta, com nervura clara; de perto o sol atravessa o papel.
+  function blade(b) {
+    const D = b.wz - PV.cm.cz; if (D < 8 || D > 2600) return;
+    const [jx, jy] = jit(b.seed, 1.4), k = atW(b.wz, jx, jy), h = q => hash(b.seed * 1.7 + q), tx = b.x + b.lean * b.h, L = [], Rt = [];
+    for (let i = 0; i <= 8; i++) {
+      const u = i / 8, w = b.w * (1 - .85 * u) / 2, x = lerp(b.x, tx, u) + b.lean * b.h * .2 * Math.sin(Math.PI * u), y = -b.h * u;
+      L.push([x - w + (h(i) - .5) * .8, y]); Rt.push([x + w + (h(i + 9) - .5) * .8, y]);
+    }
+    const base = [P.grass, P.leaf, P.back, P.grassDk][Math.floor(h(20) * 4)], col = mixCol(mixCol(base, '#E4F29A', .4 * clamp(1 - D / 700)), P.far, .55 * clamp(D / 2600));
+    SD = clamp(k * .5, 1, 16); SB = 1; PK = 10;
+    const pts = [...L, ...Rt.reverse()]; piece(pts, col, b.seed);
+    if (D < 700) glow(pts, lerp(b.x, tx, .6), -b.h * .6, b.h * .5, .35 * clamp(1 - D / 700));
+    SD = 0; c.globalAlpha = .55; piece(strip([b.x, 0], [lerp(b.x, tx, .92), -b.h * .92], b.w * .12, b.w * .04), mixCol(col, '#F6FAC8', .55), b.seed + 1); c.globalAlpha = 1;
+  }
+  // Anel do túnel: terra rasgada com a boca elíptica (miolo branco na borda), mais escura quanto mais fundo; perto da
+  // saída, a luz de fora tinge a terra. A sombra do anel cai sobre os de trás e cresce com a proximidade.
+  function ring(r, tint) {
+    const D = r.wz - PV.cm.cz; if (D < 3) return;
+    const k = atW(r.wz), O = 1600 / k + 3 * r.rx, cy0 = -r.ry + 3, fog = clamp(D / 360);
+    const outer = [[r.x - O, cy0 - O], [r.x + O, cy0 - O], [r.x + O, cy0 + O], [r.x - O, cy0 + O]];
+    const hole = torn(blob(fr0, r.x, cy0, r.rx, r.ry, 22, r.seed, 0, .06), r.seed, 5, 1.8), rim = torn(blob(fr0, r.x, cy0, r.rx * .965, r.ry * .955, 22, r.seed, 0, .06), r.seed + 1, 5, 2.4);
+    const sd = clamp(k * .35, 1, 20), m = c.getTransform();
+    c.setTransform(m.a, m.b, m.c, m.d, m.e + sd, m.f + sd * 1.25); holed(outer, rim); c.fillStyle = 'rgba(15,8,4,.45)'; c.fill('evenodd'); c.setTransform(m);
+    holed(outer, rim); c.fillStyle = mixCol(P.core, P.cave, .35 + .6 * fog); c.fill('evenodd');
+    PK = 10; holed(outer, hole); fillP(mixCol(mixCol(P.soilDk, P.cave, .25 + .65 * fog), '#D8A868', tint), r.seed, 0, 0, 'evenodd');
+  }
+  // Boca de saída: o claro de fora (céu, capim) que cresce com a luz.
+  function exitLight(wz, light) {
+    if (wz - PV.cm.cz < 3) return;
+    atW(wz); SD = 0; PK = 10; const e = blob(fr0, 0, -30, 50, 38, 20, 5);
+    poly(e); c.fillStyle = mixCol(P.cave, '#FFF4D6', light); c.fill();
+    c.globalAlpha = light; const gr = [[60, 10], [-60, 10]]; for (let x = -60, i = 0; x <= 60; x += 4, i++) gr.push([x, -6 - 10 * hash(i * .71)], [x + 2, -2]); poly(gr); fillP(P.far, 9); c.globalAlpha = 1;  // capim lá fora, em lâminas
+    ring({ wz, x: 0, rx: 46, ry: 34, seed: 6 }, .6 * light);
+  }
+  // Massa do jardim de fungo: esponja clara de papel rasgado, com poros escuros, calombos e as pontas inchadas (bolinhas).
+  function fungus(q, lt) {
+    const D = q.wz - PV.cm.cz; if (D < 10) return;
+    const [jx, jy] = jit(q.seed, 1), k = atW(q.wz, jx, jy), h = i => hash(q.seed + i * 1.37), col = mixCol(P.fungusDk, P.fungus, .5 + .5 * lt), dim = .35 * (1 - lt) + .25 * clamp(D / 700);
+    SD = clamp(k * .3, 1, 10); SB = 1; PK = 10;
+    piece(torn(blob(fr0, q.x, -q.h * .45, q.r, q.h * .55, 18, q.seed), q.seed, 4, 2.5), mixCol(col, P.cave, dim), q.seed);
+    SD = 0;
+    for (let i = 0; i < 30; i++) { poly(blob(fr0, q.x + (h(i) - .5) * q.r * 1.5, -q.h * (.12 + .7 * h(i + 20)), q.r * (.04 + .06 * h(i + 40)), q.r * (.03 + .05 * h(i + 60)), 7, q.seed + i)); c.fillStyle = 'rgba(60,38,22,.5)'; c.fill(); }
+    SD = clamp(k * .15, .5, 5);
+    for (let i = 0; i < 6; i++) piece(blob(fr0, q.x + (h(i + 80) - .5) * q.r * 1.3, -q.h * (.75 + .25 * h(i + 90)), q.r * (.18 + .12 * h(i + 95)), q.h * .14, 10, q.seed + 50 + i), mixCol(mixCol(col, '#FFFFFF', .2), P.cave, dim), q.seed + 50 + i);
+    for (let i = 0; i < 30; i++) { const x = q.x + (h(i + 100) - .5) * q.r * 1.5, y = -q.h * (.55 + .5 * h(i + 130)), r = 1.4 + 1.6 * h(i + 160); piece(blob(fr0, x, y, r, r, 7, q.seed + 99 + i), mixCol('#FFFDF0', P.cave, dim * .8), q.seed + 99 + i); }
+  }
+  // Folha de frente (P4): borda serrilhada em cima, contra o sol (clara, com nervuras); o arco do corte (u) e o pedaço
+  // que sobe (lift), deixando o buraco por onde se vê o fundo.
+  function leafWall(L) {
+    const k = atW(L.wz), W = 1100 / k + 30, y0 = L.y, yb = y0 + 700 / k + 40, cu = L.cut, top = [];
+    for (let x = -W, i = 0; x <= W; x += 5, i++) top.push([x, y0 + (i % 2 ? 1.1 : 0) + .7 * noise1(3, x * .05)]);
+    const pts = [...top, [W, yb], [-W, yb]];
+    SD = 8; SB = 2; PK = 10; piece(pts, '#86C455', 301);
+    glow(pts, -30, y0 - 20, 160, .55);
+    SD = 0; c.globalAlpha = .6;
+    piece(strip([-W, yb - 10], [W * .7, y0 + 4], 3.2, 1.4), '#D8EFA0', 302);  // nervura central
+    for (let i = 0; i < 9; i++) { const u = i / 8, a = [lerp(-W, W * .7, u), lerp(yb - 10, y0 + 4, u)]; for (const s of [-1, 1]) piece(strip(a, [a[0] + 26 + 10 * hash(i), a[1] + s * 22], 1.3, .5), '#CBE793', 303 + i); }
+    c.globalAlpha = 1;
+    const arc = (a0, a1, n = 24) => Array.from({ length: n + 1 }, (_, i) => { const a = lerp(a0, a1, i / n); return [cu.x + cu.r * Math.cos(a), cu.y + .9 * cu.r * Math.sin(a)]; });
+    const piecePts = [...arc(0, Math.PI)].map(([x, y], i) => [x + (i % 2 ? .5 : 0), y]);
+    if (cu.lift > 0) {
+      poly(piecePts); c.fillStyle = mixCol(P.far, P.sky, .4); c.fill();  // buraco
+      const m = c.getTransform(); c.translate(cu.x, cu.y - cu.lift * 60); c.rotate(-.5 * cu.lift); c.translate(-cu.x, -cu.y);
+      c.globalAlpha = 1 - cu.lift; SD = 10; piece(piecePts, '#93CF63', 304); c.globalAlpha = 1; c.setTransform(m);
+    } else if (cu.u > 0) {  // o sulco do corte, mordida a mordida
+      const g = arc(Math.PI, lerp(Math.PI, 0, cu.u), Math.max(2, Math.round(24 * cu.u)));
+      c.lineJoin = 'round'; const line = (w, col, dy) => { c.lineWidth = w; c.strokeStyle = col; c.beginPath(); g.forEach(([x, y], i) => i ? c.lineTo(x, y + dy + (i % 2) * .25) : c.moveTo(x, y + dy)); c.stroke(); };
+      line(1.5, 'rgba(40,60,18,.55)', .35); line(.7, '#FFF6C8', 0);  // sulco: a luz do sol passa pelo corte
+    }
+  }
+  // Rosto de frente da irmã (P3, close): cabeça de coração, olhos compostos, mandíbulas e antenas que vêm para as suas.
+  function sisterFace(fc, t) {
+    const s = lerp(.86, 1, fc.k); c.setTransform(s, 0, 0, s, 960 * (1 - s), 600 * (1 - s)); Z = s; c.globalAlpha = clamp(fc.k * 1.5); PK = 0;
+    SD = 10; SB = 3; const col = P.ant, dk = P.antDk, lt = P.antLt, oL = .12 * Math.sin(TAU * 1.3 * t);
+    piece(blob(fr0, 960, 1130, 360, 220, 18, 401), mixCol(dk, P.ink, .35), 401);
+    for (const sg of [-1, 1]) { piece(strip([960 + sg * 250, 1010], [960 + sg * 560, 880], 46, 30), dk, 402); piece(strip([960 + sg * 560, 880], [960 + sg * 700, 1140], 30, 18, true), dk, 403); pin([960 + sg * 560, 880], 10); }
+    const head = Array.from({ length: 44 }, (_, i) => { const a = TAU * i / 44 - Math.PI / 2, sn = Math.sin(a), notch = 1 - .14 * Math.exp(-((a + Math.PI / 2) ** 2) / .03); return [960 + 400 * Math.cos(a) * (1 - .3 * Math.max(0, sn)) * (1 + (hash(i * 3.1) - .5) * .02), 560 + 330 * sn * notch]; });
+    piece(head, col, 404);
+    SD = 0; for (let i = 0; i < 40; i++) { const x = 960 + (hash(i * 5.1) - .5) * 560, y = 420 + hash(i * 7.3) * 300; poly(blob(fr0, x, y, 6, 5, 6, 410 + i)); c.fillStyle = 'rgba(70,24,14,.35)'; c.fill(); }  // poros
+    SD = 0; piece([[880, 640], [1040, 640], [1070, 720], [960, 760], [850, 720]], mixCol(col, lt, .18), 405); SD = 8;  // clípeo
+    for (const sg of [-1, 1]) {
+      const ex = 960 + sg * 300, ey = 480; piece(blob(fr0, ex, ey, 74, 92, 16, 406 + sg), P.ink, 406 + sg);
+      SD = 0; for (let i = 0; i < 26; i++) { const a = TAU * hash(i * 1.7 + sg), r = 70 * Math.sqrt(hash(i * 2.3 + sg)); c.fillStyle = 'rgba(190,170,140,.45)'; c.beginPath(); c.arc(ex + r * Math.cos(a) * .9, ey + r * Math.sin(a) * 1.15, 7, 0, TAU); c.fill(); }
+      c.fillStyle = 'rgba(255,250,235,.85)'; c.beginPath(); c.arc(ex - sg * 20, ey - 30, 13, 0, TAU); c.fill(); SD = 8;
+      // Mandíbula: lâmina triangular saindo de baixo do clípeo, a ponta cruzando para o meio, dentes na borda de dentro.
+      const ma = [960 + sg * 250, 780], mb = [960 + sg * 60, 840], mt = [960 - sg * (30 - 70 * (oL + .2)), 1030], teeth = [];
+      for (let i = 1; i < 7; i++) { const u = i / 7; teeth.push([lerp(mb[0], mt[0], u) + sg * (i % 2 ? 0 : -16), lerp(mb[1], mt[1], u) - (i % 2 ? 0 : 10)]); }
+      piece([ma, [lerp(ma[0], mt[0], .5) + sg * 40, lerp(ma[1], mt[1], .55)], mt, ...teeth.reverse(), mb], mixCol(lt, col, .45), 408 + sg);
+      SD = 0; c.globalAlpha = .6; piece(strip([ma[0] - sg * 20, ma[1] + 12], [mt[0] + sg * 14, mt[1] - 18], 20, 5), mixCol(dk, P.ink, .3), 409 + sg); c.globalAlpha = 1; SD = 8;
+      const sk = [960 + sg * 140, 360], el = [960 + sg * 360, 130 + 20 * Math.sin(TAU * .7 * t + sg)], tp = [960 + sg * (150 + 40 * Math.sin(TAU * 2.6 * t)), 300 - 60 * fc.tap * Math.max(0, Math.sin(TAU * 2.6 * t + (sg > 0 ? 1.2 : 0)))];
+      piece(strip(sk, el, 34, 28), dk, 412 + sg);
+      for (let i = 0; i < 9; i++) { const u = (i + .5) / 9; piece(blob(fr0, lerp(el[0], tp[0], u), lerp(el[1], tp[1], u), 15 + 4 * u, 15 + 4 * u, 8, 420 + i + sg * 30), i === 8 ? dk : col, 420 + i); }
+      pin(sk, 11); pin(el, 9);
+    }
+    c.globalAlpha = 1;
+  }
+  // Sobreposições da cabeça (px de tela).
+  function antennaePov(an) {
+    atS(); SD = 7; SB = 3; PK = 0;
+    for (const [b, e, m, tp] of [an.L, an.R]) {
+      piece(strip(b, e, 56, 42), P.heroDk, 701);
+      const q = u => [(1 - u) ** 2 * e[0] + 2 * u * (1 - u) * m[0] + u * u * tp[0], (1 - u) ** 2 * e[1] + 2 * u * (1 - u) * m[1] + u * u * tp[1]];
+      for (let i = 0; i < 11; i++) { const u0 = i / 11, u1 = (i + 1.15) / 11, club = i > 7; piece(strip(q(u0), q(Math.min(1, u1)), club ? 36 : 30 - i, club ? 38 : 29 - i), club ? P.heroDk : i % 2 ? P.hero : mixCol(P.hero, P.heroDk, .25), 710 + i); }
+      pin(e, 11);
+    }
+  }
+  function mandibles(m, F) {
+    atS(); SD = 10; SB = 3; PK = 0;
+    const up = (1 - m.show) * 560, vx = m.vib * (hash(DRAW * 9.7) - .5) * 8, vy = m.vib * (hash(DRAW * 5.3) - .5) * 5;
+    const aim = m.hold ? [960, 940] : pj(m.aim[0], m.aim[1], F.world.leaf.wz);
+    for (const s of [-1, 1]) {
+      const base = [960 + s * 500 + vx, 1230 + up + vy], tip = [aim[0] + s * (24 + 150 * m.open) + vx, aim[1] + up + vy - 10 + 40 * m.open], ctl = [960 + s * 560, (base[1] + tip[1]) / 2 - 60];
+      const bz = u => [(1 - u) ** 2 * base[0] + 2 * u * (1 - u) * ctl[0] + u * u * tip[0], (1 - u) ** 2 * base[1] + 2 * u * (1 - u) * ctl[1] + u * u * tip[1]];
+      const out = [], inn = [];
+      for (let i = 0; i <= 12; i++) {
+        const u = i / 12, p = bz(u), q = bz(Math.min(1, u + .01)), l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1, w = 190 * (1 - u) ** .8 + 12, tooth = u > .3 && i % 2 ? 30 : 0;
+        let nx = -(q[1] - p[1]) / l, ny = (q[0] - p[0]) / l; if (nx * s < 0) { nx = -nx; ny = -ny; }  // normal para fora (lado da mandíbula)
+        out.push([p[0] + nx * w / 2, p[1] + ny * w / 2]); inn.push([p[0] - nx * (w / 2 + tooth), p[1] - ny * (w / 2 + tooth)]);
+      }
+      piece([...out, ...inn.reverse()], P.heroDk, 720 + s);
+      SD = 0; c.globalAlpha = .5; piece(strip(bz(.1), bz(.85), 18, 6), P.hero, 722 + s); c.globalAlpha = 1; SD = 10;
+    }
+  }
+  // Folha carregada: copa contra o sol no alto (borda de baixo cortada à tesoura, nervuras) e a beirada que desce até as
+  // mandíbulas; a carona fica de pé nessa borda.
+  function carried(cr) {
+    atS(); PK = 0; const eY = lerp(1180, 150 + 150 * cr.low, cr.k) + 6 * cr.sway * (1 - cr.low), lo = [], n = 48;
+    for (let i = 0; i <= n; i++) { const x = lerp(-220, 2140, i / n); lo.push([x, eY + 140 * ((x - 960) / 1100) ** 2 + (i % 2 ? 7 : 0)]); }
+    const pts = [...lo, [2140, -500], [-220, -500]];
+    SD = 14; SB = 4; piece(pts, '#8FCC5E', 602);
+    glow(pts, 420, eY - 200, 900, .55);
+    SD = 0; c.globalAlpha = .55;
+    piece(strip([960, eY + 10], [760, -400], 16, 8), '#DDF2A6', 603);
+    for (let i = 0; i < 7; i++) { const u = .1 + i / 7, a = [lerp(960, 760, u), lerp(eY + 10, -400, u)]; for (const sg of [-1, 1]) piece(strip(a, [a[0] + sg * (300 + 60 * hash(i)), a[1] + 120 + 30 * hash(i + 3)], 7, 2), '#CFE99A', 604 + i); }
+    c.globalAlpha = 1;
+  }
+  function pov(F) {
+    const cm = F.cam, w = F.world, ov = F.pov, sc = 1 + .004 * cm.breath, co = Math.cos(cm.roll) * sc, si = Math.sin(cm.roll) * sc;
+    PV = { cm, FOC: F.FOCAL, R: [co, si, -si, co, 960 - 960 * co + 540 * si, 540 - 960 * si - 540 * co] };
+    DRAW = Math.round(F.t * PROJECT.fps / 2);
+    atS(); c.fillStyle = P.cave; c.fillRect(0, 0, 1920, 1080);
+    const act = a => { const [jx, jy] = jit(sid(a.id)), k = atW(a.wz, jx, jy); SD = clamp(k * .45, .8, 12); SB = 2; PK = 10; c.globalAlpha = a.alpha ?? 1; (KIND[a.kind] || ant)(a, F); c.globalAlpha = 1; };
+    const scene = list => list.sort((a, b) => b.wz - a.wz).forEach(q => q.fn());
+    if (w.kind === 'tunnel' || w.kind === 'chamber') {
+      if (w.kind === 'chamber') {
+        atS(); c.fillStyle = mixCol(P.cave, '#5C3B26', w.light); c.fillRect(0, 0, 1920, 1080);
+        const g = c.createRadialGradient(960, 520, 0, 960, 520, 900); g.addColorStop(0, `rgba(255,205,130,${.3 * w.light})`); g.addColorStop(1, 'rgba(255,205,130,0)'); c.fillStyle = g; c.fillRect(0, 0, 1920, 1080);
+        povGround({ col: mixCol(P.soilDk, P.cave, .55 - .25 * w.light), trail: false, far: 820, dim: .3 * (1 - w.light) });
+        scene([...w.fungus.map(q => ({ wz: q.wz, fn: () => fungus(q, w.light) })), ...F.actors.map(a => ({ wz: a.wz, fn: () => act(a) }))]);
+      } else exitLight(w.exit, w.light);
+      const rs = w.rings.filter(r => !w.chamber || r.wz < w.chamber).sort((a, b) => b.wz - a.wz);
+      for (const r of rs) ring(r, w.exit ? .45 * w.light * clamp(1 - (w.exit - r.wz) / 170) : w.chamber ? .25 * w.light * clamp(1 - (w.chamber - r.wz) / 120) : 0);
+      if (w.dark != null && w.dark < 1) { atS(); c.fillStyle = `rgba(10,6,4,${1 - w.dark})`; c.fillRect(0, 0, 1920, 1080); }
+    } else {
+      povSky(); povGround();
+      if (w.shade) { atR(); const cz = PV.cm.cz; poly(Array.from({ length: 24 }, (_, i) => { const a = TAU * i / 24; const r = 1 - .35 * Math.abs(Math.sin(a)) ** 3; return pj(10 + 62 * r * Math.cos(a), 0, cz + 96 + 26 * r * Math.sin(a)); })); c.fillStyle = 'rgba(40,50,15,.16)'; c.fill(); }
+      scene([...(w.blades || []).map(b => ({ wz: b.wz, fn: () => blade(b) })), ...(w.leaf ? [{ wz: w.leaf.wz, fn: () => leafWall(w.leaf) }] : []), ...F.actors.map(a => ({ wz: a.wz, fn: () => act(a) }))]);
+      if (w.blur) { atS(); c.fillStyle = 'rgba(240,236,222,.35)'; c.fillRect(0, 0, 1920, 1080); }
+      if (w.flash > 0) { atS(); c.fillStyle = `rgba(255,250,232,${.92 * w.flash})`; c.fillRect(0, 0, 1920, 1080); }
+    }
+    if (ov.face) sisterFace(ov.face, F.t);
+    if (ov.carry) carried(ov.carry);
+    if (ov.rider) { atS(); SD = 3; SB = 2; PK = 0; ant({ id: 'carona', kind: 'ant', zoom: 1, pose: ov.rider.pose }, F); }
+    if (ov.mand) mandibles(ov.mand, F);
+    if (ov.ant) antennaePov(ov.ant);
+    const fade = Math.max(1 - (ov.fadeIn ?? 1), ov.fadeOut || 0);
+    if (fade > 0) { atS(); PK = 0; c.globalAlpha = fade; poly([[0, 0], [1920, 0], [1920, 1080], [0, 1080]]); fillP('#1C1612', 990); c.globalAlpha = 1; }
+    PK = 0; c.resetTransform();
+  }
   function draw(F) {
+    if (F.scene === 'POV') return pov(EST.frame('POV', F.t));  // POV em 1 quadro: a câmera anda; o tremor das peças segue em 2
     F = EST.frame(F.scene, twosTime(F.t));  // 2 quadros: atores e câmera trocam a cada 2 quadros
     cam = F.cam; Z = cam.z; DRAW = Math.round(F.t * PROJECT.fps / 2);
     const w = F.world, A = F.actors, back = A.filter(a => a.layer < 1), front = A.filter(a => a.layer >= 1);

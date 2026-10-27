@@ -1,5 +1,9 @@
 # Validação da plataforma — 21/10/2026
 
+## POV papel `exp-pov` (experimento, exp/estilos) — 27/10/2026
+
+[MP4](../out/exp/pov/pov-papel.mp4), [SRT](../out/exp/pov/pov-papel.srt), [roteiro](../out/exp/pov/roteiro-pov.md). ffprobe: 1920x1080, 30 fps, 2200 quadros, 73,33 s, AAC presente. Loudness do MP4: −14,1 LUFS, pico −1,5 dBTP. `check-motion --2d --style=exp-papel`: 0 violações (movimento e esqueleto). Abertos: `sheet-pov.jpg` (16 quadros) e `pov-papel.mp4.review/decoded-sheet.png`. `npm test`: 122/127; as 5 falhas são as mesmas do commit base (d8efde7).
+
 ## Piloto da personagem fornecida — 22/10/2026
 
 Revisão final `ae28d4f0c361e12098a4e3b705ecd8bfbd8397fda7ab0c6df2e0915b3b0e416b`. [Relatório](PERSONAGEM_PILOT_REPORT.md), [inventário](PERSONAGEM_INVENTORY.md), [MP4](../out/personagem-pilot/revisions/ae28d4f0c361/final/video.mp4). H.264, 876.284 bytes, 1280×720, 12 FPS, 4,5 s, 54 quadros, sem áudio. FFprobe com contagem e FFmpeg com decodificação integral passaram. Somente arquivos locais e ferramentas existentes.

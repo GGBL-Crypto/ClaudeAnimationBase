@@ -1,0 +1,56 @@
+{
+  "id": "exp-pov",
+  "title": "POV: você é uma saúva operária",
+  "story": "Um minuto na pele de uma operária de saúva: túnel, trilha, corte, carga, mosca e jardim de fungo.",
+  "style": "exp-papel",
+  "fps": 30,
+  "voice": "kokoro:pm_alex",
+  "intro": 1,
+  "outro": 1,
+  "pronunciations": {},
+  "chapters": [
+    {
+      "id": "pov",
+      "title": "POV",
+      "shots": [
+        {
+          "id": "p1",
+          "narration": "Escuro. Você nasceu há umas quatro semanas. Nessa idade, buscar folhas vira o seu trabalho.",
+          "visual": "Túnel escuro; luz se abre no fundo."
+        },
+        {
+          "id": "p2",
+          "narration": "Luz. Aqui fora há predadores: aves, tatus e até outras formigas. A trilha pode chegar a sessenta metros do ninho. Você segue o vai e vem das irmãs.",
+          "visual": "Capim gigante de papel dos dois lados; irmãs na trilha."
+        },
+        {
+          "id": "p3",
+          "narration": "Uma delas vem de frente. Antena com antena. Siga em frente.",
+          "visual": "Irmã de frente, close, antenas se tocam."
+        },
+        {
+          "id": "p4",
+          "narration": "Você morde a folha e vibra o corpo. Esse chiado viaja pela folha e chama as irmãs para o mesmo lugar.",
+          "visual": "Mandíbulas cortam a folha translúcida; o pedaço se solta."
+        },
+        {
+          "id": "p5",
+          "narration": "Você ergue o pedaço acima da cabeça e entra na fila de volta.",
+          "visual": "Folha acima da cabeça; sombra no chão."
+        },
+        {
+          "id": "p6",
+          "narration": "Mas alguém está de olho. Uma mosquinha que caça saúvas. Em cerca de um segundo, ela põe um ovo dentro da cabeça de uma formiga. Em cima da sua folha, uma irmã bem pequena vai de carona. Em outra saúva, caronas assim afastaram moscas como essa. Hoje, a mosca vai embora.",
+          "visual": "Mosca grande paira; recuo curto; carona na folha; a mosca sobe e some."
+        },
+        {
+          "id": "p7",
+          "narration": "De volta ao escuro. A sua folha não é comida: ela alimenta um fungo. E as pontas desse fungo alimentam vocês.",
+          "visual": "Túnel; revelação do jardim de fungo; câmera para; fade para preto de papel.",
+          "hold": 4
+        }
+      ]
+    }
+  ],
+  "lengthScale": 0.9
+}

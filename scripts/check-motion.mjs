@@ -160,7 +160,7 @@ function groundOf(P) {
 // como na tela. Cada camada de paralaxe f é verificada à parte, com a sua câmera (cx = lerp(960, cx, f)). No ar = a.air (ave
 // ou borboleta voando, peixe, corredor no voo da passada; sem a.air, kind 'fly'): sem chão nem pés. Raio da cabeça = metade
 // do osso head (variantes da cena fora de SPECS).
-const SCENES = { 'estilos-a': 'A', 'estilos-h': 'H', 'estilos-p': 'P', 'estilos-n': 'N' };
+const SCENES = { 'estilos-a': 'A', 'estilos-h': 'H', 'estilos-p': 'P', 'estilos-n': 'N', 'exp-pov': 'POV' };
 // Carrega motion.js e os scripts da cena; com style, também os do estilo (window = o global; document, canvas e p5 = ANY).
 function load2d(id, style) {
   const platform = catalog(), project = platform.resolveProject(id, style), ctx = vm.createContext({ AnimationPlatform: platform, projectConfig: project, window: {}, console });

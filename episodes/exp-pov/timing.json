@@ -1,0 +1,188 @@
+{
+  "id": "exp-pov",
+  "fps": 30,
+  "duration": 73.33333333333333,
+  "chapters": [
+    {
+      "id": "pov",
+      "title": "POV",
+      "start": 1,
+      "end": 73.33333333333333
+    }
+  ],
+  "shots": [
+    {
+      "id": "p1",
+      "chapter": "pov",
+      "start": 1,
+      "end": 8.9,
+      "visual": "Túnel escuro; luz se abre no fundo.",
+      "speech": [
+        {
+          "start": 1.25,
+          "end": 2.15,
+          "text": "Escuro."
+        },
+        {
+          "start": 2.5,
+          "end": 4.775,
+          "text": "Você nasceu há umas quatro semanas."
+        },
+        {
+          "start": 5.125,
+          "end": 8.1,
+          "text": "Nessa idade, buscar folhas vira o seu trabalho."
+        }
+      ]
+    },
+    {
+      "id": "p2",
+      "chapter": "pov",
+      "start": 8.9,
+      "end": 20.566666666666666,
+      "visual": "Capim gigante de papel dos dois lados; irmãs na trilha.",
+      "speech": [
+        {
+          "start": 9.15,
+          "end": 9.85,
+          "text": "Luz."
+        },
+        {
+          "start": 10.2,
+          "end": 13.899999999999999,
+          "text": "Aqui fora há predadores: aves, tatus e até outras formigas."
+        },
+        {
+          "start": 14.249999999999998,
+          "end": 17.125,
+          "text": "A trilha pode chegar a sessenta metros do ninho."
+        },
+        {
+          "start": 17.475,
+          "end": 19.775000000000002,
+          "text": "Você segue o vai e vem das irmãs."
+        }
+      ]
+    },
+    {
+      "id": "p3",
+      "chapter": "pov",
+      "start": 20.566666666666666,
+      "end": 26.833333333333332,
+      "visual": "Irmã de frente, close, antenas se tocam.",
+      "speech": [
+        {
+          "start": 20.816666666666666,
+          "end": 22.516666666666666,
+          "text": "Uma delas vem de frente."
+        },
+        {
+          "start": 22.866666666666667,
+          "end": 24.416666666666668,
+          "text": "Antena com antena."
+        },
+        {
+          "start": 24.76666666666667,
+          "end": 26.041666666666668,
+          "text": "Siga em frente."
+        }
+      ]
+    },
+    {
+      "id": "p4",
+      "chapter": "pov",
+      "start": 26.833333333333332,
+      "end": 34.63333333333333,
+      "visual": "Mandíbulas cortam a folha translúcida; o pedaço se solta.",
+      "speech": [
+        {
+          "start": 27.083333333333332,
+          "end": 29.48333333333333,
+          "text": "Você morde a folha e vibra o corpo."
+        },
+        {
+          "start": 29.833333333333332,
+          "end": 33.83333333333333,
+          "text": "Esse chiado viaja pela folha e chama as irmãs para o mesmo lugar."
+        }
+      ]
+    },
+    {
+      "id": "p5",
+      "chapter": "pov",
+      "start": 34.63333333333333,
+      "end": 39.4,
+      "visual": "Folha acima da cabeça; sombra no chão.",
+      "speech": [
+        {
+          "start": 34.88333333333333,
+          "end": 38.583333333333336,
+          "text": "Você ergue o pedaço acima da cabeça e entra na fila de volta."
+        }
+      ]
+    },
+    {
+      "id": "p6",
+      "chapter": "pov",
+      "start": 39.4,
+      "end": 59.266666666666666,
+      "visual": "Mosca grande paira; recuo curto; carona na folha; a mosca sobe e some.",
+      "speech": [
+        {
+          "start": 39.65,
+          "end": 41.475,
+          "text": "Mas alguém está de olho."
+        },
+        {
+          "start": 41.825,
+          "end": 43.95,
+          "text": "Uma mosquinha que caça saúvas."
+        },
+        {
+          "start": 44.300000000000004,
+          "end": 48.550000000000004,
+          "text": "Em cerca de um segundo, ela põe um ovo dentro da cabeça de uma formiga."
+        },
+        {
+          "start": 48.900000000000006,
+          "end": 52.35000000000001,
+          "text": "Em cima da sua folha, uma irmã bem pequena vai de carona."
+        },
+        {
+          "start": 52.70000000000001,
+          "end": 56.37500000000001,
+          "text": "Em outra saúva, caronas assim afastaram moscas como essa."
+        },
+        {
+          "start": 56.72500000000001,
+          "end": 58.47500000000001,
+          "text": "Hoje, a mosca vai embora."
+        }
+      ]
+    },
+    {
+      "id": "p7",
+      "chapter": "pov",
+      "start": 59.266666666666666,
+      "end": 73.33333333333333,
+      "visual": "Túnel; revelação do jardim de fungo; câmera para; fade para preto de papel.",
+      "speech": [
+        {
+          "start": 59.516666666666666,
+          "end": 61.016666666666666,
+          "text": "De volta ao escuro."
+        },
+        {
+          "start": 61.36666666666667,
+          "end": 64.41666666666667,
+          "text": "A sua folha não é comida: ela alimenta um fungo."
+        },
+        {
+          "start": 64.76666666666667,
+          "end": 67.51666666666667,
+          "text": "E as pontas desse fungo alimentam vocês."
+        }
+      ]
+    }
+  ]
+}
