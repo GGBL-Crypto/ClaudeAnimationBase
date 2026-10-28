@@ -21,4 +21,4 @@ test('loadConfig survives a corrupted file and fills partial weights', () => {
   writeFileSync(join(d, 'config.json'), JSON.stringify({ weights: { novo: 5 } })); assert.deepEqual(loadConfig(d).weights, { ...DEFAULTS.weights, novo: 5 });
 });
 
-test('defaults carry visible thresholds', () => { assert.equal(DEFAULTS.outlierMin, 2); assert.equal(DEFAULTS.opportunityMin, 70); });
+test('defaults carry visible thresholds', () => { assert.equal(DEFAULTS.outlierMin, 2); assert.equal(DEFAULTS.opportunityMin, 70); assert.equal(loadConfig(tmp).subsJumpPct, 10); assert.equal(loadConfig(tmp).nicheMin, 25); assert.equal(loadConfig(tmp).monitorAuto, true); });

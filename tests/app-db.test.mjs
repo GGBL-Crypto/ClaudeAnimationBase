@@ -81,3 +81,27 @@ test('history newest first and jobs list without result',()=>{
  db.saveJob({id:'j1',kind:'mine',status:'done',createdAt:'2026-10-27T00:00:00Z',result:{big:1}});
  assert.deepEqual(db.jobsList(),[{id:'j1',kind:'mine',status:'done',createdAt:'2026-10-27T00:00:00Z',finishedAt:null,error:null}]);
 });
+
+test('watch defaults, partial updates and list', () => {
+  const db = openDb(':memory:'); db.upsertChannel({ id: 'UC1', title: 'A' });
+  assert.deepEqual(db.watch('UC1'), { monitor: false, competitor: false, since: null, lastRun: null });
+  db.setWatch('UC1', { monitor: true }); db.setWatch('UC1', { competitor: true });
+  const w = db.watch('UC1'); assert.equal(w.monitor, true); assert.equal(w.competitor, true); assert.ok(w.since);
+  db.setWatch('UC1', { monitor: false }); assert.deepEqual(db.watchList().map(x => [x.channelId, x.monitor, x.competitor]), [['UC1', false, true]]);
+  db.setWatchRun('UC1', '2026-10-28T10:00:00Z'); assert.equal(db.watch('UC1').lastRun, '2026-10-28T10:00:00Z');
+});
+test('alerts are unique per kind and ref, and can be marked seen', () => {
+  const db = openDb(':memory:'); db.upsertChannel({ id: 'UC1', title: '<img src=x onerror=alert(1)>' });
+  const a = { at: '2026-10-28T10:00:00Z', kind: 'newVideo', ref: 'vid00000001', channelId: 'UC1', videoId: 'vid00000001', payload: { title: 't' } };
+  assert.equal(db.addAlerts([a, a]), 1); assert.equal(db.addAlerts([a]), 0);
+  assert.equal(db.unseenAlerts(), 1); assert.equal(db.alerts()[0].channelTitle, '<img src=x onerror=alert(1)>');
+  db.markAlertsSeen('all'); assert.equal(db.unseenAlerts(), 0);
+});
+test('lastHistoryOf', () => { const db = openDb(':memory:'); db.addHistory('monitor', { status: 'done' }); db.addHistory('mine', {}); assert.equal(db.lastHistoryOf('monitor').payload.status, 'done'); assert.equal(db.lastHistoryOf('x'), null); });
+test('alerts order newest first, payload round-trips, mark seen by ids', () => {
+  const db = openDb(':memory:'); db.upsertChannel({ id: 'UC1', title: 'A' });
+  db.addAlerts([{ at: '2026-10-28T10:00:00Z', kind: 'outlier', ref: 'v1', channelId: 'UC1', videoId: 'v1', payload: { m: 3 } }, { at: '2026-10-28T11:00:00Z', kind: 'subsJump', ref: 'UC1@x', channelId: 'UC1' }]);
+  const l = db.alerts(); assert.deepEqual(l.map(x => x.kind), ['subsJump', 'outlier']); assert.deepEqual(l[1].payload, { m: 3 }); assert.equal(l[0].seen, false); assert.equal(l[0].videoId, null);
+  db.markAlertsSeen([l[0].id]); assert.equal(db.unseenAlerts(), 1); assert.equal(db.alerts().find(x => x.id === l[0].id).seen, true);
+  db.markAlertsSeen([]); assert.equal(db.unseenAlerts(), 1);
+});

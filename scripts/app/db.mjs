@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS history(at TEXT, kind TEXT, payload TEXT);
 CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, kind, status, created_at, finished_at, result TEXT, error);
 CREATE TABLE IF NOT EXISTS collections(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE, created_at);
 CREATE TABLE IF NOT EXISTS collection_items(collection_id INT NOT NULL REFERENCES collections(id) ON DELETE CASCADE, kind TEXT NOT NULL CHECK(kind IN ('channel','video')), item_id TEXT NOT NULL, note TEXT, added_at, PRIMARY KEY(collection_id, kind, item_id));
+CREATE TABLE IF NOT EXISTS watch(channel_id TEXT PRIMARY KEY REFERENCES channels(id), monitor INT NOT NULL DEFAULT 0, competitor INT NOT NULL DEFAULT 0, since TEXT, last_run TEXT);
+CREATE TABLE IF NOT EXISTS alerts(id INTEGER PRIMARY KEY, at TEXT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('newVideo','outlier','subsJump')), ref TEXT NOT NULL, channel_id TEXT NOT NULL REFERENCES channels(id), video_id TEXT, payload TEXT, seen INT NOT NULL DEFAULT 0, UNIQUE(kind, ref));
 `;
 export const FAV = 1; // coleção fixa Favoritos
 const n = x => x ?? null; // node:sqlite não aceita undefined
@@ -69,8 +71,18 @@ export function openDb(file) {
     member: q('SELECT collection_id FROM collection_items WHERE kind=? AND item_id=? ORDER BY collection_id'),
     histAll: q('SELECT at,kind,payload FROM history ORDER BY rowid DESC LIMIT ?'),
     jobsAll: q('SELECT id,kind,status,created_at,finished_at,error FROM jobs ORDER BY created_at DESC, rowid DESC LIMIT ?'),
+    watchOne: q('SELECT monitor,competitor,since,last_run FROM watch WHERE channel_id=?'),
+    watchSet: q('INSERT OR REPLACE INTO watch(channel_id,monitor,competitor,since,last_run) VALUES(?,?,?,?,?)'),
+    watchAll: q('SELECT channel_id,monitor,competitor,since,last_run FROM watch WHERE monitor=1 OR competitor=1 ORDER BY since, channel_id'),
+    watchRun: q('UPDATE watch SET last_run=? WHERE channel_id=?'),
+    alertIn: q('INSERT OR IGNORE INTO alerts(at,kind,ref,channel_id,video_id,payload) VALUES(?,?,?,?,?,?)'),
+    alertAll: q('SELECT a.id,a.at,a.kind,a.channel_id,c.title channel_title,a.video_id,a.payload,a.seen FROM alerts a JOIN channels c ON c.id=a.channel_id ORDER BY a.at DESC, a.id DESC LIMIT ?'),
+    alertUnseen: q('SELECT COUNT(*) u FROM alerts WHERE seen=0'),
+    alertSeen: q('UPDATE alerts SET seen=1 WHERE id=?'),
+    histOf: q('SELECT at,kind,payload FROM history WHERE kind=? ORDER BY rowid DESC LIMIT 1'),
     job: q('INSERT OR REPLACE INTO jobs(id,kind,status,created_at,finished_at,result,error) VALUES(?,?,?,?,?,?,?)'),
   };
+  const watchOf = r => ({ monitor: !!r?.monitor, competitor: !!r?.competitor, since: r?.since ?? null, lastRun: r?.last_run ?? null });
   const channelSnapshots = id => s.snaps.all(id).map(r => ({ ...r }));
   
   const vidFields = r => ({ id: r.id, channelId: r.channel_id, title: r.title, publishedAt: r.published_at, duration: r.duration, thumb: r.thumb, tags: p(r.tags), lang: r.lang, views: r.views });
@@ -120,6 +132,19 @@ export function openDb(file) {
     cacheSet: (url, body, expires) => void s.cacheSet.run(url, body, expires),
     addHistory: (kind, payload) => void s.hist.run(new Date().toISOString(), kind, j(payload)),
     saveJob: x => void s.job.run(x.id, x.kind, x.status, n(x.createdAt), n(x.finishedAt), j(x.result), n(x.error)),
+    watch: id => watchOf(s.watchOne.get(id)),
+    setWatch(id, { monitor, competitor }) { // campo omitido não muda; since grava na primeira vez que algo liga
+      const w = watchOf(s.watchOne.get(id)), m = monitor ?? w.monitor, c = competitor ?? w.competitor;
+      s.watchSet.run(id, +m, +c, w.since ?? ((m || c) ? new Date().toISOString() : null), w.lastRun);
+      return this.watch(id);
+    },
+    watchList: () => s.watchAll.all().map(r => ({ channelId: r.channel_id, ...watchOf(r) })),
+    setWatchRun: (id, at) => void s.watchRun.run(at, id),
+    addAlerts(list) { let k = 0; for (const a of list) k += s.alertIn.run(a.at, a.kind, a.ref, a.channelId, n(a.videoId), j(a.payload)).changes; return k; },
+    alerts: (limit = 50) => s.alertAll.all(limit).map(r => ({ id: r.id, at: r.at, kind: r.kind, channelId: r.channel_id, channelTitle: r.channel_title, videoId: r.video_id, payload: p(r.payload), seen: !!r.seen })),
+    unseenAlerts: () => s.alertUnseen.get().u,
+    markAlertsSeen(ids) { if (ids === 'all') raw.exec('UPDATE alerts SET seen=1'); else for (const id of ids) s.alertSeen.run(id); },
+    lastHistoryOf(kind) { const r = s.histOf.get(kind); return r ? { at: r.at, kind: r.kind, payload: p(r.payload) } : null; },
     close: () => raw.close(),
   };
 }
