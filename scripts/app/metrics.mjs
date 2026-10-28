@@ -37,3 +37,5 @@ export function channelRow(ch,snaps,videos,now,cfg){
   disparity:disp,scoreParts:parts,score:score(parts,cfg.weights),revenue:revenue(v30.value,ch.tag,ch.lang,cfg.rpm),lastPublished,daysSinceLast,
   topThumbs:[...videos].sort((a,b)=>b.views-a.views).slice(0,3).map(x=>({id:x.id,thumb:x.thumb,views:x.views}))};
 }
+export const overviewKpis=(chRows,vidRows,now,cfg)=>({channels:chRows.length,newChannels:chRows.filter(c=>c.ageDays!=null&&c.ageDays<=90).length,opportunities:chRows.filter(c=>c.score>=cfg.opportunityMin).length,
+ outliers7d:vidRows.filter(v=>v.multiple!=null&&v.multiple>=cfg.outlierMin&&t(v.publishedAt)>now-7*DAY).length});

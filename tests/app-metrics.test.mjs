@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {isoDuration,disparity,views30d,scoreParts,score,outlierMultiple,videoRow,revenue,channelRow,avgViews,frequency,ageDays} from '../scripts/app/metrics.mjs';
+import {isoDuration,disparity,views30d,scoreParts,score,outlierMultiple,videoRow,revenue,channelRow,avgViews,frequency,ageDays,overviewKpis} from '../scripts/app/metrics.mjs';
 import {DEFAULTS} from '../scripts/app/config.mjs';
 const now=Date.parse('2026-10-27T12:00:00Z');
 // stringify vira NaN em null: percorre os números de verdade
@@ -63,4 +63,12 @@ test('views30d edge cases',()=>{
  assert.deepEqual(views30d([],old,now),{value:0,source:'videos'});
  assert.deepEqual(views30d([{at:'2026-09-20T00:00:00Z',views:null},{at:'2026-10-26T00:00:00Z',views:5000}],old,now),{value:0,source:'videos'});
  assert.deepEqual(views30d([{at:'2026-09-20T00:00:00Z',views:4000},{at:'2026-10-26T00:00:00Z',views:null}],old,now),{value:0,source:'videos'});
+});
+
+test('overviewKpis counts channels, new, opportunities and fresh outliers', () => {
+  const now = Date.parse('2026-10-27T12:00:00Z');
+  const ch = [{ ageDays: 30, score: 80 }, { ageDays: 400, score: 69 }, { ageDays: null, score: 70 }];
+  const vids = [{ multiple: 3, publishedAt: '2026-10-25T00:00:00Z' }, { multiple: 3, publishedAt: '2026-10-01T00:00:00Z' }, { multiple: 1.5, publishedAt: '2026-10-26T00:00:00Z' }, { multiple: null, publishedAt: '2026-10-26T00:00:00Z' }];
+  assert.deepEqual(overviewKpis(ch, vids, now, DEFAULTS), { channels: 3, newChannels: 1, opportunities: 2, outliers7d: 1 });
+  assert.deepEqual(overviewKpis([], [], now, DEFAULTS), { channels: 0, newChannels: 0, opportunities: 0, outliers7d: 0 });
 });

@@ -2,7 +2,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const DEFAULTS = { apiKey: '', cacheHours: 24, quotaLimit: 10000, weights: { disparidade: 40, novo: 20, enxuto: 20, ativo: 20 }, rpm: {} };
+export const DEFAULTS = { apiKey: '', cacheHours: 24, quotaLimit: 10000, weights: { disparidade: 40, novo: 20, enxuto: 20, ativo: 20 }, rpm: {}, outlierMin: 2, opportunityMin: 70 };
 
 export function loadConfig(dir) {
   const f = join(dir, 'config.json');
