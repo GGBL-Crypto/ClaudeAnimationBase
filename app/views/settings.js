@@ -15,6 +15,8 @@ export async function render(root) {
   if (!root.isConnected) return; // trocou de tela durante o fetch
   const key = h('input', { type: 'password', autocomplete: 'new-password', placeholder: cfg.apiKeyHint ? 'Deixe vazio para manter a chave salva' : 'Cole a chave da YouTube Data API' });
   const hours = h('input', { type: 'number', min: '1', step: '1', value: String(cfg.cacheHours) });
+  const outlier = h('input', { type: 'number', min: '1', max: '100', step: 'any', value: String(cfg.outlierMin) });
+  const opp = h('input', { type: 'number', min: '0', max: '100', step: '1', value: String(cfg.opportunityMin) });
   const w = Object.fromEntries(WEIGHTS.map(([k]) => [k, h('input', { type: 'number', min: '0', step: '1', value: String(cfg.weights[k] ?? 0) })]));
   const rows = h('tbody');
   const addRow = (...vals) => rows.append(h('tr', {},
@@ -28,7 +30,7 @@ export async function render(root) {
       const [t, l, lo, hi] = [...tr.querySelectorAll('input')].map(i => i.value.trim());
       if (t || l || lo || hi) rpm[`${t}|${l}`] = [Number(lo), Number(hi)];
     }
-    const body = { cacheHours: Number(hours.value), weights: Object.fromEntries(Object.entries(w).map(([k, i]) => [k, Number(i.value)])), rpm };
+    const body = { cacheHours: Number(hours.value), outlierMin: Number(outlier.value), opportunityMin: Number(opp.value), weights: Object.fromEntries(Object.entries(w).map(([k, i]) => [k, Number(i.value)])), rpm };
     if (key.value.trim()) body.apiKey = key.value.trim();
     save_.disabled = true; status.className = 'status'; status.textContent = 'Salvando…';
     try {
@@ -42,6 +44,8 @@ export async function render(root) {
   root.append(h('form', { class: 'settings', onSubmit: e => { e.preventDefault(); save(); } },
     h('label', {}, 'Chave da YouTube Data API', key, hint),
     h('label', {}, 'Validade do cache (horas)', hours),
+    h('label', {}, 'Limiar de outlier (× a mediana do canal)', outlier),
+    h('label', {}, 'Score mínimo de oportunidade', opp),
     h('fieldset', {}, h('legend', {}, 'Pesos do score'), WEIGHTS.map(([k, label]) => h('label', {}, label, w[k]))),
     h('fieldset', {}, h('legend', {}, 'Tabela RPM (US$ por mil views)'),
       h('table', {}, h('thead', {}, h('tr', {}, [...COLS, ''].map(t => h('th', {}, t)))), rows),

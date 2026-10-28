@@ -2,10 +2,15 @@
 import { h } from './dom.js';
 import { api } from './api.js';
 
-const VIEWS = { '#/minerar': () => import('./views/mine.js'), '#/config': () => import('./views/settings.js') };
+const VIEWS = {
+  '#/geral': () => import('./views/overview.js'), '#/minerar': () => import('./views/mine.js'), '#/videos': () => import('./views/videos.js'),
+  '#/outliers': () => import('./views/outliers.js'), '#/colecoes': () => import('./views/collections.js'),
+  '#/favoritos': () => import('./views/collections.js').then(m => ({ render: m.renderFavorites })),
+  '#/historico': () => import('./views/history.js'), '#/config': () => import('./views/settings.js'),
+};
 const MENU = [
-  ['Visão geral'], ['Minerar canais', '#/minerar'], ['Minerar vídeos'], ['Outliers'], ['Nichos'], ['Concorrentes'],
-  ['Coleções'], ['Monitoramento'], ['Favoritos'], ['Histórico'], ['Configurações', '#/config'],
+  ['Visão geral', '#/geral'], ['Minerar canais', '#/minerar'], ['Minerar vídeos', '#/videos'], ['Outliers', '#/outliers'], ['Nichos'], ['Concorrentes'],
+  ['Coleções', '#/colecoes'], ['Monitoramento'], ['Favoritos', '#/favoritos'], ['Histórico', '#/historico'], ['Configurações', '#/config'],
 ];
 
 const meter = h('span', { class: 'quota' }, 'cota …');
@@ -26,7 +31,7 @@ let seq = 0;
 // Cada navegação ganha um root novo; resultado de navegação velha é descartado (root fica fora do DOM).
 export async function route(hash) {
   const my = ++seq, [path, query] = (hash || '').split('?');
-  const key = VIEWS[path] ? path : '#/minerar', root = h('div');
+  const key = VIEWS[path] ? path : '#/geral', root = h('div');
   for (const a of nav.querySelectorAll('a')) a.classList.toggle('on', a.dataset.href === key);
   content.replaceChildren(root);
   try { await (await VIEWS[key]()).render(root, new URLSearchParams(query)); }

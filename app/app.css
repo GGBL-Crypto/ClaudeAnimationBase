@@ -74,3 +74,30 @@ button.link:hover { color: var(--fg); }
 .part progress, .job progress { width: 100%; max-width: 320px; accent-color: var(--acc); }
 .thumb { width: 96px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; background: var(--line); }
 @media (max-width: 900px) { .split { flex-direction: column; } .panel { max-width: none; flex-basis: auto; width: 100%; position: static; max-height: none; } }
+/* Visão geral e componentes das telas da fase 2 */
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi { display: flex; flex-direction: column; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; color: var(--fg); text-decoration: none; }
+.kpi:hover { border-color: var(--acc); }
+.kpi strong { font-size: 28px; line-height: 1.1; }
+.kpi small { color: var(--dim); }
+a.chip { display: inline-block; background: var(--line); color: var(--fg); padding: 6px 12px; text-decoration: none; }
+.bars { display: flex; flex-direction: column; gap: 6px; }
+.bars > div { display: grid; grid-template-columns: minmax(80px, 160px) 1fr auto; gap: 8px; align-items: center; }
+.bars progress { width: 100%; accent-color: var(--acc); }
+.chart { display: block; width: 100%; height: 120px; }
+.chart polyline { fill: none; stroke: var(--acc); stroke-width: 2; }
+.words { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 8px 0; }
+.word { background: var(--line); border-radius: 10px; padding: 0 8px; }
+.star { font-size: 18px; color: var(--dim); }
+.star.on { color: #f5b301; }
+.pick { position: relative; display: inline-block; }
+.picker { position: absolute; z-index: 5; top: 100%; left: 0; min-width: 240px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.picker label { flex-direction: row; align-items: center; color: var(--fg); }
+.picker input[type="checkbox"] { width: auto; }
+.picker .row { margin-bottom: 0; flex-wrap: nowrap; }
+.note { display: flex; gap: 6px; align-items: center; }
+.note input { width: 100%; min-width: 120px; }
+.hist { list-style: none; padding: 0; margin: 0 0 12px; }
+.hist li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.summary { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
+.copy { width: 100%; min-height: 120px; font: 12px/1.4 ui-monospace, monospace; }
