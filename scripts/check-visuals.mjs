@@ -4,19 +4,20 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { launchBrowser, closeBrowser, openPage, frameOf, parseArgs } from './render-lib.mjs';
+import { startStudioServer } from './studio-server.mjs';
 
-const args=parseArgs(process.argv.slice(2)), browser=await launchBrowser(args), out='out/checks';
+const args=parseArgs(process.argv.slice(2)), browser=await launchBrowser(args), studio=await startStudioServer(), out='out/checks';
 const SMOKE=[...['watercolor-classic','cartoon','pixel'].map(style=>['smoke-visit',style]),...['debug','cartoon','stick','watercolor','flat','paper','ink','silhouette'].map(style=>['smoke-2d',style]),['smoke-3d','lowpoly-3d']];
 mkdirSync(out,{recursive:true});const report=[];
 try {
   for(const [project,style] of SMOKE) {
-    const name=project+'-'+style,page=await openPage(browser,{...args,project,style});
+    const name=project+'-'+style,opts={...args,project,style,...(project==='smoke-3d'?{origin:studio.origin}:{})},page=await openPage(browser,opts);
     assert.equal(await page.evaluate(()=>projectInfo().duration),2,name+': metadados sobrescritos pelo motor');
     const a=await frameOf(page,1);await frameOf(page,1.9);const b=await frameOf(page,1);
     assert.ok(a.equals(b),name+': frame depende do histórico');
     assert.ok(!a.equals(await frameOf(page,.5)),name+': o ser não anda');
     if(project==='smoke-visit'&&style==='cartoon'){const f=n=>frameOf(page,n/24),[x,y,z]=[await f(24),await f(23),await f(25)];assert.ok(!x.equals(y)&&!x.equals(z),'cartoon: quadros vizinhos devem diferir (padrão em 1s)');}
-    const other=await openPage(browser,{...args,project,style});
+    const other=await openPage(browser,opts);
     assert.ok(a.equals(await frameOf(other,1)),name+': workers produzem imagens diferentes');await other.close();
     const checks=await page.evaluate(()=>({project:PROJECT.id,style:PROJECT.style,p5:[...document.scripts].map(s=>s.src).filter(src=>/p5\.min\.js|p5\.brush\.js$/.test(src)),immutable:Object.isFrozen(PROJECT.styleConfig)}));
     assert.ok(checks.immutable,name+': configuração mutável');
@@ -44,11 +45,11 @@ try {
   await preview.setViewport({width:390,height:844});
   assert.ok(await preview.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Prévia transborda no celular');
   await preview.screenshot({path:join(out,'preview-mobile.png'),fullPage:true});
-  await preview.click('#shots li:nth-child(1) button');await preview.waitForFunction("Number(document.getElementById('scrub').value)<.1");
+  await preview.click('#shots li:nth-child(1) button');await preview.waitForFunction("Math.abs(Number(document.getElementById('scrub').value)-.1)<1e-6");
   await preview.click('#play');await preview.waitForFunction("Number(document.getElementById('scrub').value)>.3");await preview.click('#play');
   assert.equal(await preview.$eval('#play',el=>el.textContent),'Reproduzir');
   await preview.select('#style','stick');await preview.waitForFunction("window.ready && PROJECT.style==='stick'");
   assert.equal(preview.renderErrors.length,0);await preview.close();
   writeFileSync(join(out,'checks.json'),JSON.stringify({status:'passed',styles:report,preview:'desktop/mobile, storyboard, play/pause, style selection'},null,2)+'\n');
   console.log(`PASS: ${report.length} estilo×cena, determinismo, workers, isolamento, paleta/grade e prévia. Evidências: `+out);
-} finally {await closeBrowser(browser);}
+} finally {await closeBrowser(browser);await studio.close();}

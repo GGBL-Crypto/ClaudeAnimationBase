@@ -8,7 +8,9 @@
     St = toonStage(art, { sun: [-.5, .3], sky: ['#4E86B8', '#9CC4D8', '#BFD6B0', '#9DB888'], groundLight: '#5A4A2C', key: 2.1 });
     world = toonBiome(St, 'forest', { area: { x0: -9, x1: 9, z0: -16, z1: 1.5 }, ground: h, free: [{ a: [-7, -1], b: [7, -1], r: .35 }], seed: 8 });
     ambient = toonAmbient(St, { area: { x0: -6, x1: 6, z0: -7, z1: -2.2 }, ground: h, dust: 400, gnats: 4, butterflies: 0, clouds: 0 });
-    St.ground({ x0: -9, x1: 9, z0: -40, z1: 1.5, h, color: () => ['#E8C8A0', 1], rep: 1.4, seg: [2, 4] });
+    const color = () => ['#E8C8A0', 1];
+    St.ground({ x0: -9, x1: 9, z0: -4, z1: 1.5, h, color, rep: 1.4, seg: [2, 4] });
+    St.ground({ x0: -9, x1: 9, z0: -40, z1: -3.8, h, color, rep: 1.4, seg: .5, dy: -.005 });
   };
   function walk(t) {
     St.begin(t);
