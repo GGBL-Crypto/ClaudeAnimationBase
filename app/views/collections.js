@@ -72,7 +72,7 @@ async function detail(root, id) {
       h('thead', {}, h('tr', {}, ['Canal', 'Inscritos', 'Média/vídeo', 'Score', 'Nota', ''].map(t => h('th', {}, t)))),
       h('tbody', {}, items.map(it => {
         const r = it.row, rest = [cell(note(it)), cell(...(r ? [h('button', { type: 'button', onClick: () => { openChannel(panel, it.id); } }, 'Analisar')] : []), h('button', { type: 'button', onClick: remove(it) }, 'Remover'))];
-        return h('tr', {}, ...(r ? [cell(h('div', { class: 'ch' }, avatar(r.avatar), h('strong', {}, r.title ?? r.id))), cell(subsText(r.subs)), cell(fmt.num(r.avgViews)), cell(fmt.num(r.score))] : [...gone(it), cell(), cell(), cell()]), ...rest);
+        return h('tr', {}, ...(r ? [cell(h('div', { class: 'ch' }, avatar(r.avatar), h('div', {}, h('strong', {}, r.title ?? r.id), h('small', { class: 'dim block' }, 'dados de ' + fmt.date(r.updatedAt))))), cell(subsText(r.subs)), cell(fmt.num(r.avgViews)), cell(fmt.num(r.score))] : [...gone(it), cell(), cell(), cell()]), ...rest);
       })))];
   }
   function videos(items) {
@@ -82,7 +82,7 @@ async function detail(root, id) {
         const r = it.row, rest = [cell(note(it)), cell(h('button', { type: 'button', onClick: remove(it) }, 'Remover'))];
         return h('tr', {}, ...(r
           ? [cell(r.thumb ? h('img', { src: r.thumb, alt: '', class: 'thumb', loading: 'lazy', referrerpolicy: 'no-referrer' }) : null),
-            cell(h('a', { href: 'https://www.youtube.com/watch?v=' + encodeURIComponent(r.id), rel: 'noopener noreferrer', target: '_blank' }, r.title ?? r.id)),
+            cell(h('a', { href: 'https://www.youtube.com/watch?v=' + encodeURIComponent(r.id), rel: 'noopener noreferrer', target: '_blank' }, r.title ?? r.id), h('small', { class: 'dim block' }, 'dados de ' + fmt.date(r.capturedAt))),
             cell(r.channelTitle ?? '—'), cell(fmt.num(r.views)), cell(mult(r.multiple))]
           : [cell(), ...gone(it), cell(), cell(), cell()]), ...rest);
       })))];
