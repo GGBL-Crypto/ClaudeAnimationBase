@@ -34,6 +34,7 @@ export function openDb(file) {
     upVid: q(`INSERT INTO videos(id,channel_id,title,published_at,duration,thumb,tags,lang) VALUES(?,?,?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET title=COALESCE(excluded.title,title),published_at=COALESCE(excluded.published_at,published_at),duration=COALESCE(excluded.duration,duration),thumb=COALESCE(excluded.thumb,thumb),tags=COALESCE(excluded.tags,tags),lang=COALESCE(excluded.lang,lang)`),
     vidSnap: q('INSERT OR REPLACE INTO video_snapshots(video_id,at,views,likes,comments) VALUES(?,?,?,?,?)'),
+    lastVidSnap: q('SELECT views,likes,comments FROM video_snapshots WHERE video_id=? ORDER BY at DESC LIMIT 1'),
     tag: q('UPDATE channels SET tag=?, faceless=? WHERE id=?'),
     snaps: q('SELECT at,subs,views,videos FROM channel_snapshots WHERE channel_id=? ORDER BY at'),
     vids: q(`SELECT v.id,v.channel_id,v.title,v.published_at,v.duration,v.thumb,v.tags,v.lang,
@@ -57,6 +58,7 @@ export function openDb(file) {
     addChannelSnapshot: (id, at, x) => void s.chSnap.run(id, at, n(x.subs), n(x.views), n(x.videos)),
     upsertVideo: v => void s.upVid.run(v.id, v.channelId, n(v.title), n(v.publishedAt), n(v.duration), n(v.thumb), j(v.tags), n(v.lang)),
     addVideoSnapshot: (id, at, x) => void s.vidSnap.run(id, at, n(x.views), n(x.likes), n(x.comments)),
+    latestVideoSnapshot: id => ({ ...s.lastVidSnap.get(id) }),
     setChannelTag: (id, { tag, faceless }) => void s.tag.run(n(tag), faceless == null ? null : +!!faceless, id),
     channelSnapshots,
     channelVideos,

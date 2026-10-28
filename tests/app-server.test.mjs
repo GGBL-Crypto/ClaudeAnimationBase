@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { request } from 'node:http';
-import { startAppServer } from '../scripts/app-server.mjs';
+import { startAppServer, errorStatus } from '../scripts/app-server.mjs';
 import { saveConfig, DEFAULTS } from '../scripts/app/config.mjs';
 
 // Fixtures do YouTube com UCfixture1 trocado por um id válido (22 caracteres) para alcançar as rotas /api/channels/:id.
@@ -27,6 +27,7 @@ before(async () => {
   temp = await mkdtemp(join(tmpdir(), 'app-server-')); dataDir = join(temp, 'data');
   const appDir = join(temp, 'app'); await mkdir(join(appDir, 'views'), { recursive: true });
   await writeFile(join(appDir, 'index.html'), '<meta name="app-token" content="%APP_TOKEN%"><p>app</p>');
+  await writeFile(join(appDir, 'other.html'), '<p>%APP_TOKEN%</p>');
   await writeFile(join(appDir, 'app.css'), 'body{}'); await writeFile(join(appDir, 'views', 'x.js'), 'export const x = 1;');
   await writeFile(join(temp, 'secret.js'), 'private');
   saveConfig(dataDir, { apiKey: 'AIzaTESTKEY1234' });
@@ -55,6 +56,12 @@ test('binds loopback, injects token, sets CSP', async () => {
   assert.equal(r.headers['x-content-type-options'], 'nosniff'); assert.equal(r.headers['cache-control'], 'no-store');
   const css = await get('/app.css'); assert.equal(css.status, 200); assert.match(css.headers['content-type'], /text\/css/);
   assert.equal((await get('/views/x.js')).status, 200);
+});
+test('token is injected only in index.html', async () => {
+  const r = await get('/other.html'); assert.equal(r.status, 200); assert.equal(r.body, '<p>%APP_TOKEN%</p>'); assert.ok(!r.body.includes(s.token));
+});
+test('errorStatus keeps only 400..599 integers', () => {
+  for (const [st, want] of [[0, 500], [200, 500], [600, 500], [404.5, 500], ['404', 500], [NaN, 500], [undefined, 500], [403, 403], [599, 599]]) assert.equal(errorStatus({ status: st }), want, String(st));
 });
 test('rejects wrong host, missing origin and missing token', async () => {
   assert.equal((await get('/api/config', { Host: 'evil.test' })).status, 403);

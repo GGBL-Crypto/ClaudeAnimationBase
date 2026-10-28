@@ -101,11 +101,16 @@ test('mixed paste mines the valid ones and lists the invalid ones', async () => 
   assert.deepEqual(r.invalid, ['UCfixture2', '/c/old', 'lixo', '@ghost', 'olduser']); // UCfixture2 não tem 22 caracteres
   assert.equal(db.channelRows(now, DEFAULTS).length, 3);
 });
-test('refreshChannel adds a new snapshot; unknown id fails without throwing', async () => {
+test('refreshChannel adds a snapshot only when numbers changed; unknown id fails without throwing', async () => {
   const { db, yt } = mk();
   await refreshChannel(yt, db, 'UCfixture1', report, at);
-  const r2 = await refreshChannel(yt, db, 'UCfixture1', report, '2026-10-28T12:00:00Z');
+  await refreshChannel(yt, db, 'UCfixture1', report, '2026-10-28T12:00:00Z'); // mesmos números: sem snapshot novo
+  assert.equal(db.channelSnapshots('UCfixture1').length, 1);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) n FROM video_snapshots').get().n, 3);
+  const up = mk({ edit: { channel: c => ({ ...c, statistics: { ...c.statistics, viewCount: '999999999' } }), video: v => ({ ...v, statistics: { ...v.statistics, viewCount: '999999999' } }) } });
+  const r2 = await refreshChannel(up.yt, db, 'UCfixture1', report, '2026-10-29T12:00:00Z');
   assert.deepEqual(r2.ok, ['UCfixture1']); assert.equal(db.channelSnapshots('UCfixture1').length, 2);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) n FROM video_snapshots').get().n, 6);
   const g = await refreshChannel(yt, db, 'UCghost', report, at);
   assert.deepEqual(g, { ok: [], failed: [{ id: 'UCghost', error: 'Canal não encontrado' }] });
 });

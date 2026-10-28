@@ -3,6 +3,7 @@ const ID = /^UC[\w-]{22}$/;
 const HOSTS = new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com']);
 const FATAL = new Set(['quotaExceeded', 'keyInvalid']); // erros que valem para a rodada toda
 const num = x => (x == null ? null : Number(x));
+const same = (a, b) => !!a && Object.keys(b).every(k => (a[k] ?? null) === b[k]); // snapshot igual ao último: não grava de novo
 const dec = s => { try { return decodeURIComponent(s); } catch { return s; } };
 
 function parseOne(s) {
@@ -52,10 +53,12 @@ export async function ingestChannels(yt, db, ids, report, at) {
         vids = vids.filter(v => v.snippet?.channelId === id);
         const st = c.statistics ?? {}, hidden = !!st.hiddenSubscriberCount;
         db.upsertChannel({ id, title: c.snippet?.title, handle: c.snippet?.customUrl, country: c.snippet?.country, lang: channelLang(c, vids), avatar: c.snippet?.thumbnails?.default?.url, createdAt: c.snippet?.publishedAt, uploads, topics: c.topicDetails?.topicCategories, hiddenSubs: hidden });
-        db.addChannelSnapshot(id, at, { subs: hidden ? null : num(st.subscriberCount), views: num(st.viewCount), videos: num(st.videoCount) });
+        const cs = { subs: hidden ? null : num(st.subscriberCount), views: num(st.viewCount), videos: num(st.videoCount) };
+        if (!same(db.channelSnapshots(id).at(-1), cs)) db.addChannelSnapshot(id, at, cs);
         for (const v of vids) {
           db.upsertVideo({ id: v.id, channelId: id, title: v.snippet.title, publishedAt: v.snippet.publishedAt, duration: v.contentDetails?.duration, thumb: v.snippet.thumbnails?.medium?.url ?? v.snippet.thumbnails?.default?.url, tags: v.snippet.tags, lang: v.snippet.defaultAudioLanguage });
-          db.addVideoSnapshot(v.id, at, { views: num(v.statistics?.viewCount), likes: num(v.statistics?.likeCount), comments: num(v.statistics?.commentCount) });
+          const vs = { views: num(v.statistics?.viewCount), likes: num(v.statistics?.likeCount), comments: num(v.statistics?.commentCount) };
+          if (!same(db.latestVideoSnapshot(v.id), vs)) db.addVideoSnapshot(v.id, at, vs);
         }
         ok.push(id);
       } catch (e) {

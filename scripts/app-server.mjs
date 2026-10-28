@@ -18,6 +18,7 @@ const MIME = { html: 'text/html; charset=utf-8', css: 'text/css; charset=utf-8',
 const BASE = { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' };
 const within = (root, file) => { const rel = relative(root, file); return rel !== '..' && !rel.startsWith('..' + sep) && !isAbsolute(rel); };
 const fail = (status, message) => Object.assign(new Error(message), { status });
+export const errorStatus = e => (Number.isInteger(e?.status) && e.status >= 400 && e.status <= 599 ? e.status : 500);
 const isObj = x => !!x && typeof x === 'object' && !Array.isArray(x);
 const fin = x => typeof x === 'number' && Number.isFinite(x);
 
@@ -135,12 +136,13 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
       if (!within(appRoot, actual)) throw fail(403, 'Caminho inválido');
       const ext = actual.split('.').pop(), head = { ...BASE, 'Content-Type': MIME[ext] };
       let bytes = await readFile(actual);
-      if (ext === 'html') { bytes = Buffer.from(bytes.toString('utf8').replaceAll('%APP_TOKEN%', token)); head['Content-Security-Policy'] = CSP; }
+      if (raw === '/' || raw === '/index.html') { bytes = Buffer.from(bytes.toString('utf8').replaceAll('%APP_TOKEN%', token)); head['Content-Security-Policy'] = CSP; }
       res.writeHead(200, { ...head, 'Content-Length': bytes.length }); res.end(bytes);
     } catch (e) {
       if (res.headersSent) return void res.destroy();
       // Só a mensagem dos erros previstos; o resto vira genérico (sem stack, caminho ou URL).
-      json(res, e.status ?? 500, { error: e.status ? e.message : 'Erro interno' }, e.status === 413 ? { Connection: 'close' } : undefined);
+      const status = errorStatus(e);
+      json(res, status, { error: e.status === status ? e.message : 'Erro interno' }, status === 413 ? { Connection: 'close' } : undefined);
     }
   });
   await new Promise((ok, bad) => { server.once('error', bad); server.listen(port, '127.0.0.1', ok); });
