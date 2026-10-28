@@ -51,7 +51,7 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
   const cfg = () => loadConfig(dataDir);
   const at = () => new Date(now()).toISOString();
   // Chave lida a cada job: uma chave nova vale sem reiniciar.
-  const job = (kind, fn) => jobs.start(kind, report => { const c = cfg(); return fn(createYouTube({ key: c.apiKey, db, cfg: c, fetch, now }), report, at()); });
+  const job = (kind, fn, fresh = false) => jobs.start(kind, report => { const c = cfg(); return fn(createYouTube({ key: c.apiKey, db, cfg: c, fetch, now, fresh }), report, at()); });
   const chId = m => { if (!ID.test(m[1])) throw fail(400, 'Canal inválido'); return m[1]; };
   const channel = id => db.channel(id, now(), cfg()) ?? (() => { throw fail(404, 'Canal não encontrado'); })();
 
@@ -84,7 +84,7 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
     }],
     ['GET', /^\/api\/channels\/([^/]+)$/, m => channel(chId(m))],
     ['GET', /^\/api\/channels\/([^/]+)\/videos$/, m => db.videoRows(chId(m), now())],
-    ['POST', /^\/api\/channels\/([^/]+)\/refresh$/, m => { const id = chId(m); return { jobId: job('refresh', (yt, report, t) => refreshChannel(yt, db, id, report, t)) }; }],
+    ['POST', /^\/api\/channels\/([^/]+)\/refresh$/, m => { const id = chId(m); return { jobId: job('refresh', (yt, report, t) => refreshChannel(yt, db, id, report, t), true) }; }],
     ['POST', /^\/api\/channels\/([^/]+)\/tag$/, async (m, req) => {
       const id = chId(m), { tag = null, faceless = null } = await readJson(req);
       if (tag !== null && (typeof tag !== 'string' || tag.length > 60) || faceless !== null && typeof faceless !== 'boolean') throw fail(400, 'Etiqueta inválida');

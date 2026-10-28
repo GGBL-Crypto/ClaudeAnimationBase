@@ -29,7 +29,8 @@ export function parseChannelInput(text) {
 
 // Idioma: defaultLanguage do canal; senão o prefixo de 2 letras mais comum do áudio dos vídeos.
 function channelLang(c, vids) {
-  if (c.snippet?.defaultLanguage) return c.snippet.defaultLanguage;
+  const d = /^[a-z]{2}/i.exec(c.snippet?.defaultLanguage ?? '')?.[0].toLowerCase();
+  if (d) return d;
   const n = new Map();
   for (const v of vids) { const l = /^[a-z]{2}/i.exec(v.snippet?.defaultAudioLanguage ?? '')?.[0].toLowerCase(); if (l) n.set(l, (n.get(l) ?? 0) + 1); }
   return [...n].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;

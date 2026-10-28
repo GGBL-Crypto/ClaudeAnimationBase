@@ -41,3 +41,7 @@ test('history, jobs and raw',()=>{
  assert.equal(JSON.parse(db.raw.prepare('select payload from history').get().payload).n,1);
  assert.equal(db.raw.prepare('pragma foreign_keys').get().foreign_keys,1);db.close();
 });
+test('videos.channel_id is indexed',()=>{
+ const db=openDb(':memory:');
+ assert.ok(db.raw.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND tbl_name='videos' AND sql LIKE '%channel_id%'").get());
+});

@@ -97,8 +97,10 @@ test('channel detail, tag and refresh', async () => {
   assert.equal((await get('/api/channels/UCzzzzzzzzzzzzzzzzzzzzzz')).status, 404);
   const t = JSON.parse((await post(`/api/channels/${C1}/tag`, { tag: 'curiosidades', faceless: true }, ok)).body); assert.equal(t.tag, 'curiosidades'); assert.equal(t.faceless, true);
   assert.equal((await post(`/api/channels/${C1}/tag`, { tag: 5 }, ok)).status, 400);
+  const n = calls.length;
   const { jobId } = JSON.parse((await post(`/api/channels/${C1}/refresh`, {}, ok)).body);
   assert.equal((await readSse(`/api/jobs/${jobId}/events`)).at(-1).data.status, 'done');
+  assert.ok(calls.length > n); // refresh ignora o cache
   const { jobId: imp } = JSON.parse((await post('/api/import', { text: `${C1}\nlixo` }, ok)).body);
   assert.deepEqual((await readSse(`/api/jobs/${imp}/events`)).at(-1).data.result.invalid, ['lixo']);
   assert.equal((await get('/api/jobs/00000000-0000-0000-0000-000000000000/events')).status, 404);

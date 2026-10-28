@@ -12,19 +12,19 @@ export class YouTubeError extends Error {
 }
 const chunks = (a, n) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, (i + 1) * n));
 
-export function createYouTube({ key, db, cfg, fetch = globalThis.fetch, now = Date.now }) {
+export function createYouTube({ key, db, cfg, fetch = globalThis.fetch, now = Date.now, fresh = false }) {
   async function call(method, params) {
     if (!key) throw new YouTubeError('Configure a chave da API', 'noKey', 0);
     const u = new URL(method, BASE);
     for (const [k, v] of Object.entries(params)) if (v != null) u.searchParams.set(k, v);
     const url = u.toString(); // chave vai no cabeçalho: nunca na URL, no cache ou em erro
-    const hit = db.cacheGet(url, now());
+    const hit = !fresh && db.cacheGet(url, now()); // fresh: ignora o cache, mas grava
     if (hit) return JSON.parse(hit);
     const r = await fetch(url, { headers: { 'x-goog-api-key': key } });
-    db.logQuota(quotaDay(now()), COSTS[method], method); // a cota é gasta mesmo com erro HTTP
     const body = await r.json().catch(() => ({}));
+    const reason = body.error?.details?.some(d => d.reason === 'API_KEY_INVALID') ? 'keyInvalid' : body.error?.errors?.[0]?.reason ?? null;
+    if (reason !== 'keyInvalid') db.logQuota(quotaDay(now()), COSTS[method], method); // a cota é gasta mesmo com erro HTTP, menos chave inválida
     if (!r.ok) {
-      const reason = body.error?.errors?.[0]?.reason ?? null;
       throw new YouTubeError(MSG[reason] ?? body.error?.message ?? `YouTube HTTP ${r.status}`, reason, r.status);
     }
     db.cacheSet(url, JSON.stringify(body), now() + cfg.cacheHours * 36e5);

@@ -83,3 +83,17 @@ test('videos batches by 50', async () => {
 });
 test('quotaDay uses Pacific time', () => { assert.equal(quotaDay(Date.parse('2026-10-27T05:00:00Z')), '2026-10-26'); assert.equal(quotaDay(Date.parse('2026-10-27T07:30:00Z')), '2026-10-27'); });
 test('estimateMine', () => { assert.equal(estimateMine(50), 301); assert.equal(estimateMine(1), 203); });
+test('fresh skips cache reads but still writes cache and logs quota', async () => {
+  const { db, f, yt } = mk();
+  await yt.videos(['vidfixture1']);
+  const y2 = createYouTube({ key: 'K', db, cfg: DEFAULTS, fetch: f, now: () => now, fresh: true });
+  await y2.videos(['vidfixture1']);
+  assert.equal(f.calls, 2); assert.equal(db.quotaUsed(quotaDay(now)), 2);
+  await yt.videos(['vidfixture1']); assert.equal(f.calls, 2); // cache segue gravado
+});
+test('real invalid-key shape maps to keyInvalid and is not charged', async () => {
+  const body = { error: { code: 400, message: 'API key not valid. Please pass a valid API key.', errors: [{ reason: 'badRequest' }], details: [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: 'API_KEY_INVALID' }] } };
+  const { db, yt } = mk({ fetch: fake(() => res(400, body)) });
+  await assert.rejects(yt.searchIds('x', 'video'), e => e.reason === 'keyInvalid' && e.message === 'Chave da API inválida');
+  assert.equal(db.quotaUsed(quotaDay(now)), 0);
+});

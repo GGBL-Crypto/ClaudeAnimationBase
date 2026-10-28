@@ -89,6 +89,7 @@ test('language: defaultLanguage, else most common audio prefix, else null', asyn
   const withAudio = v => { const x = structuredClone(v); x.snippet.defaultAudioLanguage = audio[x.id]; return x; };
   const a = mk(); await ingestChannels(a.yt, a.db, ['UCfixture1'], report, at); assert.equal(a.db.channel('UCfixture1', now, DEFAULTS).lang, 'en');
   const b = mk({ edit: { channel: noLang, video: withAudio } }); await ingestChannels(b.yt, b.db, ['UCfixture1'], report, at); assert.equal(b.db.channel('UCfixture1', now, DEFAULTS).lang, 'pt');
+  const d = mk({ edit: { channel: c => { const x = structuredClone(c); x.snippet.defaultLanguage = 'pt-BR'; return x; } } }); await ingestChannels(d.yt, d.db, ['UCfixture1'], report, at); assert.equal(d.db.channel('UCfixture1', now, DEFAULTS).lang, 'pt');
   const c = mk(); await ingestChannels(c.yt, c.db, ['UCfixture2'], report, at); assert.equal(c.db.channel('UCfixture2', now, DEFAULTS).lang, null);
 });
 test('mixed paste mines the valid ones and lists the invalid ones', async () => {

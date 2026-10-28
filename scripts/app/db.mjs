@@ -8,6 +8,7 @@ const SCHEMA = `
 CREATE TABLE IF NOT EXISTS channels(id TEXT PRIMARY KEY, title, handle, country, lang, avatar, created_at, uploads, topics, hidden_subs INT, tag, faceless INT, added_at);
 CREATE TABLE IF NOT EXISTS channel_snapshots(channel_id TEXT NOT NULL REFERENCES channels(id), at TEXT NOT NULL, subs INT, views INT, videos INT, PRIMARY KEY(channel_id, at));
 CREATE TABLE IF NOT EXISTS videos(id TEXT PRIMARY KEY, channel_id TEXT NOT NULL REFERENCES channels(id), title, published_at, duration, thumb, tags, lang);
+CREATE INDEX IF NOT EXISTS videos_channel ON videos(channel_id, published_at);
 CREATE TABLE IF NOT EXISTS video_snapshots(video_id TEXT NOT NULL REFERENCES videos(id), at TEXT NOT NULL, views INT, likes INT, comments INT, PRIMARY KEY(video_id, at));
 CREATE TABLE IF NOT EXISTS quota_log(day TEXT, units INT, method TEXT, at TEXT);
 CREATE TABLE IF NOT EXISTS cache(url TEXT PRIMARY KEY, body TEXT, expires INT);
