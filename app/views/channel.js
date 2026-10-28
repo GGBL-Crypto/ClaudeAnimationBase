@@ -1,6 +1,8 @@
-// Painel do canal: cabeçalho, etiqueta, visão geral (score, receita, capturas) e vídeos.
+// Painel do canal: cabeçalho, etiqueta, ações, visão geral (score, receita, capturas), vídeos, análise e concorrentes.
 import { h, fmt } from '../dom.js';
 import { api } from '../api.js';
+import { loadFavs, favButton, collectButton } from './collect.js';
+import { analysisTab, similarTab } from './analysis.js';
 
 // Formatos comuns à lista e ao painel; nunca NaN/Infinity/null na tela.
 const EST = 'estimativa por vídeos dos últimos 30 dias';
@@ -26,6 +28,8 @@ const dur = s => !s ? '—' : (s >= 3600 ? Math.floor(s / 3600) + ':' : '') + St
 const mult = m => m == null || !Number.isFinite(m) ? '—' : m >= 1 ? `+${dec(Math.round((m - 1) * 100))}% acima da média` : `${dec(Math.round((1 - m) * 100))}% abaixo da média`;
 const when = iso => fmt.date(iso) === '—' ? '—' : new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 const stat = (k, v) => h('div', {}, h('dt', {}, k), h('dd', {}, v));
+
+const soon = label => h('button', { type: 'button', disabled: true }, label + ' ', h('small', { class: 'soon' }, 'em breve'));
 
 function closeBtn(panel) {
   return h('button', { type: 'button', class: 'close', onClick: () => { panel.hidden = true; delete panel.dataset.id; panel.dispatchEvent(new Event('panel-close')); } }, 'Fechar');
@@ -71,12 +75,18 @@ function draw(panel, c, weights, tab = 'o') {
 
   const body = h('div', { class: 'tab' });
   // body.dataset.tab diz a aba ativa; resposta de aba antiga não sobrescreve a atual
-  const pick = t => { for (const b of tabs.children) b.classList.toggle('on', b.dataset.t === t); body.dataset.tab = t; body.replaceChildren(); t === 'v' ? videos(body, c) : overview(); };
-  const soon = label => h('button', { type: 'button', disabled: true }, label + ' ', h('small', { class: 'soon' }, 'em breve'));
+  const pick = t => {
+    for (const b of tabs.children) b.classList.toggle('on', b.dataset.t === t); body.dataset.tab = t; body.replaceChildren();
+    t === 'v' ? videos(body, c) : t === 'a' ? analysisTab(body, c) : t === 'c' ? similarTab(body, c, id => openChannel(panel, id)) : overview();
+  };
   const tabs = h('nav', { class: 'tabs' },
     h('button', { type: 'button', dataset: { t: 'o' }, onClick: () => pick('o') }, 'Visão geral'),
     h('button', { type: 'button', dataset: { t: 'v' }, onClick: () => pick('v') }, 'Vídeos'),
-    soon('Análise'), soon('Concorrentes'));
+    h('button', { type: 'button', dataset: { t: 'a' }, onClick: () => pick('a') }, 'Análise'),
+    h('button', { type: 'button', dataset: { t: 'c' }, onClick: () => pick('c') }, 'Concorrentes'));
+  // estrela entra quando Favoritos carrega; falha deixa só o resto das ações
+  const star = h('span');
+  loadFavs().then(f => star.replaceChildren(favButton('channel', c.id, f))).catch(() => {});
 
   function overview() {
     const tot = Object.values(weights).reduce((a, x) => a + x, 0) || 1, snaps = c.snapshots ?? [];
@@ -103,6 +113,7 @@ function draw(panel, c, weights, tab = 'o') {
         h('a', { href: 'https://www.youtube.com/channel/' + enc(c.id), rel: 'noopener noreferrer', target: '_blank' }, 'Visitar canal')),
       closeBtn(panel)),
     h('div', { class: 'row' }, refresh, tag, face, h('button', { type: 'button', onClick: saveTag }, 'Salvar etiqueta')),
+    h('div', { class: 'row' }, star, collectButton('channel', c.id), soon('Monitorar'), soon('Modelar')),
     msg, tabs, body);
   pick(tab);
 }
