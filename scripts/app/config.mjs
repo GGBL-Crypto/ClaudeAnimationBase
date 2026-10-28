@@ -6,8 +6,9 @@ export const DEFAULTS = { apiKey: '', cacheHours: 24, quotaLimit: 10000, weights
 
 export function loadConfig(dir) {
   const f = join(dir, 'config.json');
-  const saved = existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : {};
-  return { ...structuredClone(DEFAULTS), ...saved };
+  let saved = {};
+  if (existsSync(f)) try { saved = JSON.parse(readFileSync(f, 'utf8')) ?? {}; } catch {} // corrompido: padrões, sem derrubar o servidor
+  return { ...structuredClone(DEFAULTS), ...saved, weights: { ...DEFAULTS.weights, ...saved.weights } };
 }
 
 export function saveConfig(dir, patch) {
