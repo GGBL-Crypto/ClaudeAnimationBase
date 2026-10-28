@@ -7,11 +7,13 @@ const COLS = ['Etiqueta', 'Idioma', 'RPM mín', 'RPM máx'];
 
 export async function render(root) {
   root.append(h('h1', {}, 'Configurações'));
+  const save_ = h('button', { type: 'submit', class: 'primary' }, 'Salvar');
   const status = h('p', { class: 'status' });
   let cfg;
-  try { cfg = await api.get('/api/config'); } catch (e) { root.append(h('p', { class: 'err' }, e.message)); return; }
+  try { cfg = await api.get('/api/config'); } catch (e) { if (root.isConnected) root.append(h('p', { class: 'err' }, e.message)); return; }
 
-  const key = h('input', { type: 'password', autocomplete: 'off', placeholder: cfg.apiKeyHint ? 'Deixe vazio para manter a chave salva' : 'Cole a chave da YouTube Data API' });
+  if (!root.isConnected) return; // trocou de tela durante o fetch
+  const key = h('input', { type: 'password', autocomplete: 'new-password', placeholder: cfg.apiKeyHint ? 'Deixe vazio para manter a chave salva' : 'Cole a chave da YouTube Data API' });
   const hours = h('input', { type: 'number', min: '1', step: '1', value: String(cfg.cacheHours) });
   const w = Object.fromEntries(WEIGHTS.map(([k]) => [k, h('input', { type: 'number', min: '0', step: '1', value: String(cfg.weights[k] ?? 0) })]));
   const rows = h('tbody');
@@ -28,11 +30,12 @@ export async function render(root) {
     }
     const body = { cacheHours: Number(hours.value), weights: Object.fromEntries(Object.entries(w).map(([k, i]) => [k, Number(i.value)])), rpm };
     if (key.value.trim()) body.apiKey = key.value.trim();
-    status.className = 'status'; status.textContent = 'Salvando…';
+    save_.disabled = true; status.className = 'status'; status.textContent = 'Salvando…';
     try {
       const saved = await api.post('/api/config', body);
       status.textContent = 'Salvo.'; key.value = ''; hint.textContent = saved.apiKeyHint ? `Chave atual termina em ${saved.apiKeyHint}` : 'Nenhuma chave salva';
     } catch (e) { status.className = 'status err'; status.textContent = e.message; }
+    finally { save_.disabled = false; }
   }
 
   const hint = h('small', { class: 'hint' }, cfg.apiKeyHint ? `Chave atual termina em ${cfg.apiKeyHint}` : 'Nenhuma chave salva');
@@ -43,5 +46,5 @@ export async function render(root) {
     h('fieldset', {}, h('legend', {}, 'Tabela RPM (US$ por mil views)'),
       h('table', {}, h('thead', {}, h('tr', {}, [...COLS, ''].map(t => h('th', {}, t)))), rows),
       h('button', { type: 'button', onClick: () => addRow() }, 'Adicionar linha')),
-    h('button', { type: 'submit', class: 'primary' }, 'Salvar'), status));
+    save_, status));
 }

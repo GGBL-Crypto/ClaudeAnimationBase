@@ -14,12 +14,14 @@ export function h(tag, attrs, ...children) {
 }
 
 const nf = (n, d) => n.toLocaleString('pt-BR', { maximumFractionDigits: d });
+const day = iso => { const t = new Date(iso).getTime(); return Number.isFinite(t) ? t : null; };
 export const fmt = {
-  num: n => n == null || !Number.isFinite(n) ? '—' : n >= 1e6 ? nf(n / 1e6, 1) + ' mi' : n >= 1e3 ? nf(n / 1e3, 1) + ' mil' : nf(n, 0),
+  // Arredonda antes de escolher a unidade (999999 vira "1 mi"); negativo não abrevia.
+  num: n => n == null || !Number.isFinite(n) ? '—' : n < 0 ? nf(n, 0) : n >= 1e6 || Math.round(n / 100) >= 1e4 ? nf(n / 1e6, 1) + ' mi' : n >= 1e3 ? nf(n / 1e3, 1) + ' mil' : nf(n, 0),
   ago(iso) {
-    if (!iso) return '—';
-    const d = Math.max(0, Math.floor((Date.now() - new Date(iso)) / 864e5));
+    const t = day(iso); if (t == null) return '—';
+    const d = Math.max(0, Math.floor((Date.now() - t) / 864e5));
     return d < 1 ? 'hoje' : d < 30 ? `há ${d} d` : d < 365 ? `há ${Math.floor(d / 30)} m` : `há ${Math.floor(d / 365)} a`;
   },
-  date: iso => iso ? new Date(iso).toLocaleDateString('pt-BR') : '—',
+  date: iso => day(iso) == null ? '—' : new Date(iso).toLocaleDateString('pt-BR'),
 };

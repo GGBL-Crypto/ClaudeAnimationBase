@@ -22,13 +22,15 @@ async function refreshQuota() {
 }
 window.addEventListener('quota-refresh', refreshQuota);
 
+let seq = 0;
+// Cada navegação ganha um root novo; resultado de navegação velha é descartado (root fica fora do DOM).
 export async function route(hash) {
-  const [path, query] = (hash || '').split('?');
-  const key = VIEWS[path] ? path : '#/minerar';
+  const my = ++seq, [path, query] = (hash || '').split('?');
+  const key = VIEWS[path] ? path : '#/minerar', root = h('div');
   for (const a of nav.querySelectorAll('a')) a.classList.toggle('on', a.dataset.href === key);
-  content.replaceChildren();
-  try { (await VIEWS[key]()).render(content, new URLSearchParams(query)); }
-  catch (e) { content.append(h('p', { class: 'err' }, 'Erro ao abrir a tela: ' + e.message)); }
+  content.replaceChildren(root);
+  try { await (await VIEWS[key]()).render(root, new URLSearchParams(query)); }
+  catch (e) { if (my === seq) root.append(h('p', { class: 'err' }, 'Erro ao abrir a tela: ' + e.message)); }
 }
 window.addEventListener('hashchange', () => route(location.hash));
 refreshQuota();

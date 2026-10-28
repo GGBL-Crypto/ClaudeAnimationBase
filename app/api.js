@@ -2,7 +2,7 @@
 const token = () => document.querySelector('meta[name="app-token"]')?.content ?? '';
 
 async function call(path, opt) {
-  const r = await fetch(path, opt);
+  const r = await fetch(path, opt).catch(() => { throw new Error('Sem conexão com o app local'); });
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.error || 'Erro ' + r.status);
   return body;
@@ -15,7 +15,8 @@ export const api = {
   events(jobId, onEvent) {
     const es = new EventSource(`/api/jobs/${encodeURIComponent(jobId)}/events`);
     for (const name of ['progress', 'end']) es.addEventListener(name, e => {
-      onEvent(name, JSON.parse(e.data));
+      let data; try { data = JSON.parse(e.data); } catch { data = name === 'end' ? { status: 'error', error: 'Resposta inválida do app local' } : {}; }
+      onEvent(name, data);
       if (name === 'end') { es.close(); window.dispatchEvent(new Event('quota-refresh')); }
     });
     es.onerror = () => { if (es.readyState === EventSource.CLOSED) onEvent('end', { status: 'error', error: 'Conexão perdida' }); };
