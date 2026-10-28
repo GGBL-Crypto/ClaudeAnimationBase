@@ -12,7 +12,9 @@ import { mineKeyword, mineVideos, importChannels, refreshChannel } from './app/m
 import { createJobs, sseWrite } from './app/jobs.mjs';
 import { overviewKpis } from './app/metrics.mjs';
 import { analyzeChannel, similarChannels } from './app/analysis.mjs';
-import { runClaude, validateSummary, summaryPrompt } from './app/llm.mjs';
+import { runClaude, validateSummary, summaryPrompt, validateSubniches, subnichePrompt } from './app/llm.mjs';
+import { estimateMonitor, autoRunDecision, runMonitor } from './app/monitor.mjs';
+import { buildNiches } from './app/niches.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const LIMIT = 64 * 1024, ID = /^UC[A-Za-z0-9_-]{22}$/;
@@ -47,6 +49,9 @@ function configPatch(b, cur) {
   if (b.rpm !== undefined) { if (!isObj(b.rpm) || Object.values(b.rpm).some(r => !Array.isArray(r) || r.length !== 2 || !r.every(x => fin(x) && x >= 0) || r[0] > r[1])) no('Tabela RPM inválida'); p.rpm = b.rpm; }
   if (b.outlierMin !== undefined) { if (!fin(b.outlierMin) || b.outlierMin < 1 || b.outlierMin > 100) no('Múltiplo mínimo inválido'); p.outlierMin = b.outlierMin; }
   if (b.opportunityMin !== undefined) { if (!Number.isInteger(b.opportunityMin) || b.opportunityMin < 0 || b.opportunityMin > 100) no('Score mínimo inválido'); p.opportunityMin = b.opportunityMin; }
+  if (b.subsJumpPct !== undefined) { if (!fin(b.subsJumpPct) || b.subsJumpPct < 1 || b.subsJumpPct > 1000) no('Salto de inscritos inválido'); p.subsJumpPct = b.subsJumpPct; }
+  if (b.nicheMin !== undefined) { if (!Number.isInteger(b.nicheMin) || b.nicheMin < 1 || b.nicheMin > 100) no('Semelhança mínima inválida'); p.nicheMin = b.nicheMin; }
+  if (b.monitorAuto !== undefined) { if (typeof b.monitorAuto !== 'boolean') no('Automático inválido'); p.monitorAuto = b.monitorAuto; }
   return p;
 }
 
@@ -62,15 +67,17 @@ const DUP = 'Já existe uma coleção com esse nome', ITEM = { channel: ID, vide
 const colId = m => /^\d{1,9}$/.test(m[1]) ? Number(m[1]) : no('Coleção inválida');
 const colName = x => text(x, 60) ? x.trim() : no('Nome inválido (1 a 60 caracteres)');
 const item = (kind, id) => Object.hasOwn(ITEM, kind) && typeof id === 'string' && ITEM[kind].test(id) ? { kind, id } : no('Item inválido');
+// Id de nicho por query ou corpo: solo, c:<canal> ou tag:<etiqueta>.
+const NICHE = /^(solo|c:UC[A-Za-z0-9_-]{22}|tag:[^]{1,60})$/, DAY = 864e5;
 
-export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app', fetch, now = Date.now, claude = prompt => runClaude(prompt).then(validateSummary) } = {}) {
+export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app', fetch, now = Date.now, claude = prompt => runClaude(prompt).then(validateSummary), subniches = prompt => runClaude(prompt).then(validateSubniches), monitorEveryMs = 3600e3 } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Porta inválida');
   dataDir = resolve(ROOT, dataDir); appDir = resolve(ROOT, appDir);
   const token = randomBytes(24).toString('hex'), tokenBuf = Buffer.from(token);
   const db = openDb(join(dataDir, 'app.db')), jobs = createJobs(db);
   const cfg = () => loadConfig(dataDir);
   const at = () => new Date(now()).toISOString();
-  const template = await readFile(join(ROOT, 'prompts', 'analise-canal.md'), 'utf8');
+  const template = await readFile(join(ROOT, 'prompts', 'analise-canal.md'), 'utf8'), subTemplate = await readFile(join(ROOT, 'prompts', 'subnichos.md'), 'utf8');
   // Chave lida a cada job: uma chave nova vale sem reiniciar. Com log, grava o histórico com as unidades gastas, também em erro.
   const job = (kind, fn, { fresh = false, log = null } = {}) => jobs.start(kind, async report => {
     const c = cfg(), day = quotaDay(now()), before = log && db.quotaUsed(day); let result, status = 'error';
@@ -82,6 +89,24 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
   const col = id => db.collection(id) ?? nf('Coleção não encontrada');
   const colOut = id => db.collections().find(c => c.id === id);
   const chRow = (id, t, c) => { const r = db.channel(id, t, c); if (!r) return null; const { snapshots, ...row } = r; return row; };
+  const followed = () => db.watchList().filter(w => w.monitor);
+  const monitorJob = (count, auto) => job('monitor', (yt, report, t) => runMonitor(yt, db, cfg(), report, t, now()), { fresh: true, log: { count, auto } });
+  // Checagem automática: o histórico (feito ou pulado) marca a última vez; job do monitor na fila conta como recente.
+  const tick = async () => {
+    const c = cfg(), t = now(), count = followed().length, estimate = estimateMonitor(count), remaining = c.quotaLimit - db.quotaUsed(quotaDay(t));
+    const d = autoRunDecision({ auto: c.monitorAuto, monitored: count, lastAt: db.lastHistoryOf('monitor')?.at ?? null, now: t, remaining, estimate });
+    if (d === 'run' && jobs.list().some(j => j.kind === 'monitor' && (j.status === 'queued' || j.status === 'running'))) return 'recent';
+    if (d === 'run') monitorJob(count, true);
+    if (d === 'quota') db.addHistory('monitor', { status: 'skipped', reason: 'quota', auto: true, estimate, remaining });
+    return d;
+  };
+  const nicheList = (t, c, videos) => buildNiches({ texts: db.channelTexts(), rows: db.channelRows(t, c), videos, now: t, cfg: c });
+  const niche = id => {
+    if (typeof id !== 'string' || !NICHE.test(id)) no('Nicho inválido');
+    const t = now(), c = cfg(), videos = db.videoRowsAll(t), n = nicheList(t, c, videos).niches.find(x => x.id === id) ?? nf('Nicho não encontrado'), ids = new Set(n.channelIds);
+    const outliers = videos.filter(v => ids.has(v.channelId) && v.multiple >= c.outlierMin && t - Date.parse(v.publishedAt) <= 30 * DAY).sort((a, b) => b.multiple - a.multiple).slice(0, 50);
+    return { niche: n, rows: n.channelIds.map(i => chRow(i, t, c)), outliers };
+  };
 
   const ROUTES = [
     ['GET', /^\/api\/config$/, () => publicConfig(cfg())],
@@ -129,7 +154,12 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
     ['GET', /^\/api\/channels\/([^/]+)$/, m => {
       const c = channel(chId(m)), last = db.lastHistory();
       if (!(last?.kind === 'open' && last.payload?.id === c.id)) db.addHistory('open', { id: c.id, title: c.title }); // visita repetida não duplica
-      return c;
+      return { ...c, watch: db.watch(c.id) };
+    }],
+    ['POST', /^\/api\/channels\/([^/]+)\/watch$/, async (m, req) => {
+      const id = chId(m), { monitor, competitor } = await readJson(req);
+      if ([monitor, competitor].some(x => x !== undefined && typeof x !== 'boolean')) no('Valor inválido');
+      channel(id); return db.setWatch(id, { monitor, competitor }); // existência antes: o banco lançaria em FK
     }],
     ['GET', /^\/api\/channels\/([^/]+)\/videos$/, m => db.videoRows(chId(m), now())],
     ['GET', /^\/api\/channels\/([^/]+)\/analysis$/, m => { const id = channel(chId(m)).id; return analyzeChannel(db.videoRows(id, now()), db.channelSnapshots(id)); }],
@@ -174,6 +204,46 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
     ['POST', /^\/api\/collections\/([^/]+)\/items\/remove$/, async (m, req) => { const c = col(colId(m)), b = await readJson(req), it = item(b.kind, b.id); db.removeItem(c.id, it.kind, it.id); return { ok: true }; }],
     ['GET', /^\/api\/memberships$/, (m, req, res, u) => { const it = item(u.searchParams.get('kind'), u.searchParams.get('id')); return { ids: db.memberships(it.kind, it.id) }; }],
     ['GET', /^\/api\/history$/, () => ({ entries: db.history(200), jobs: db.jobsList(50) })],
+    // Fase 3: monitoramento, alertas, concorrentes e nichos.
+    ['GET', /^\/api\/monitor$/, () => {
+      const t = now(), c = cfg(), list = followed(), lastAt = db.lastHistoryOf('monitor')?.at ?? null;
+      return { channels: list.map(w => ({ ...chRow(w.channelId, t, c), lastRun: w.lastRun })), lastAt, nextAt: lastAt && new Date(Date.parse(lastAt) + DAY).toISOString(), auto: c.monitorAuto, estimate: estimateMonitor(list.length) };
+    }],
+    ['POST', /^\/api\/monitor\/run$/, () => {
+      const count = followed().length; if (!count) no('Nenhum canal seguido');
+      return { jobId: monitorJob(count, false), estimate: estimateMonitor(count) };
+    }],
+    ['GET', /^\/api\/alerts$/, (m, req, res, u) => {
+      const l = u.searchParams.get('limit') ?? '50', limit = /^\d{1,3}$/.test(l) ? Number(l) : 0;
+      if (limit < 1 || limit > 200) no('Limite inválido (1 a 200)');
+      return { alerts: db.alerts(limit), unseen: db.unseenAlerts() };
+    }],
+    ['POST', /^\/api\/alerts\/seen$/, async (m, req) => {
+      const { ids, all } = await readJson(req);
+      if (all === true) db.markAlertsSeen('all');
+      else if (Array.isArray(ids) && ids.every(Number.isInteger)) db.markAlertsSeen(ids);
+      else no('Informe os alertas');
+      return { unseen: db.unseenAlerts() };
+    }],
+    ['GET', /^\/api\/competitors$/, () => {
+      const t = now(), c = cfg(), ids = new Set(db.watchList().filter(w => w.competitor).map(w => w.channelId));
+      const videos = db.videoRowsAll(t).filter(v => ids.has(v.channelId) && t - Date.parse(v.publishedAt) <= 30 * DAY).sort((a, b) => (a.publishedAt < b.publishedAt) - (a.publishedAt > b.publishedAt)).slice(0, 200);
+      return { rows: [...ids].map(id => chRow(id, t, c)), videos };
+    }],
+    ['GET', /^\/api\/niches$/, () => { const t = now(); return nicheList(t, cfg(), db.videoRowsAll(t)); }], // ponytail: O(n²) em buildNiches
+    ['GET', /^\/api\/niches\/detail$/, (m, req, res, u) => niche(u.searchParams.get('id'))],
+    ['POST', /^\/api\/niches\/tag$/, async (m, req) => {
+      const b = await readJson(req), tag = text(b.tag, 40) ? b.tag.trim() : no('Etiqueta inválida (1 a 40 caracteres)'), { niche: n, rows } = niche(b.id);
+      if (n.source !== 'automático') no('Só grupos automáticos recebem etiqueta');
+      const free = rows.filter(r => r.tag == null); for (const r of free) db.setChannelTag(r.id, { tag, faceless: r.faceless });
+      return { tagged: free.length };
+    }],
+    ['POST', /^\/api\/niches\/subniches$/, async (m, req) => {
+      const { niche: n, outliers } = niche((await readJson(req)).id);
+      if (!outliers.length) no('Nicho sem outliers recentes');
+      const prompt = subnichePrompt(subTemplate, n, outliers);
+      try { return await subniches(prompt); } catch (e) { return { error: e?.message ?? 'Falha do Claude', prompt }; } // o prompt volta para copiar
+    }],
   ];
 
   // Inventário fixo de app/ na partida (como walk no estúdio); arquivo novo pede reinício.
@@ -230,9 +300,11 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
   });
   await new Promise((ok, bad) => { server.once('error', bad); server.listen(port, '127.0.0.1', ok); });
   authority = '127.0.0.1:' + server.address().port; origin = 'http://' + authority;
+  const autoTick = () => void tick().catch(() => {}); // falha do automático não derruba o servidor
+  const first = setTimeout(autoTick, 5000).unref(), every = setInterval(autoTick, monitorEveryMs).unref();
   return {
-    origin, token, address: server.address(),
-    close: () => new Promise((ok, bad) => { server.close(e => { try { db.close(); } catch {} e ? bad(e) : ok(); }); server.closeAllConnections(); }),
+    origin, token, address: server.address(), tick,
+    close: () => new Promise((ok, bad) => { clearTimeout(first); clearInterval(every); server.close(e => { try { db.close(); } catch {} e ? bad(e) : ok(); }); server.closeAllConnections(); }),
   };
 }
 

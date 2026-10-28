@@ -23,7 +23,7 @@ const fakeFetch = async (url, init) => {
   return res(200, { items: fx('videos').items.filter(v => p('id').split(',').includes(v.id)) });
 };
 
-let s, temp, dataDir, ok;
+let s, temp, dataDir, ok, subFail = false;
 before(async () => {
   temp = await mkdtemp(join(tmpdir(), 'app-server-')); dataDir = join(temp, 'data');
   const appDir = join(temp, 'app'); await mkdir(join(appDir, 'views'), { recursive: true });
@@ -32,7 +32,7 @@ before(async () => {
   await writeFile(join(appDir, 'app.css'), 'body{}'); await writeFile(join(appDir, 'views', 'x.js'), 'export const x = 1;');
   await writeFile(join(temp, 'secret.js'), 'private');
   saveConfig(dataDir, { apiKey: 'AIzaTESTKEY1234' });
-  s = await startAppServer({ dataDir, appDir, fetch: fakeFetch, now: () => Date.parse('2026-10-27T12:00:00Z'), claude: async () => ({ resumo: 'r', pontos: ['p'] }) });
+  s = await startAppServer({ dataDir, appDir, fetch: fakeFetch, now: () => Date.parse('2026-10-27T12:00:00Z'), claude: async () => ({ resumo: 'r', pontos: ['p'] }), subniches: async () => { if (subFail) throw new Error('claude terminou com código 1'); return { subnichos: [{ nome: 'n', porque: 'p', exemplos: [] }] }; } });
   ok = { token: s.token, origin: s.origin };
 });
 after(async () => { await s.close(); await rm(temp, { recursive: true, force: true }); });
@@ -214,6 +214,114 @@ test('config accepts thresholds', async () => {
   const r = JSON.parse((await post('/api/config', { outlierMin: 3, opportunityMin: 60 }, ok)).body); assert.equal(r.outlierMin, 3); assert.equal(r.opportunityMin, 60);
   for (const b of [{ outlierMin: 0.5 }, { opportunityMin: 101 }, { opportunityMin: 1.5 }, { outlierMin: '2' }]) assert.equal((await post('/api/config', b, ok)).status, 400, JSON.stringify(b));
   await post('/api/config', { outlierMin: 2, opportunityMin: 70 }, ok);
+});
+// Fase 3. Servidor novo com C1 seguido (semeado no banco) e `used` unidades já gastas hoje.
+const NOW = () => Date.parse('2026-10-27T12:00:00Z');
+const watched = async (used, fetch = fakeFetch) => {
+  const t = await mkdtemp(join(tmpdir(), 'app-mon-')), d = join(t, 'd'); saveConfig(d, { apiKey: 'AIzaTESTKEY1234' });
+  const db = openDb(join(d, 'app.db')); db.upsertChannel({ id: C1, title: 'Fixture One' }); db.setWatch(C1, { monitor: true }); if (used) db.logQuota('2026-10-27', used, 'x'); db.close();
+  const sv = await startAppServer({ dataDir: d, appDir: join(t, 'none'), fetch, now: NOW });
+  return { sv, a: { token: sv.token, origin: sv.origin, server: sv }, done: async () => { await sv.close(); await rm(t, { recursive: true, force: true }); } };
+};
+const waitMonitor = async sv => { for (let i = 0; i < 40; i++) { if (JSON.parse((await get('/api/monitor', {}, sv)).body).lastAt) return; await new Promise(r => setTimeout(r, 50)); } assert.fail('job do monitor não terminou'); };
+test('watch toggles and channel detail shows it', async () => {
+  const r = JSON.parse((await post(`/api/channels/${C1}/watch`, { monitor: true }, ok)).body); assert.equal(r.monitor, true); assert.equal(r.competitor, false);
+  assert.equal(JSON.parse((await get(`/api/channels/${C1}`)).body).watch.monitor, true);
+  for (const b of [{ monitor: 'sim' }, { competitor: null }, { monitor: 1 }]) assert.equal((await post(`/api/channels/${C1}/watch`, b, ok)).status, 400, JSON.stringify(b));
+  const nf = await post('/api/channels/UCnope000000000000000000/watch', { monitor: true }, ok); assert.equal(nf.status, 404); assert.deepEqual(JSON.parse(nf.body), { error: 'Canal não encontrado' });
+  assert.equal((await post('/api/channels/UCbad/watch', { monitor: true }, ok)).status, 400);
+  const c = JSON.parse((await post(`/api/channels/${C1}/watch`, { competitor: true }, ok)).body); assert.deepEqual([c.monitor, c.competitor], [true, true]); // omitido não muda
+});
+test('monitor run streams end and alerts endpoint answers', async () => {
+  const st = JSON.parse((await get('/api/monitor')).body); assert.deepEqual(st.channels.map(c => c.id), [C1]); assert.equal(st.estimate, 3); assert.equal(st.auto, true);
+  for (let i = 0; i < 2; i++) { // a 1ª é linha de base; a 2ª acha o outlier vidfixture1
+    const { jobId, estimate } = JSON.parse((await post('/api/monitor/run', {}, ok)).body); assert.equal(estimate, 3);
+    assert.equal((await readSse(`/api/jobs/${jobId}/events`)).at(-1).data.status, 'done');
+  }
+  const m = JSON.parse((await get('/api/monitor')).body); assert.equal(Date.parse(m.nextAt) - Date.parse(m.lastAt), 864e5); assert.equal(m.channels[0].lastRun, '2026-10-27T12:00:00.000Z');
+  const h = JSON.parse((await get('/api/history')).body).entries.find(e => e.kind === 'monitor'); assert.deepEqual([h.payload.count, h.payload.auto, h.payload.status], [1, false, 'done']);
+  const a = JSON.parse((await get('/api/alerts')).body); assert.equal(typeof a.unseen, 'number'); assert.ok(a.unseen >= 1);
+  const o = a.alerts.find(x => x.kind === 'outlier'); assert.equal(o.payload.title, 'Sleep facts one'); assert.equal(o.channelTitle, 'Fixture One');
+  assert.equal(JSON.parse((await post('/api/alerts/seen', { ids: [o.id] }, ok)).body).unseen, a.unseen - 1);
+  assert.equal(JSON.parse((await post('/api/alerts/seen', { all: true }, ok)).body).unseen, 0);
+  for (const b of [{}, { all: false }, { ids: '1' }, { ids: [1.5] }, { ids: ['1'] }, { ids: [null] }]) assert.equal((await post('/api/alerts/seen', b, ok)).status, 400, JSON.stringify(b));
+  for (const l of ['0', '201', 'abc', '1.5']) assert.equal((await get('/api/alerts?limit=' + l)).status, 400, l);
+  assert.equal(JSON.parse((await get('/api/alerts?limit=1')).body).alerts.length, 1);
+});
+test('competitors lists marked channels and their recent videos, newest first', async () => {
+  const r = JSON.parse((await get('/api/competitors')).body); assert.deepEqual(r.rows.map(x => x.id), [C1]);
+  assert.deepEqual(r.videos.map(v => v.id), ['vidfixture3', 'vidfixture2', 'vidfixture1']);
+});
+test('monitor run without followed channels is 400', async () => {
+  const t = await mkdtemp(join(tmpdir(), 'app-none-')), sv = await startAppServer({ dataDir: join(t, 'd'), appDir: join(t, 'none'), fetch: fakeFetch, now: NOW });
+  try {
+    const r = await post('/api/monitor/run', {}, { token: sv.token, origin: sv.origin, server: sv }); assert.equal(r.status, 400); assert.deepEqual(JSON.parse(r.body), { error: 'Nenhum canal seguido' });
+    assert.equal(await sv.tick(), 'none');
+    const m = JSON.parse((await get('/api/monitor', {}, sv)).body); assert.deepEqual([m.channels, m.lastAt, m.nextAt, m.estimate], [[], null, null, 0]);
+  } finally { await sv.close(); await rm(t, { recursive: true, force: true }); }
+});
+test('tick: runs once, then recent; quota skip is logged once', async () => {
+  assert.equal(await s.tick(), 'recent'); // já rodou à mão
+  const w = await watched(0);
+  try {
+    assert.equal(await w.sv.tick(), 'run'); await waitMonitor(w.sv); assert.equal(await w.sv.tick(), 'recent');
+    const h = JSON.parse((await get('/api/history', {}, w.sv)).body).entries.filter(e => e.kind === 'monitor');
+    assert.equal(h.length, 1); assert.deepEqual([h[0].payload.count, h[0].payload.auto, h[0].payload.status], [1, true, 'done']);
+  } finally { await w.done(); }
+  let n = 0; const q = await watched(9999, async (...x) => { n++; return fakeFetch(...x); });
+  try {
+    assert.equal(await q.sv.tick(), 'quota'); assert.equal(await q.sv.tick(), 'recent'); // o skip conta como última entrada
+    const [e] = JSON.parse((await get('/api/history', {}, q.sv)).body).entries; assert.deepEqual(e.payload, { status: 'skipped', reason: 'quota', auto: true, estimate: 3, remaining: 1 });
+    // manual com cota insuficiente: o job falha antes de qualquer fetch
+    const { jobId } = JSON.parse((await post('/api/monitor/run', {}, q.a)).body);
+    assert.equal((await readSse(`/api/jobs/${jobId}/events`, q.sv)).at(-1).data.error, 'Cota insuficiente: monitorar 1 canais custa ~3 unidades, restam 1');
+    assert.equal(n, 0);
+    await post('/api/config', { monitorAuto: false }, q.a); assert.equal(await q.sv.tick(), 'off');
+  } finally { await q.done(); }
+});
+test('niches routes', async () => {
+  const n = JSON.parse((await get('/api/niches')).body); assert.ok(Array.isArray(n.niches)); assert.ok(n.niches.some(x => x.id === 'tag:curiosidades'));
+  for (const id of ['<x>', 'tag:', 'c:UCbad', 'tag:' + 'x'.repeat(61), '', 'solo2']) assert.equal((await get('/api/niches/detail?id=' + encodeURIComponent(id))).status, 400, id);
+  assert.equal((await get('/api/niches/detail')).status, 400);
+  assert.equal((await get('/api/niches/detail?id=c:UCnope000000000000000000')).status, 404);
+  assert.equal((await get('/api/niches/detail?id=tag:nada')).status, 404);
+  const d = JSON.parse((await get('/api/niches/detail?id=' + encodeURIComponent('tag:curiosidades'))).body);
+  assert.equal(d.niche.id, 'tag:curiosidades'); assert.deepEqual(d.rows.map(r => r.id), [C1]); assert.deepEqual(d.outliers.map(v => v.id), ['vidfixture1']);
+  assert.equal(JSON.parse((await post('/api/niches/subniches', { id: 'tag:curiosidades' }, ok)).body).subnichos[0].nome, 'n');
+  subFail = true;
+  try { const e = JSON.parse((await post('/api/niches/subniches', { id: 'tag:curiosidades' }, ok)).body); assert.equal(e.error, 'claude terminou com código 1'); assert.ok(e.prompt.includes('Sleep facts one')); } finally { subFail = false; }
+  const solo = await post('/api/niches/subniches', { id: 'solo' }, ok); assert.equal(solo.status, 400); assert.deepEqual(JSON.parse(solo.body), { error: 'Nicho sem outliers recentes' });
+  assert.equal((await post('/api/niches/tag', { id: 'tag:curiosidades', tag: 'x' }, ok)).status, 400); // só grupo automático
+  assert.equal((await post('/api/niches/subniches', { id: 5 }, ok)).status, 400);
+});
+test('niches on empty and tiny bases; tagging an automatic group keeps faceless', async () => {
+  const t = await mkdtemp(join(tmpdir(), 'app-niche-')), d = join(t, 'd'), sv = await startAppServer({ dataDir: d, appDir: join(t, 'none'), fetch: fakeFetch, now: NOW }), a = { token: sv.token, origin: sv.origin, server: sv };
+  const A = 'UC' + 'a'.repeat(22), B = 'UC' + 'b'.repeat(22), X = 'UC' + 'x'.repeat(22), EVIL = '<img src=x onerror=alert(1)>';
+  try {
+    assert.deepEqual(JSON.parse((await get('/api/niches', {}, sv)).body), { niches: [], total: 0 });
+    let db = openDb(join(d, 'app.db')); db.upsertChannel({ id: X, title: 'Vazio' }); db.close(); // canal sem títulos nem tópicos
+    const one = JSON.parse((await get('/api/niches', {}, sv)).body); assert.deepEqual(one.niches.map(x => [x.id, x.count, x.outliers, x.topWords]), [['solo', 1, 0, []]]); assert.ok(Number.isFinite(one.niches[0].avgScore));
+    db = openDb(join(d, 'app.db'));
+    for (const id of [A, B]) {
+      db.upsertChannel({ id, title: 'Roma ' + id.at(-1), topics: ['https://en.wikipedia.org/wiki/History'] });
+      for (const k of [1, 2]) db.upsertVideo({ id: id.slice(2, 12) + k, channelId: id, title: `Roman empire legions story ${k}`, publishedAt: '2026-10-01T00:00:00Z' });
+    }
+    db.setChannelTag(A, { tag: null, faceless: true }); db.setChannelTag(X, { tag: EVIL, faceless: null }); db.close();
+    const r = await get('/api/niches', {}, sv); assert.match(r.headers['content-type'], /application\/json/);
+    const ns = JSON.parse(r.body).niches; assert.equal(ns.find(x => x.id === 'tag:' + EVIL).name, EVIL);
+    const auto = ns.find(x => x.source === 'automático'); assert.equal(auto.id, 'c:' + A);
+    assert.equal((await get('/api/niches/detail?id=' + encodeURIComponent('tag:' + EVIL), {}, sv)).status, 200);
+    for (const tag of ['', '  ', 'x'.repeat(41), 5]) assert.equal((await post('/api/niches/tag', { id: auto.id, tag }, a)).status, 400, String(tag));
+    assert.deepEqual(JSON.parse((await post('/api/niches/tag', { id: auto.id, tag: ' Roma ' }, a)).body), { tagged: 2 });
+    const ca = JSON.parse((await get(`/api/channels/${A}`, {}, sv)).body); assert.deepEqual([ca.tag, ca.faceless], ['Roma', true]);
+    assert.equal(JSON.parse((await get(`/api/channels/${B}`, {}, sv)).body).faceless, null);
+    assert.equal((await post('/api/niches/tag', { id: auto.id, tag: 'y' }, a)).status, 404); // o grupo virou tag:roma
+  } finally { await sv.close(); await rm(t, { recursive: true, force: true }); }
+});
+test('config accepts new fields and rejects bad ones', async () => {
+  const r = JSON.parse((await post('/api/config', { subsJumpPct: 15, nicheMin: 30, monitorAuto: false }, ok)).body); assert.deepEqual([r.subsJumpPct, r.nicheMin, r.monitorAuto], [15, 30, false]);
+  for (const b of [{ monitorAuto: 'yes' }, { monitorAuto: null }, { subsJumpPct: 0.5 }, { subsJumpPct: 1001 }, { subsJumpPct: '10' }, { nicheMin: 2.5 }, { nicheMin: 0 }, { nicheMin: 101 }]) assert.equal((await post('/api/config', b, ok)).status, 400, JSON.stringify(b));
+  await post('/api/config', { subsJumpPct: 10, nicheMin: 25, monitorAuto: true }, ok);
 });
 test('corrupted config.json falls back to defaults', async () => {
   await writeFile(join(dataDir, 'config.json'), '{oops');
