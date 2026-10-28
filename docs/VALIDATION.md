@@ -145,3 +145,12 @@ Limites: revisão de imagens estáticas selecionadas e leitura de código, sem r
 - `check-motion`: 0 violações em smoke-2d (cartoon, stick, watercolor, flat, paper, ink; debug e silhouette só pelo esqueleto, sem `ExpStyle.parts`) e em smoke-3d.
 - Folhas de contato das 12 combinações abertas e conferidas.
 - `mix-audio`: narração real de 573 s saiu com −14,2 LUFS e −1,8 dBTP (antes −15,6 LUFS).
+
+## 28/10/2026 — webapp fase 1 (base e minerar)
+
+- `npm test`: 182/182. Aceite com dados reais da YouTube Data API v3, chave salva pela tela Configurações (fora do repositório; `git status --porcelain data/` vazio e `git grep AIza` só encontra as chaves falsas dos testes).
+- Busca "sleep history documentary": 64 canais gravados, 330 unidades gastas (2 buscas de 100, 2 de channels, 66 de playlistItems, 62 de videos), em linha com `estimateMine`; o aviso da tela mostra ~301 por ser a estimativa para 50 canais.
+- Mesma busca repetida: só +2 unidades. A resposta 404 de dois canais sem playlist de uploads não entra no cache, então esses dois pedidos se repetem; o resto veio do cache.
+- Importação de `@TED` mais uma linha de lixo: 1 canal gravado (4 unidades) e a linha inválida listada em "Não reconhecidos". Cota do dia ao final: 334 de 10.000.
+- Predefinições "Canais novos" (9 de 65) e "Muita view, pouco inscrito" (39 de 65) filtram a tabela. Painel do canal aberto nas abas Visão geral e Vídeos.
+- Conferência no YouTube: Sleepy Mystery Channel mostra 20 mil inscritos e 62 vídeos, igual ao painel.
