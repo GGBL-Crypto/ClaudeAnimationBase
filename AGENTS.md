@@ -12,7 +12,7 @@ Consulte `C:\Users\Gabriel\.codex\RTK.md` quando disponível neste ambiente; pre
 ## Implementação
 
 - `src/motion.js` e `src/timeline.js` são comuns aos motores. Não acrescente regras de tinta, grade, anime ou 3D nesses arquivos.
-- `src/core.js`, `src/clawd.js` e `src/sheets.js` são a implementação original da aquarela. São carregados somente por esse estilo. Preserve APIs e snapshots da demo ao alterá-los.
+- `src/core.js`, `src/clawd.js` e `src/sheets.js` são a implementação original da aquarela. São carregados somente por esse estilo. Preserve as APIs ao alterá-los (estilo `watercolor-classic`).
 - Novo estilo: siga `docs/ADDING_STYLES.md`. Implemente o contrato `animationEngine` e declare compatibilidades reais. Não anuncie anime, motion graphics ou 3D como disponíveis antes de implementá-los e testá-los.
 - Cada quadro é função determinística do tempo: sem `Math.random()`, relógio de parede, acumuladores ou física incremental. Use sementes estáveis por objeto. Render deve funcionar fora de ordem e com vários workers.
 - Reutilize dependências instaladas e APIs nativas. Não faça refatorações ou reinstalações desnecessárias.

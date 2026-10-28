@@ -1,14 +1,6 @@
 # Plano de arquitetura — 21/10/2026
 
-Incremento de aquarela em 22/10/2026: [personagem PNG em camadas](docs/WATERCOLOR_ASSET_ACTOR_REPORT.md). Perfil opcional `layered-2d`, RGBA real, hierarquia/pivôs/variantes explícitos, origem/derivação versionadas e preparo antes de ready. O desenho procedural permanece padrão; cartoon/pixel não ganham adaptadores nesta etapa. A redação histórica abaixo sobre três adaptadores 2D planejados descreve o estado anterior a este incremento.
-
-Incremento aprovado em 22/10/2026: [ator GLB articulado determinístico](docs/ARTICULATED_ACTOR_REPORT.md), com perfil de admissão separado, controlador por instância e skeletons isolados. O importador estático e os quatro motores permanecem. Coreografia/apoios pertencem à história; renderer, câmera, captura e exportação são reutilizados. Os planos históricos abaixo não representam proibição deste incremento posterior.
-
-Evolução com assets: [plano incremental e geração externa](docs/ART_ASSETS_PLAN.md#15-assets-originais-gerados-por-modelos-de-imagem), [catálogo e limites](docs/ASSET_CATALOG.md), [fontes verificadas](docs/ASSET_SOURCES.md). `assetRefs` opcionais fixam ID/versão/hash; sessão prepara recursos antes de init. O primeiro adaptador importa somente GLB/glTF estático no backend 3D. O contrato dos quatro motores, timeline e pipeline de captura permanecem. Os três adaptadores 2D e rigging continuam planejados.
-
-Evolução atual: [generalização do 3D](docs/GENERALIZATION_REPORT.md), [catálogo de componentes](docs/COMPONENTS_3D.md) e [proposta de prompts/storyboards](docs/PROMPT_TO_STORYBOARD_PLAN.md). Duas histórias 3D usam o mesmo backend sem alterações; os quatro estilos continuam disponíveis.
-
-Continuação: [auditoria anterior ao 3D](docs/AUDIT_STAGE1.md), [plano aprovado Three.js](docs/LOWPOLY_3D_PLAN.md) e [implementação/validação do quarto motor](docs/LOWPOLY_3D_REPORT.md). O documento abaixo preserva o plano original.
+Estado em 27/10/2026: base de estilos, sem filmes. Episódios, cenas e pilotos saíram; cada estilo tem só a cena de fumaça de `fixtures/smoke/` (registrada em `src/config.js`). Os estilos 2D desenham o quadro F (contrato em `src/styles/AGENTS.md`); a aquarela original segue como `watercolor-classic`. Catálogo de assets: [catálogo](docs/ASSET_CATALOG.md), [fontes](docs/ASSET_SOURCES.md), [componentes 3D](docs/COMPONENTS_3D.md), [prompts/storyboards](docs/PROMPT_TO_STORYBOARD_PLAN.md). O texto abaixo preserva o plano original de 21/10/2026.
 
 Registrado antes da implementação. Objetivo: descrever uma história ao Codex, escolher um estilo, desenvolver cenas, revisar e produzir PNGs e MP4 verificáveis.
 
@@ -21,7 +13,7 @@ Referência consultada: [PDoomVideo](https://github.com/JohnHeibel/PDoomVideo), 
 ## Contratos e responsabilidade
 
 - **Projeto**: ID, título, descrição da história, duração, fps, ritmo, estilo único, estilos compatíveis, scripts de cenas e storyboard com leituras e pontos de revisão. Configuração resolvida e congelada antes do primeiro quadro.
-- **Estilo**: registro independente com scripts e configuração própria de paleta, textura, contornos, personagem e efeitos. Apenas o estilo selecionado é carregado. Cena declara compatibilidade; a demo original é exclusiva da aquarela.
+- **Estilo**: registro independente com scripts e configuração própria de paleta, textura, contornos, personagem e efeitos. Apenas o estilo selecionado é carregado. Cena declara compatibilidade; o motor original é o estilo `watercolor-classic`.
 - **Motor**: `init()`, `render(t)`, `canvas`, `worldToScreen(x,y)`, `info()`. Render retorna o quadro completo e determinístico. Um futuro motor WebGL/3D implementa esse contrato; não precisa imitar primitivas de tinta. Recursos incompatíveis devem falhar explicitamente.
 - **Animação universal**: easing, arcos, antecipação, peso, timing, continuidade e leituras. Não contém decisões de tinta, pixel, contorno, fontes ou proibição de 3D.
 - **Cena**: função do tempo absoluto/local e duração; separação entre coreografia e desenho quando a história for portável. O pequeno filme de teste utiliza o mesmo estado de atuação e portas de desenho implementadas pelos três estilos. Cenas específicas podem usar diretamente os recursos do seu motor.
@@ -34,11 +26,11 @@ Referência consultada: [PDoomVideo](https://github.com/JohnHeibel/PDoomVideo), 
 | `src/core.js` | Preservar pintura, geometria, câmera e composição da aquarela; extrair matemática e ferramentas de prévia comuns. |
 | `src/motion.js` | Matemática original compartilhada, sem dependência de p5. |
 | `src/timeline.js` | Seleção de planos/loops validada; retirar a transição de pincel para o módulo de aquarela. |
-| `src/config.js` | Catálogo de projetos e storyboards; manter a demo como padrão. |
+| `src/config.js` | Catálogo de projetos e storyboards; hoje só as cenas de fumaça (`smoke-2d` é o padrão). |
 | `src/platform.js`, `src/runtime.js` | Registro, validação, configuração imutável, carregamento e captura comum. |
 | `src/styles/*/` | Configurações, motores/adaptadores, guias e instruções independentes. |
-| `src/clawd.js`, `src/sheets.js`, `src/scenes/demo.js` | Manter arte e demo originais. |
-| `src/scenes/visit.js` | Coreografia do teste compartilhada pelos três estilos. |
+| `src/clawd.js`, `src/sheets.js` | Manter a arte original (`watercolor-classic`). |
+| `fixtures/smoke/` | Cenas de fumaça de 2 s por família de estilo, só para testes. |
 | `studio.html`, `src/preview.js` | Ampliar prévia existente: seleção, play/pause, scrub, planos, erros. |
 | `render.mjs`, `scripts/` | Render robusto, cache isolado, verificação do MP4, testes e evidência de revisão. |
 | `AGENTS.md`, `ANIMATION_GUIDE.md`, `docs/`, `README.md` | Workflow permanente, guia universal, referência original preservada, instruções de extensão e uso. |

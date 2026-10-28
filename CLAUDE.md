@@ -1,12 +1,12 @@
 # Instruções para Claude Code
 
-Este repositório produz vídeos animados longos para um canal do YouTube, de forma automatizada e sem custos com serviços pagos. Claude Code substitui o Codex como agente principal. `AGENTS.md` é legado do Codex. Em caso de conflito, vale este arquivo.
+Este repositório é uma base de estilos e motor de animação em código, sem filmes, para vídeos de um canal do YouTube feitos de forma automatizada e sem custos com serviços pagos. Claude Code substitui o Codex como agente principal. `AGENTS.md` é legado do Codex. Em caso de conflito, vale este arquivo.
 
-## Prioridades atuais (22/10/2026)
+## Prioridades atuais (27/10/2026)
 
-1. Vídeos longos narrados em português, de qualquer tema (humanos, animais, natureza, história), com seres em movimento realista e ambiente que reage, em cartoon (primeiro) e aquarela (depois). Design: `docs/superpowers/specs/2026-10-22-documentarios-animados-design.md`. Plano: `docs/superpowers/plans/2026-10-22-documentarios-animados.md`.
-2. Entregar MP4s assistíveis. Um vídeo pronto vale mais do que um relatório.
-3. Pausados, sem apagar: motor 3D, catálogo de assets, menina articulada, fixture Iara. Não abra trabalho nessas frentes sem pedido explícito.
+1. Base de estilos e motor: todos os estilos em `src/styles/` testáveis pela cena de fumaça (`fixtures/smoke/`), movimento em `src/motion.js`, `src/timeline.js` e `src/nature/`, voz e mixagem (`docs/VOICE.md`).
+2. Em seguida: webapp interativo sobre esta base (outra sessão).
+3. Pausados, sem apagar: catálogo de assets e GLB articulado. Não abra trabalho nessas frentes sem pedido explícito.
 
 ## Ambiente
 
@@ -17,16 +17,16 @@ Este repositório produz vídeos animados longos para um canal do YouTube, de fo
 ## Leitura antes de trabalhar
 
 - Sempre: este arquivo e `ANIMATION_GUIDE.md`.
-- Ao mexer em um estilo: `src/styles/<estilo>/GUIDE.md` e `src/styles/<estilo>/AGENTS.md`.
-- Ao mexer em cenas: `src/scenes/AGENTS.md`.
-- Não leia relatórios históricos de `docs/` (auditorias, pilotos, Eidoverse) salvo quando a tarefa pedir. Vários estão desatualizados.
+- Ao mexer em um estilo: `GUIDE.md`, `AGENTS.md` ou `STYLE.md` da pasta `src/styles/<estilo>/`.
+- Ao mexer no quadro F dos estilos 2D: `src/styles/AGENTS.md`.
+- Não leia os documentos históricos de `docs/` (planos e catálogo) salvo quando a tarefa pedir. Vários estão desatualizados.
 
 ## Regras de código
 
 - Cada quadro é função pura do tempo `t`. Proibido: `Math.random()`, relógio de parede, estado entre quadros, física incremental. Use `hash()`, `noise1()` e sementes estáveis por objeto. O render roda fora de ordem e com vários workers.
 - `src/motion.js`, `src/timeline.js` e `src/nature/` são independentes de estilo: só matemática e geometria, nada de desenho.
-- O desenho fica em `src/styles/<estilo>/`. Cartoon usa Canvas2D. Não importe p5/p5.brush fora da aquarela.
-- `src/core.js`, `src/clawd.js` e `src/sheets.js` são o motor original da aquarela. Preserve as APIs e a demo.
+- O desenho fica em `src/styles/<estilo>/`. Os estilos 2D usam Canvas2D. p5 só no `watercolor-classic`; p5.brush só na aquarela.
+- `src/core.js`, `src/clawd.js` e `src/sheets.js` são o motor original da aquarela (estilo `watercolor-classic`). Preserve as APIs.
 - Nunca leia `window.PROJECT` (o p5 ocupa esse nome). Use o `const PROJECT` de `motion.js`.
 - Reaproveite dependências instaladas. Não adicione dependências npm sem necessidade clara.
 - Escreva código como o que já existe ao redor: mesmo estilo, nomes e densidade de comentários.
@@ -51,15 +51,14 @@ Este repositório produz vídeos animados longos para um canal do YouTube, de fo
 ## Fluxo de trabalho
 
 1. Tarefa de implementação: siga o plano ativo, com TDD (`node --test`) para a lógica pura.
-2. Cena ou capítulo: storyboard primeiro, depois código, depois folha de contato aberta com Read.
-3. Capítulos de um episódio podem ser escritos em paralelo por subagentes, um arquivo por capítulo. Cada subagente só edita o próprio arquivo e recebe o guia do episódio.
-4. Commits pequenos e frequentes, mensagens em inglês no formato `feat:`, `fix:`, `docs:`, `test:`.
+2. Estilo: mude e confira na cena de fumaça (`smoke-2d`, `smoke-visit` ou `smoke-3d`) com folha de contato aberta com Read e `check-motion` com 0 violações.
+3. Commits pequenos e frequentes, mensagens em inglês no formato `feat:`, `fix:`, `docs:`, `test:`.
 
 ## Validação proporcional
 
 - Rascunho e iteração: `npm test` e uma folha de contato (`--sheet` ou `--strip`) aberta e olhada de verdade.
-- Alteração em motor, timeline ou prévia: também `npm run test:visual`.
-- Entrega final de episódio: `render.mjs --encode` com áudio, verificação automática do MP4 e inspeção de `<vídeo>.review/decoded-sheet.png`. Registre uma entrada curta em `docs/VALIDATION.md`.
+- Alteração em estilo, motor, timeline ou prévia: também `npm run test:visual`.
+- Entrega de vídeo: `render.mjs --encode` com áudio, verificação automática do MP4 e inspeção de `<vídeo>.review/decoded-sheet.png`. Registre uma entrada curta em `docs/VALIDATION.md`.
 - Nunca diga que um vídeo terminou só porque o processo imprimiu uma mensagem. Confirme arquivo, duração, fps, contagem de quadros e áudio.
 - Não crie novos relatórios, catálogos, manifestos ou sistemas de governança sem pedido.
 
@@ -68,8 +67,10 @@ Este repositório produz vídeos animados longos para um canal do YouTube, de fo
 ```sh
 npm test
 npm run studio                      # prévia em http://127.0.0.1:8080/studio.html?project=<id>
-node render.mjs --project=<id> --sheet=1,5,9 --cols=3 --w=640 --out=out/check/a.jpg
-node render.mjs --project=<id> --strip=10:11 --cols=6 --w=320 --out=out/check/b.jpg
+npm run test:visual                 # todos os estilos nas cenas de fumaça
+node render.mjs --project=smoke-2d --style=<id> --sheet=0,1,1.9 --cols=3 --w=640 --out=out/check/a.jpg
+node render.mjs --project=<id> --strip=0.5:1.3 --cols=6 --w=320 --out=out/check/b.jpg
+node scripts/check-motion.mjs --project=smoke-2d --2d --style=<id>
 node render.mjs --project=<id> --frames --workers=4
-node render.mjs --project=<id> --encode --audio=<mix.m4a> --out=out/episodes/<id>/video.mp4
+node render.mjs --project=<id> --encode --audio=<mix.m4a> --out=out/<id>/video.mp4
 ```

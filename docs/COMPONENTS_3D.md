@@ -24,7 +24,7 @@ Os materiais e geometrias passam por `art.material`, `art.geometry`, `art.mesh`;
 ## Criar outra história
 
 1. Cadastre novo ID em `src/config.js`, com duração, FPS, storyboard, `scripts` e sobrescritas visuais próprias.
-2. Crie somente seu arquivo em `src/scenes/`. Em `buildLowpolyScene(art)`, use as fábricas necessárias e retenha as referências.
+2. Crie somente o arquivo da sua cena (exemplo mínimo: `fixtures/smoke/walker-3d.js`). Em `buildLowpolyScene(art)`, use as fábricas necessárias e retenha as referências.
 3. Em `shots`, calcule a pose a partir de `t`, aplique a atuação e mova a câmera. Os cortes precisam coincidir com o storyboard.
 4. Renderize storyboard/tiras/recortes, teste seek fora de ordem, revise 720p antes de 1080p e verifique o MP4 decodificado.
 

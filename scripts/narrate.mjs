@@ -8,10 +8,10 @@ const PIPER = ['python', '-X', 'utf8', '-m', 'piper'], VOICES = 'tools/piper-voi
 // Kokoro (Apache-2.0) também é subprocesso: venv fora do git, um processo por execução com todas as frases.
 const KOKORO_PY = 'out/tmp/kokoro-venv/Scripts/python.exe', KOKORO_SAY = 'scripts/kokoro_say.py';
 try {
-  if (!process.argv[2]) throw new Error('Uso: node scripts/narrate.mjs episodes/<id>');
+  if (!process.argv[2]) throw new Error('Uso: node scripts/narrate.mjs <pasta com episode.json>');
   const dir = resolve(process.argv[2]), ep = JSON.parse(readFileSync(join(dir, 'episode.json'), 'utf8'));
   const voice = ep.voice || 'kokoro:pm_alex', kokoro = voice.startsWith('kokoro:'), model = join(VOICES, voice + '.onnx'), ls = ep.lengthScale ?? 1;
-  if (kokoro && !existsSync(KOKORO_PY)) throw new Error(`Kokoro não instalado: falta ${KOKORO_PY}. Veja episodes/README.md`);
+  if (kokoro && !existsSync(KOKORO_PY)) throw new Error(`Kokoro não instalado: falta ${KOKORO_PY}. Veja docs/VOICE.md`);
   if (!kokoro && !existsSync(model)) throw new Error(`Voz não encontrada: ${model}. Rode: python -m piper.download_voices --download-dir ${VOICES} ${voice}`);
   const outDir = resolve('out/episodes', ep.id), ttsDir = join(outDir, 'tts'); mkdirSync(ttsDir, { recursive: true });
   const durations = new Map(), clips = new Map(); let sampleRate = 0;

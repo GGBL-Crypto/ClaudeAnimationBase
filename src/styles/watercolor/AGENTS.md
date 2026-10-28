@@ -1,5 +1,5 @@
 # Aquarela
 
-Leia `GUIDE.md` e `../../../docs/WATERCOLOR_ORIGINAL.md`. Preserve o desenho original em `../../core.js`, `../../clawd.js` e `../../scenes/demo.js`.
+Leia `GUIDE.md` e `../../../docs/WATERCOLOR_ORIGINAL.md`. A pasta tem dois estilos: `watercolor` (livro ilustrado, `draw.js`, regras em `STYLE.md`) e `watercolor-classic` (motor original). Preserve o desenho original em `../../core.js` e `../../clawd.js`.
 
-Use `paint`, `inkLine`, sementes estáveis e a câmera original. Ao mudar código compartilhado com a demo, compare stills nos tempos 0,5 s e 5,7 s com `out/baseline/stills/` no mesmo ambiente gráfico. Não reduza qualidade da demo para acelerar os testes. Não aplique regras de aquarela a outros estilos.
+Use `paint`, `inkLine`, sementes estáveis e a câmera original. Ao mudar o motor original, compare stills da cena `smoke-visit` antes e depois, no mesmo ambiente gráfico. Não reduza qualidade para acelerar os testes. Não aplique regras de aquarela a outros estilos.

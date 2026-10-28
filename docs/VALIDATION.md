@@ -138,3 +138,10 @@ Análise registrada em [NEXT_STEPS_REVIEW.md](NEXT_STEPS_REVIEW.md). Nenhum novo
 Evidências realmente abertas: out/personagem-pilot/revisions/ae28d4f0c361/final/video.mp4.review/decoded-sheet.png e decoded-expression.png; out/personagem-pilot/preparation-v2/contact-sheet.png; out/watercolor-actor/revisions/70bc9346f90d/1080p/comparison/hardware-gesture-ab.png. A menina mantém pose interna e muda enquadramento/desenho; as fontes têm fundo opaco e diferenças de escala/desenho. O comparativo Iara mostra articulação relativa, com juntas e formas segmentadas. Confirma-se suporte técnico a camadas, sem comprovar acabamento profissional para a menina.
 
 Limites: revisão de imagens estáticas selecionadas e leitura de código, sem reprodução audiovisual contínua, sem inspeção de todos os quadros de todos os pilotos e sem nova regressão completa 3D/software. Relatórios históricos e seus estados de aprovação não foram reescritos.
+
+## 27/10/2026 — base de estilos
+
+- `npm test`: 107/107. `npm run test:visual`: PASS em 12 pares estilo × cena de fumaça (determinismo, workers, isolamento p5, paleta pixel, prévia).
+- `check-motion`: 0 violações em smoke-2d (cartoon, stick, watercolor, flat, paper, ink; debug e silhouette só pelo esqueleto, sem `ExpStyle.parts`) e em smoke-3d.
+- Folhas de contato das 12 combinações abertas e conferidas.
+- `mix-audio`: narração real de 573 s saiu com −14,2 LUFS e −1,8 dBTP (antes −15,6 LUFS).

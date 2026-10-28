@@ -6,7 +6,7 @@ O perfil `articulated` do catálogo admite rigs/clips/morphs validados; o perfil
 
 ## Perfil opcional de assets
 
-O piloto `quality-space-p0/p1/p2` usa o [catálogo local](../../../docs/ASSET_CATALOG.md). P0 mantém primitivas; P1 importa o GLB CC0 com materiais PBR preservados; P2 acrescenta reflexão procedural pequena, luz de preenchimento/recorte e ACES. As configurações são opt-in; Marte e Oceano mantêm seu desenho anterior. Uma malha importada simples não comprova acabamento da referência cinematográfica.
+Assets importados usam o [catálogo local](../../../docs/ASSET_CATALOG.md): GLB CC0 com materiais PBR preservados; reflexão procedural, luz de preenchimento/recorte e ACES são opt-in. Uma malha importada simples não comprova acabamento da referência cinematográfica.
 
 Declare `assetRefs` fixos no projeto e `assets.enabled:true`. Mapas requerem `texture.bitmaps:true`; materiais não são convertidos para Lambert. `assetSession.items.get(id).adopt(art)` transfere recursos ao motor; posicione o root sob um grupo próprio, normalize unidades/envelope explicitamente e aplique animação por tempo absoluto. Não altere bytes de um pack publicado. PNG/JPG gerado é conceito/fonte raster, não modelo 3D. Rig, morph e clips estão recusados nesta versão.
 
@@ -18,7 +18,7 @@ Y é altura, solo em zero, +Z é a frente local do personagem. Rotação em radi
 
 ## Cor e luz
 
-Cada filme congela sua própria bíblia visual; a paleta padrão não obriga novas histórias a parecerem Marte. No primeiro filme: chão terracota, céu empoeirado claro, robô marfim e pedra turquesa. Em `ocean-encounter`: água azul profunda, solo/algas verdes, casco dourado e criatura ciano luminosa. A névoa marca profundidade; emissão discreta preserva a cor do casco sob luz azul.
+Cada filme congela sua própria bíblia visual; a paleta padrão é só um ponto de partida. A névoa marca profundidade; emissão discreta preserva a cor do casco sob luz azul.
 
 O brilho é contraste/emissão e luz local; não depende de bloom. Uma hemisférica e uma direcional modelam volumes. Sombras são opcionais por projeto; o filme submarino as desliga. Sem pós-processamento pesado.
 

@@ -1,5 +1,7 @@
 # Animating Clawd
 
+> 27/10/2026: a demo e `src/scenes/` saíram do repositório. O motor descrito aqui segue como o estilo `watercolor-classic` (cena de fumaça `smoke-visit`).
+
 Read this whole file before you draw anything. It covers how to make a short, hand-painted cartoon, starring Clawd or any character you design: the rules and animation principles that make it look good, the workflow that catches mistakes, and the full reference for the character and the engine.
 
 The person prompting you decides **what** the video is about. This guide decides **how** it's made. If they ask for something the rules below forbid (a caption, a 3D spin), do what they ask.

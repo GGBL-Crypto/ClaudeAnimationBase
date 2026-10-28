@@ -1,5 +1,7 @@
 # Cartoon vetorial
 
+Duas portas: `draw.js` desenha o quadro F dos estilos 2D (`ExpStyle.draw`, regras visuais em `STYLE.md`, cena `smoke-2d`); `engine.js` mantém a porta `VisitArt` (cena `smoke-visit`). Kit, peças e natureza são comuns às duas.
+
 Backend: Canvas2D. A arte é construída por formas vetoriais e rasterizada no canvas final a 1920×1080. A exportação atual é PNG/JPEG/MP4; não há exportação SVG.
 
 Configuração independente em `config.js`: `palette` (céu, chão, personagem, sombras, asas e olhos), `texture.speckles` (pontilhado opcional do cenário), `outline.weight` (pixels de contorno), `character` (unidade, largura, altura e raio dos cantos), `effects.shadow` e `effects.transition`.

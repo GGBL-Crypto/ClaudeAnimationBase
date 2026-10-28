@@ -28,10 +28,10 @@ Não há uma regra universal proibindo 3D, texto, preto, branco ou formas geomé
 
 ## Da descrição à produção
 
-1. Leia a história do usuário. Registre logline, mundo, motivo e arco emocional em `STORYBOARD.md` ou documento próprio do filme. Escolha um estilo para o vídeo inteiro.
+1. Leia a história do usuário. Registre logline, mundo, motivo e arco emocional em documento próprio do filme. Escolha um estilo para o vídeo inteiro.
 2. Registre o projeto em `src/config.js`: ID, título, história, estilo, compatibilidades, duração, fps, bpm/offset, scripts, `styleOptions`, `reviewTimes` e storyboard. Cada plano tem ID, start/end, evento, transição e leituras com start/end/text. A validação recusa lacunas de planos, leituras sobrepostas e estilo por plano.
 3. Defina paleta, modelo e regras visuais pelo guia do estilo. Overrides pertencem ao projeto; não altere os padrões globais para um filme específico.
-4. Crie cenas em `src/scenes/`, envoltas em IIFE. Registre `shots([[0, primeiroPlano], [3, segundoPlano]])`. A função de plano recebe `(t, lt, dur)`. Cada quadro deve estar completo; não dependa do quadro anterior.
+4. Crie cenas num arquivo próprio (as de fumaça ficam em `fixtures/smoke/`), envoltas em IIFE. Registre `shots([[0, primeiroPlano], [3, segundoPlano]])`. A função de plano recebe `(t, lt, dur)`. Cada quadro deve estar completo; não dependa do quadro anterior.
 5. Abra `studio.html?project=<id>&style=<estilo>`. Navegue pelos planos e revise o filme. Reprodução da aquarela pode ficar abaixo do tempo real; o MP4 é a referência de velocidade final.
 6. Renderize e inspecione as evidências abaixo; corrija problemas. Só então produza a entrega completa.
 
@@ -44,11 +44,11 @@ Os motores 2D usam coordenadas 1920×1080, origem no canto superior esquerdo e Y
 ## Revisão por quadros
 
 ```sh
-node render.mjs --project=visit --style=cartoon --storyboard --out=out/check/storyboard.jpg
-node render.mjs --project=visit --style=cartoon --strip=1.9:2.7 --cols=6 --w=320 --out=out/check/landing.jpg
-node render.mjs --project=visit --style=cartoon --sheet=2.5,3.4 --crop=550,440,530,430 --out=out/check/contact.jpg
-node render.mjs --project=demo --sheet=5.7 --crop-at=950,760,500,400 --out=out/check/tracked.jpg
-node render.mjs --project=visit --style=pixel --stills=2.5 --out=out/check/stills
+node render.mjs --project=smoke-2d --style=cartoon --storyboard --out=out/check/storyboard.jpg
+node render.mjs --project=smoke-2d --style=cartoon --strip=0.5:1.3 --cols=6 --w=320 --out=out/check/landing.jpg
+node render.mjs --project=smoke-2d --style=cartoon --sheet=0.5,1.5 --crop=200,300,700,700 --out=out/check/contact.jpg
+node render.mjs --project=smoke-2d --style=ink --sheet=1 --out=out/check/tracked.jpg
+node render.mjs --project=smoke-visit --style=pixel --stills=1 --out=out/check/stills
 npm run review
 ```
 
@@ -65,10 +65,10 @@ Documente defeito → causa → correção → evidência. Os testes automático
 ## Render final
 
 ```sh
-node render.mjs --project=visit --style=watercolor --clip --out=out/visit/watercolor/video.mp4
-node render.mjs --project=visit --style=pixel --frames --workers=2
-node render.mjs --project=visit --style=pixel --encode --out=out/visit/pixel/video.mp4
-node scripts/verify-video.mjs out/visit/pixel/video.mp4
+node render.mjs --project=smoke-2d --style=watercolor --clip --out=out/smoke/watercolor.mp4
+node render.mjs --project=smoke-visit --style=pixel --frames --workers=2
+node render.mjs --project=smoke-visit --style=pixel --encode --out=out/smoke/pixel.mp4
+node scripts/verify-video.mjs out/smoke/pixel.mp4
 ```
 
 `--frames` gera JPEGs; `--png` gera sequência sem perdas. Ambos usam manifesto e podem ser codificados com `--encode --frames-dir=<pasta>`. Cada sequência começa em f00000, inclusive para um intervalo que começa depois de zero. O manifesto preserva tempo inicial, fps e áudio. Um cache incompatível é recusado; use outro diretório. Não junte quadros de estilos ou revisões diferentes.

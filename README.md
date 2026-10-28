@@ -1,13 +1,18 @@
-# Estúdio modular de animação
+# Base de estilos de animação
 
-Crie histórias com Codex, escolha um estilo e produza animações com storyboard, prévia, revisão por quadros e MP4 verificado. O motor original de aquarela e sua demo continuam disponíveis.
+Motor e estilos para vídeos animados em código: cada quadro é função pura do tempo, desenhado por um estilo à escolha, com prévia, revisão por quadros e MP4 verificado. Não há filmes no repositório; cada estilo tem só uma cena de fumaça de 2 s (`fixtures/smoke/`) para testes. Próximo passo: um webapp interativo sobre esta base.
 
-| Estilo | Técnica | Guia |
+| Estilo | Técnica | Cena de fumaça |
 |---|---|---|
-| `watercolor` | Aquarela e tinta, p5.brush original | [Aquarela](src/styles/watercolor/GUIDE.md) |
-| `cartoon` | Formas vetoriais, contornos limpos, Canvas2D | [Cartoon](src/styles/cartoon/GUIDE.md) |
-| `pixel` | Sprites em 320×180, paleta limitada, ampliação 6× | [Pixel art](src/styles/pixel/GUIDE.md) |
-| `lowpoly-3d` | Three.js 0.186.1, procedural e GLB/glTF estático local, WebGL2 | [Low poly 3D](src/styles/lowpoly-3d/GUIDE.md) |
+| `cartoon` | Vetor Canvas2D, kit e peças de recorte ([guia](src/styles/cartoon/GUIDE.md)) | `smoke-2d`, `smoke-visit` |
+| `watercolor` | Aquarela de livro ilustrado: fundos em p5.brush, seres em Canvas2D ([guia](src/styles/watercolor/GUIDE.md)) | `smoke-2d` |
+| `watercolor-classic` | Motor original de aquarela (p5.brush, Clawd, folhas) | `smoke-visit` |
+| `stick` · `flat` · `paper` · `ink` · `silhouette` | Palito, flat vetorial, recorte de papel, nanquim, teatro de sombras (`STYLE.md` de cada pasta) | `smoke-2d` |
+| `debug` | Arame: chão, câmera e ossos, sem estilo | `smoke-2d` |
+| `pixel` | Sprites em 320×180, paleta limitada ([guia](src/styles/pixel/GUIDE.md)) | `smoke-visit` |
+| `lowpoly-3d` + kit `toon3d` | Three.js 0.186.1, WebGL2 ([guia](src/styles/lowpoly-3d/GUIDE.md)) | `smoke-3d` |
+
+Movimento sem desenho em `src/motion.js`, `src/timeline.js` e `src/nature/` (caminhos, marcha com `footAt`, esqueleto, seres, multidões, atores). Os estilos 2D desenham o quadro F (`ExpStyle.draw`, contrato em [src/styles/AGENTS.md](src/styles/AGENTS.md)). Voz e mixagem: [docs/VOICE.md](docs/VOICE.md).
 
 ## Começar
 
@@ -16,96 +21,19 @@ Requisitos: Node.js, Chrome/Chromium, FFmpeg e FFprobe no PATH.
 ```sh
 npm install
 npm test
-node render.mjs --project=visit --style=cartoon --clip --out=out/visit/cartoon/video.mp4
+npm run studio   # http://127.0.0.1:8080/studio.html?project=smoke-2d&style=paper
 ```
-
-Abra [studio.html](studio.html) no navegador: selecione projeto e estilo, reproduza, navegue pelo tempo ou pelos planos e salve PNGs. A seleção recarrega o projeto inteiro com a configuração congelada. Na aquarela, a prévia pode ser mais lenta que a reprodução final.
-
-A entrada em linguagem natural é feita com o Codex. Exemplo de pedido:
-
-> Leia AGENTS.md e ANIMATION_GUIDE.md. Crie um vídeo de 12 segundos em pixel art sobre um robô que protege uma muda da chuva. Faça o storyboard, implemente as cenas, revise e renderize.
-
-O estúdio pré-visualiza histórias implementadas em código; não contém um serviço de geração por IA embutido. Para novos filmes, registre um projeto em `src/config.js` e cenas em `src/scenes/`. O [guia universal](ANIMATION_GUIDE.md) descreve o fluxo completo.
-
-## Projetos incluídos
-
-- **`demo`**: “A estrela caída”, 11 s, somente aquarela. É o padrão para preservar o uso original.
-- **`visit`**: “Uma visita”, 6 s, nos três estilos. Uma borboleta chega, pousa na cabeça de Clawd e parte; ele se despede. [Storyboard](STORYBOARD.md).
-- **`mars-discovery`**: “Um sinal na poeira”, 3 s/12 fps, somente 3D low poly. Robô explorador encontra uma pedra luminosa. [Storyboard](docs/storyboards/mars-discovery.md).
-- **`ocean-encounter`**: “O farol que nadava”, 8 s, 3D low poly. Submarino encontra uma água-viva luminosa e a acompanha. [Storyboard](docs/storyboards/ocean-encounter.md). Usa o mesmo backend de Marte, com [componentes reutilizáveis](docs/COMPONENTS_3D.md), cenário e bíblia visual próprios.
-
-## Usar o motor 3D
-
-O [catálogo de assets](docs/ASSET_CATALOG.md) admite importação manual com licença/proveniência/hashes, incluindo fontes PNG/JPG geradas externamente. Só o adaptador 3D estático está implementado; os adaptadores 2D e rigging continuam planejados. Consulte [fontes verificadas](docs/ASSET_SOURCES.md), [plano atualizado](docs/ART_ASSETS_PLAN.md) e [relatório do piloto](docs/ASSET_PILOT_REPORT.md).
-
-Para revisar o piloto importado, abra o servidor com `?project=quality-space-p2&resolution=720p`. Os projetos `quality-space-p0` e `quality-space-p1` mostram as variantes comparáveis. `node scripts/check-generalization-suite.mjs` executa a regressão conjunta, incluindo assets/CLI. `node scripts/benchmark-assets.mjs` produz as seis comparações 720p/12 FPS sequencialmente; revise-as antes de qualquer avanço para 1080p/24 FPS.
-
-```sh
-npm run studio
-# Abra http://127.0.0.1:8080/studio.html?project=mars-discovery
-node render.mjs --project=mars-discovery --resolution=720p --clip --out=out/mars-720.mp4
-# Inspecione o MP4 e seus quadros antes de avançar:
-node render.mjs --project=mars-discovery --resolution=1080p --clip --out=out/mars-1080.mp4
-# Mesmo motor, render por software:
-node render.mjs --project=mars-discovery --resolution=1080p --soft-gl --clip --out=out/mars-software.mp4
-node render.mjs --project=mars-discovery --png --workers=1 --out=out/mars-png
-node render.mjs --project=mars-discovery --sheet=1.5 --crop-at=.95,.2,0,450,350 --out=out/stone.jpg
-```
-
-O CLI abre/fecha seu próprio servidor loopback para o estilo ES. O servidor manual também aceita `npm run studio -- --port=8081`; escuta somente em `127.0.0.1` e serve apenas studio, JS de src e arquivos explicitamente permitidos das dependências. Documentos, renders, Git e caminhos codificados ou de travessia não são servidos. Os três estilos 2D continuam funcionando por `file://` e HTTP. O 3D aberto por `file://` apresenta a instrução do servidor.
-
-A prévia leve do 3D desenha em metade da resolução interna (960×540 na saída 1080p) e desativa sombras, mantendo o canvas público no tamanho de saída. Escolha “Final” para comparar; “Salvar quadro PNG” sempre captura qualidade final. `--projection=orthographic` e `--shadows=off` são alternativas fixadas para a sessão inteira. Falhas de WebGL2, shader e contexto são explícitas. Não há fallback 2D.
-
-O [relatório do motor 3D](docs/LOWPOLY_3D_REPORT.md) reúne arquivos, vídeos, testes, ambiente e medições reais. Artefatos locais ficam em `out/mars-discovery/`, sem sobrescrever os filmes anteriores.
-
-O [relatório de generalização](docs/GENERALIZATION_REPORT.md) registra o segundo filme e o impacto de 720p/12 FPS para 1080p/24 FPS. Para reproduzir a sequência de revisão:
-
-```sh
-node scripts/benchmark-ocean.mjs --resolution=720p --fps=12
-# Abra o MP4, decoded-sheet.png e detalhes; só então:
-node scripts/benchmark-ocean.mjs --resolution=1080p --fps=24
-# Acrescente --soft-gl para medir cada caso em software.
-npm run test:generalization
-node scripts/check-generalization-suite.mjs
-```
-
-O benchmark preserva saídas existentes e registra os tempos por revisão. A [proposta de prompts para storyboards](docs/PROMPT_TO_STORYBOARD_PLAN.md) é planejamento, sem interface de geração implementada.
-
-Vídeos de teste locais:
-
-- [Aquarela](out/visit/watercolor/video.mp4) · [quadros do MP4](out/visit/watercolor/video.mp4.review/decoded-sheet.png)
-- [Cartoon](out/visit/cartoon/video.mp4) · [quadros do MP4](out/visit/cartoon/video.mp4.review/decoded-sheet.png)
-- [Pixel art](out/visit/pixel/video.mp4) · [quadros do MP4](out/visit/pixel/video.mp4.review/decoded-sheet.png)
-
-`out/` é ignorado pelo Git. Os arquivos acima são artefatos locais, regeneráveis pelos comandos abaixo; não estarão em um clone novo.
-
-Entregas regeneradas após a auditoria de rastreabilidade e recortes: [aquarela](out/visit/watercolor/revisions/8085d0383acb/video.mp4), [cartoon](out/visit/cartoon/revisions/8085d0383acb/video.mp4), [pixel art](out/visit/pixel/revisions/8085d0383acb/video.mp4). Os vídeos anteriores foram preservados. Veja [a auditoria](docs/AUDIT_STAGE1.md) para hashes e evidências.
 
 ## Render e revisão
 
 ```sh
-# Demo original
-npm run video
-# Um quadro PNG / storyboard
-node render.mjs --project=visit --style=pixel --stills=2.5 --out=out/stills
-node render.mjs --project=visit --style=cartoon --storyboard --out=out/storyboard.jpg
-# Movimento e detalhes
-node render.mjs --project=visit --style=watercolor --strip=1.9:2.7 --cols=6 --w=320 --out=out/landing.jpg
-node render.mjs --project=visit --style=cartoon --sheet=2.5,3.4 --crop=550,440,530,430 --out=out/contact.jpg
-# Um vídeo por estilo
-node render.mjs --project=visit --style=watercolor --clip --out=out/visit/watercolor/video.mp4
-node render.mjs --project=visit --style=cartoon --clip --out=out/visit/cartoon/video.mp4
-node render.mjs --project=visit --style=pixel --clip --out=out/visit/pixel/video.mp4
-# Sequência retomável + encode; diretório padrão out/<projeto>/<estilo>/frames
-node render.mjs --project=visit --style=pixel --frames --workers=2
-node render.mjs --project=visit --style=pixel --encode --out=out/visit/pixel/video.mp4
-# PNG sem perdas, intervalo e diretório próprios
-node render.mjs --project=visit --style=pixel --png --range=1:2 --out=out/pixel-png
-node render.mjs --project=visit --style=pixel --encode --frames-dir=out/pixel-png --out=out/pixel-trecho.mp4
-# Folhas originais, câmera e áudio continuam disponíveis
-node render.mjs --loop=emotions --sheet=1 --cols=1 --w=1920 --out=out/emotions.jpg
-node render.mjs --sheet=5.7 --crop-at=950,760,500,400 --out=out/tracked.jpg
-node render.mjs --project=visit --style=cartoon --clip --audio=assets/song.mp3 --out=out/music.mp4
+node render.mjs --project=smoke-2d --style=ink --sheet=0,1,1.9 --cols=3 --w=640 --out=out/check/ink.jpg
+node render.mjs --project=smoke-2d --style=cartoon --strip=0.5:1.3 --cols=6 --w=320 --out=out/check/strip.jpg
+node render.mjs --project=smoke-visit --style=pixel --frames --workers=2
+node render.mjs --project=smoke-visit --style=pixel --encode --out=out/smoke/pixel.mp4
+node render.mjs --project=smoke-3d --clip --out=out/smoke/3d.mp4
+node render.mjs --project=smoke-visit --style=watercolor-classic --loop=emotions --sheet=1 --cols=1 --w=1920 --out=out/emotions.jpg
+node scripts/check-motion.mjs --project=smoke-2d --2d --style=paper
 ```
 
 Para Chrome fora do caminho padrão: `--chrome=<caminho>` ou `CHROME_PATH`. Para WebGL sem GPU: `--soft-gl`; para Linux/NVIDIA: `--gpu-angle=gl-egl` ou `vulkan`. `gpu_probe.mjs` continua disponível. Não há downloads de fontes ou imagens durante o render. Lettering original usa fontes locais como fallback.
@@ -124,18 +52,12 @@ O relatório inclui hashes por arquivo, SHA-256 do vídeo e ambiente. A revisão
 npm test
 npm run test:visual
 npm run review
-node scripts/check-render.mjs
 ```
 
-- [Arquitetura e etapas](ARCHITECTURE.md)
+- [Arquitetura](ARCHITECTURE.md)
 - [Validação e evidências](docs/VALIDATION.md)
-- [Auditoria anterior ao 3D](docs/AUDIT_STAGE1.md)
-- [Plano aprovado Three.js low poly](docs/LOWPOLY_3D_PLAN.md)
-- [Implementação e validação do quarto motor](docs/LOWPOLY_3D_REPORT.md)
-- [Adicionar estilos; preparar anime, motion graphics e 3D](docs/ADDING_STYLES.md)
-- [Instruções permanentes para Codex](AGENTS.md)
+- [Adicionar estilos](docs/ADDING_STYLES.md)
+- [Instruções para agentes](AGENTS.md)
 - [Guia original de aquarela preservado](docs/WATERCOLOR_ORIGINAL.md)
-
-A API original de Clawd, emoções, vistas, pintura e câmera permanece na aquarela. Os outros motores têm APIs de desenho próprias; a coreografia de “Uma visita” exemplifica uma história portável. Não há conversão automática de qualquer cena entre meios. Anime e motion graphics continuam como extensões futuras; o quarto motor é o 3D low poly.
 
 Base original: Claude Animation Base de John Heibel, licença MIT mantida em [LICENSE](LICENSE). [PDoomVideo](https://github.com/JohnHeibel/PDoomVideo) foi consultado apenas como referência técnica e artística.
