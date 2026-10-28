@@ -137,7 +137,7 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
       const id = chId(m), texts = db.channelTexts(), target = texts.find(x => x.id === id) ?? nf('Canal não encontrado');
       const rows = new Map(db.channelRows(now(), cfg()).map(r => [r.id, r]));
       // score = semelhança (a aba mostra "semelhança N%"); o score de oportunidade do canal vai em channelScore.
-      return similarChannels(target, texts).map(x => { const r = rows.get(x.id); return { ...x, avatar: r?.avatar ?? null, subs: r?.subs ?? null, avgViews: r?.avgViews ?? null, channelScore: r?.score ?? null }; });
+      return similarChannels(target, texts).map(x => { const r = rows.get(x.id); return { ...x, avatar: r?.avatar ?? null, subs: r?.subs ?? null, avgViews: r?.avgViews ?? null, updatedAt: r?.updatedAt ?? null, channelScore: r?.score ?? null }; });
     }],
     ['POST', /^\/api\/channels\/([^/]+)\/summary$/, m => {
       const c = channel(chId(m)), vids = db.videoRows(c.id, now()).map(v => ({ ...v, views: v.views ?? 0, durationS: v.durationS ?? 0 }));

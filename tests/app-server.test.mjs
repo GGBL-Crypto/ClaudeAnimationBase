@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { request } from 'node:http';
 import { startAppServer, errorStatus } from '../scripts/app-server.mjs';
 import { saveConfig, DEFAULTS } from '../scripts/app/config.mjs';
+import { openDb } from '../scripts/app/db.mjs';
 
 // Fixtures do YouTube com UCfixture1 trocado por um id válido (22 caracteres) para alcançar as rotas /api/channels/:id.
 const C1 = 'UCfixture' + '0'.repeat(14) + '1';
@@ -157,6 +158,11 @@ test('repeating a cached channel search costs 0 units', async () => {
 test('analysis, similar and summary', async () => {
   assert.equal(JSON.parse((await get(`/api/channels/${C1}/analysis`)).body).count, 3);
   const sim = JSON.parse((await get(`/api/channels/${C1}/similar`)).body); assert.ok(Array.isArray(sim)); assert.ok(sim.every(x => x.id !== C1));
+  // canal parecido (mesmo tópico) com uma captura: a aba mostra inscritos e média com a data da coleta
+  const C3 = 'UCfixture' + '0'.repeat(13) + 'zz', db = openDb(join(dataDir, 'app.db'));
+  db.upsertChannel({ id: C3, title: 'Parecido', topics: ['https://en.wikipedia.org/wiki/Knowledge'] }); db.addChannelSnapshot(C3, '2026-10-26T00:00:00.000Z', { subs: 10, views: 5, videos: 0 }); db.close();
+  const near = JSON.parse((await get(`/api/channels/${C1}/similar`)).body).find(x => x.id === C3);
+  assert.equal(near.updatedAt, '2026-10-26T00:00:00.000Z');
   const { jobId, prompt } = JSON.parse((await post(`/api/channels/${C1}/summary`, {}, ok)).body); assert.ok(prompt.includes('Fixture One'));
   assert.deepEqual((await readSse(`/api/jobs/${jobId}/events`)).at(-1).data.result, { resumo: 'r', pontos: ['p'] });
 });

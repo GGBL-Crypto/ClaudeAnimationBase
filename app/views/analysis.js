@@ -61,10 +61,10 @@ export async function analysisTab(body, c) {
   let a; try { a = await api.get(`/api/channels/${enc(c.id)}/analysis`); } catch (e) { if (live()) body.replaceChildren(h('p', { class: 'err' }, e.message)); return; }
   if (!live()) return;
   const g = a.growth ?? {}, t = a.titles ?? {}, d = a.duration ?? {}, p = a.publish ?? {};
-  const growth = [h('h3', {}, 'Crescimento'),
-    g.enough ? [chart(g.points, 'subs', 'Inscritos'), chart(g.points, 'views', 'Views')]
-      : h('p', { class: 'dim' }, g.since ? 'histórico começa em ' + fmt.date(g.since) : 'Sem capturas.')];
-  if (!a.count) return body.replaceChildren(h('p', { class: 'dim' }, 'Sem vídeos para analisar.'), ...growth.flat().filter(Boolean));
+  // lista plana: h() só achata um nível e append não aceita null
+  const growth = [h('h3', {}, 'Crescimento'), ...(g.enough ? [chart(g.points, 'subs', 'Inscritos'), chart(g.points, 'views', 'Views')]
+    : [h('p', { class: 'dim' }, g.since ? 'histórico começa em ' + fmt.date(g.since) : 'Sem capturas.')])].filter(Boolean);
+  if (!a.count) return body.replaceChildren(h('p', { class: 'dim' }, 'Sem vídeos para analisar.'), ...growth);
   body.replaceChildren(h('div', {}, // h achata listas e ignora null
     h('p', { class: 'dim' }, `${fmt.num(a.count)} vídeos na base · dados de ${fmt.date(c.updatedAt)}`),
     h('h3', {}, 'Títulos'),
@@ -95,6 +95,6 @@ export async function similarTab(body, c, open) {
       h('td', {}, h('div', {}, r.title ?? r.id), h('small', { class: 'dim' }, `semelhança ${fmt.num(r.score)}%`)),
       h('td', {}, r.sharedWords?.length ? h('div', {}, 'Palavras: ' + r.sharedWords.join(', ')) : null,
         r.sharedTopics?.length ? h('div', {}, 'Tópicos: ' + r.sharedTopics.join(', ')) : null),
-      h('td', {}, subsText(r.subs)), h('td', {}, fmt.num(r.avgViews)),
+      h('td', {}, subsText(r.subs), h('br'), h('small', { class: 'dim' }, 'dados de ' + fmt.date(r.updatedAt))), h('td', {}, fmt.num(r.avgViews)),
       h('td', {}, h('button', { type: 'button', onClick: () => open(r.id) }, 'Analisar')))))));
 }
