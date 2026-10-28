@@ -1,7 +1,7 @@
 // Minerar canais: busca, importação, recortes, filtros locais (URL) e lista em tabela ou cartões.
 import { h, fmt } from '../dom.js';
 import { api } from '../api.js';
-import { openChannel, follow, dec, subsText, views30, money, avatar, isNew, tagText } from './channel.js';
+import { openChannel, follow, freq, subsText, views30, money, avatar, isNew, tagText } from './channel.js';
 
 // Mesmos ids e rótulos de PRESETS em scripts/app/filters.mjs.
 const PRESETS = [['espelhar', 'Pra você espelhar'], ['novos', 'Canais novos'], ['muitaView', 'Muita view, pouco inscrito'], ['fabrica', 'Fábrica de vídeo'],
@@ -28,28 +28,34 @@ export async function render(root, params) {
   const q = h('input', { type: 'search', placeholder: 'Buscar canal, nicho ou palavra-chave', 'aria-label': 'Buscar' });
   const confirmBox = h('div', { class: 'confirm', hidden: true });
   const askMine = () => {
+    if (busy) return;
     if (!q.value.trim()) return void q.focus();
     confirmBox.replaceChildren(h('span', {}, `Custa ~${MINE_COST} unidades da cota. Continuar?`),
-      h('button', { type: 'button', class: 'primary', onClick: () => { confirmBox.hidden = true; start(api.post('/api/mine', { q: q.value.trim() })); } }, 'Continuar'),
+      h('button', { type: 'button', class: 'primary', onClick: () => { confirmBox.hidden = true; start(() => api.post('/api/mine', { q: q.value.trim() })); } }, 'Continuar'),
       h('button', { type: 'button', onClick: () => { confirmBox.hidden = true; } }, 'Cancelar'));
     confirmBox.hidden = false;
   };
   const paste = h('textarea', { rows: '5', placeholder: 'Um por linha: https://www.youtube.com/@canal, @canal ou UC…', 'aria-label': 'Canais para importar' });
-  const importBox = h('div', { class: 'import', hidden: true }, paste,
-    h('button', { type: 'button', class: 'primary', onClick: () => { if (paste.value.trim()) start(api.post('/api/import', { text: paste.value })); } }, 'Importar'));
+  const importBtn = h('button', { type: 'button', class: 'primary', onClick: () => { if (paste.value.trim()) start(() => api.post('/api/import', { text: paste.value })); } }, 'Importar');
+  const importBox = h('div', { class: 'import', hidden: true }, paste, importBtn);
+  const mineBtn = h('button', { type: 'submit', class: 'primary' }, 'Buscar');
+  // um job por vez nesta tela: Buscar/Importar desligados até o fim
+  const setBusy = on => { busy = on; mineBtn.disabled = importBtn.disabled = on; if (on) confirmBox.hidden = true; };
 
+  // req é função: o POST só sai depois da guarda (sem job fantasma gastando cota)
   async function start(req) {
     if (busy) return;
-    busy = true;
+    setBusy(true);
     const bar = h('progress', { max: '1', value: '0' }), msg = h('span', {}, 'Iniciando…'), out = h('div', { class: 'result' });
     job.replaceChildren(bar, msg, out);
     let jobId;
-    try { ({ jobId } = await req); } catch (e) { busy = false; bar.remove(); msg.className = 'err'; msg.textContent = e.message; return; }
+    try { ({ jobId } = await req()); } catch (e) { setBusy(false); bar.remove(); msg.className = 'err'; msg.textContent = e.message; return; }
     follow(jobId, root, (ev, d) => {
       if (ev === 'progress') { if (d.total) { bar.max = d.total; bar.value = d.done; msg.textContent = `${d.message ?? ''} (${d.done}/${d.total})`; } return; }
-      busy = false; bar.value = bar.max;
+      setBusy(false);
       if (d.status === 'error') { msg.className = 'err'; msg.textContent = d.error ?? 'Erro no job'; }
       else {
+        bar.value = bar.max;
         const r = d.result ?? {};
         msg.textContent = `Concluído: ${(r.ok ?? []).length} canais gravados.`;
         if (r.failed?.length) out.append(h('p', { class: 'err' }, 'Falharam:'), h('ul', {}, r.failed.map(f => h('li', {}, `${f.id}: ${f.error}`))));
@@ -68,6 +74,7 @@ export async function render(root, params) {
   face.value = st.get('faceless') ?? '';
   const unknown = h('input', { type: 'checkbox', checked: st.get('includeUnknown') === '1' });
   function applyForm() {
+    inputs.lang.value = inputs.lang.value.trim().toLowerCase(); inputs.country.value = inputs.country.value.trim().toUpperCase(); // como gravado: 'en', 'US'
     for (const [k, el] of [...Object.entries(inputs), ['faceless', face]]) { const v = el.value.trim(); if (v) st.set(k, v); else st.delete(k); }
     if (unknown.checked) st.set('includeUnknown', '1'); else st.delete('includeUnknown');
     sync(); load();
@@ -92,9 +99,11 @@ export async function render(root, params) {
     const my = ++seq, qs = new URLSearchParams(st);
     qs.delete('canal');
     for (const b of presetBar.children) b.classList.toggle('on', b.dataset.id === (st.get('preset') || 'tudo'));
-    try { ({ rows } = await api.get('/api/channels?' + qs)); }
+    let got;
+    try { got = await api.get('/api/channels?' + qs); }
     catch (e) { if (my === seq) list.replaceChildren(h('p', { class: 'err' }, e.message)); return; }
-    if (my === seq && root.isConnected) draw();
+    if (my !== seq || !root.isConnected) return;
+    rows = got.rows; draw();
   }
 
   function draw() {
@@ -112,13 +121,13 @@ export async function render(root, params) {
       h('thead', {}, h('tr', {}, COLS.map(([label, key]) => h('th', {}, key ? h('button', { type: 'button', class: 'link', onClick: () => sortBy(key) }, label + (sort === key ? arrow : '')) : label)))),
       h('tbody', {}, rows.map((r, i) => h('tr', {},
         h('td', {}, String(i + 1)), h('td', {}, name(r)), h('td', {}, tagText(r)), h('td', {}, subsText(r.subs)), h('td', {}, views30(r)),
-        h('td', {}, fmt.num(r.avgViews)), h('td', {}, dec(r.frequency) + '/sem'), h('td', {}, fmt.num(r.score)),
+        h('td', {}, fmt.num(r.avgViews)), h('td', {}, freq(r.frequency)), h('td', {}, fmt.num(r.score)),
         h('td', {}, h('button', { type: 'button', onClick: () => show(r.id) }, 'Analisar'))))));
   }
   function cards() {
     return h('div', { class: 'cards' }, rows.map(r => h('article', { class: 'card' },
       name(r), h('small', { class: 'dim' }, tagText(r)),
-      h('div', { class: 'thumbs' }, (r.topThumbs ?? []).map(t => h('figure', {}, t.thumb ? h('img', { src: t.thumb, alt: '', loading: 'lazy' }) : h('span', { class: 'noimg' }), h('figcaption', {}, fmt.num(t.views) + ' views')))),
+      h('div', { class: 'thumbs' }, (r.topThumbs ?? []).map(t => h('figure', {}, t.thumb ? h('img', { src: t.thumb, alt: '', loading: 'lazy' }) : h('span', { class: 'noimg' }), t.views == null ? null : h('figcaption', {}, fmt.num(t.views) + ' views')))),
       h('dl', { class: 'stats' }, stat('Média/vídeo', fmt.num(r.avgViews)), stat('US$/mês (estimativa)', money(r.revenue)), stat('Inscritos', subsText(r.subs)),
         stat('Views/mês', views30(r)), stat('Vídeos', fmt.num(r.videoCount))),
       h('small', { class: 'dim' }, (r.daysSinceLast == null ? 'Sem vídeos' : `Último vídeo há ${r.daysSinceLast} d`) + ' · Atualizado ' + fmt.ago(r.updatedAt)),
@@ -126,7 +135,7 @@ export async function render(root, params) {
   }
 
   root.append(h('h1', {}, 'Minerar canais'),
-    h('form', { class: 'bar', onSubmit: e => { e.preventDefault(); askMine(); } }, q, h('button', { type: 'submit', class: 'primary' }, 'Buscar'),
+    h('form', { class: 'bar', onSubmit: e => { e.preventDefault(); askMine(); } }, q, mineBtn,
       h('button', { type: 'button', onClick: () => { importBox.hidden = !importBox.hidden; } }, 'Importar canais')),
     confirmBox, importBox, job, presetBar, form, toggle, h('div', { class: 'split' }, list, panel));
   if (st.get('canal')) openChannel(panel, st.get('canal'));

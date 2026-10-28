@@ -6,7 +6,8 @@ import { api } from '../api.js';
 const EST = 'estimativa por vídeos dos últimos 30 dias';
 export const dec = n => n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 export const subsText = n => n == null ? 'oculto' : fmt.num(n);
-export const views30 = r => r.views30dSource === 'videos' ? h('span', { title: EST }, '≈ ' + fmt.num(r.views30d)) : h('span', {}, fmt.num(r.views30d));
+export const views30 = r => r.views30d != null && r.views30dSource === 'videos' ? h('span', { title: EST }, '≈ ' + fmt.num(r.views30d)) : h('span', {}, fmt.num(r.views30d));
+export const freq = n => n == null || !Number.isFinite(n) ? '—' : dec(n) + '/sem';
 export const money = rev => rev ? h('span', { title: 'estimativa' }, `≈ US$ ${fmt.num(rev[0])}–${fmt.num(rev[1])}`) : h('span', { class: 'dim' }, 'defina RPM');
 export const avatar = (src, cls = 'avatar') => src ? h('img', { src, alt: '', class: cls, loading: 'lazy', referrerpolicy: 'no-referrer' }) : h('span', { class: cls });
 export const isNew = r => r.ageDays != null && r.ageDays <= 90 ? h('span', { class: 'badge' }, 'NOVA') : null;
@@ -40,7 +41,7 @@ export async function openChannel(panel, id) {
   if (panel.dataset.id === id && panel.isConnected) draw(panel, c, cfg.weights ?? {});
 }
 
-function draw(panel, c, weights) {
+function draw(panel, c, weights, tab = 'o') {
   const changed = () => panel.dispatchEvent(new Event('channel-changed'));
   const msg = h('p', { class: 'status' });
   const fail = text => { msg.className = 'status err'; msg.textContent = text; };
@@ -52,7 +53,7 @@ function draw(panel, c, weights) {
     msg.className = 'status'; msg.textContent = 'Salvando…';
     try {
       const n = await api.post(`/api/channels/${enc(c.id)}/tag`, { tag: tag.value.trim() || null, faceless: face.value === '' ? null : face.value === '1' });
-      changed(); if (panel.dataset.id === c.id && panel.isConnected) draw(panel, n, weights);
+      changed(); if (panel.dataset.id === c.id && panel.isConnected) draw(panel, n, weights, body.dataset.tab); // mantém a aba
     } catch (e) { fail(e.message); }
   }
   const refresh = h('button', { type: 'button', onClick: async () => {
@@ -69,11 +70,12 @@ function draw(panel, c, weights) {
   } }, 'Atualizar');
 
   const body = h('div', { class: 'tab' });
-  const pick = (btn, fn) => { for (const b of tabs.children) b.classList.toggle('on', b === btn); body.replaceChildren(); fn(); };
+  // body.dataset.tab diz a aba ativa; resposta de aba antiga não sobrescreve a atual
+  const pick = t => { for (const b of tabs.children) b.classList.toggle('on', b.dataset.t === t); body.dataset.tab = t; body.replaceChildren(); t === 'v' ? videos(body, c) : overview(); };
   const soon = label => h('button', { type: 'button', disabled: true }, label + ' ', h('small', { class: 'soon' }, 'em breve'));
   const tabs = h('nav', { class: 'tabs' },
-    h('button', { type: 'button', class: 'on', onClick: e => pick(e.currentTarget, overview) }, 'Visão geral'),
-    h('button', { type: 'button', onClick: e => pick(e.currentTarget, () => videos(body, c)) }, 'Vídeos'),
+    h('button', { type: 'button', dataset: { t: 'o' }, onClick: () => pick('o') }, 'Visão geral'),
+    h('button', { type: 'button', dataset: { t: 'v' }, onClick: () => pick('v') }, 'Vídeos'),
     soon('Análise'), soon('Concorrentes'));
 
   function overview() {
@@ -81,16 +83,16 @@ function draw(panel, c, weights) {
     body.append(h('div', {}, // h achata listas e ignora null
       h('p', { class: 'dim' }, 'Dados de ' + fmt.date(c.updatedAt)),
       h('dl', { class: 'stats' }, stat('Inscritos', subsText(c.subs)), stat('Views 30d', views30(c)), stat('Média por vídeo', fmt.num(c.avgViews)),
-        stat('Vídeos', fmt.num(c.videoCount)), stat('Idade', c.ageDays == null ? '—' : c.ageDays + ' d'), stat('Frequência', dec(c.frequency) + '/sem')),
+        stat('Vídeos', fmt.num(c.videoCount)), stat('Idade', c.ageDays == null ? '—' : c.ageDays + ' d'), stat('Frequência', freq(c.frequency))),
       h('h3', {}, 'Score ' + fmt.num(c.score)),
       PARTS.map(([k, label]) => {
         const p = c.scoreParts?.[k] ?? 0, w = weights[k] ?? 0;
-        return h('div', { class: 'part' }, h('span', {}, `${label}: ${dec(p)} × peso ${dec(w)} = ${dec(Math.round(p * w * 100 / tot))} pts`), h('progress', { max: '1', value: String(p) }));
+        return h('div', { class: 'part' }, h('span', {}, `${label}: ${p.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} × peso ${dec(w)} = ${dec(Math.round(p * w * 100 / tot))} pts`), h('progress', { max: '1', value: String(p) }));
       }),
       h('h3', {}, 'Receita estimada'),
       h('p', {}, money(c.revenue), c.revenue ? ' por mês (estimativa, views 30d × RPM)' : ' em Configurações'),
       h('h3', {}, 'Capturas'),
-      snaps.length < 2 ? h('p', { class: 'dim' }, 'histórico começa em ' + fmt.date(snaps[0]?.at)) : null,
+      snaps.length === 1 ? h('p', { class: 'dim' }, 'histórico começa em ' + fmt.date(snaps[0].at)) : snaps.length ? null : h('p', { class: 'dim' }, 'Sem capturas.'),
       h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, ['Data', 'Inscritos', 'Views'].map(t => h('th', {}, t)))),
         h('tbody', {}, [...snaps].reverse().map(s => h('tr', {}, h('td', {}, when(s.at)), h('td', {}, subsText(s.subs)), h('td', {}, fmt.num(s.views))))))));
   }
@@ -102,14 +104,15 @@ function draw(panel, c, weights) {
       closeBtn(panel)),
     h('div', { class: 'row' }, refresh, tag, face, h('button', { type: 'button', onClick: saveTag }, 'Salvar etiqueta')),
     msg, tabs, body);
-  overview();
+  pick(tab);
 }
 
 const VCOLS = [['', null], ['Título', 'title'], ['Publicado', 'publishedAt'], ['Duração', 'durationS'], ['Views', 'views'], ['Views/dia', 'viewsPerDay'], ['Múltiplo', 'multiple'], ['Nota', 'nota']];
 async function videos(body, c) {
   body.append(h('p', { class: 'dim' }, 'Carregando…'));
-  let vs; try { vs = await api.get(`/api/channels/${enc(c.id)}/videos`); } catch (e) { if (body.isConnected) body.replaceChildren(h('p', { class: 'err' }, e.message)); return; }
-  if (!body.isConnected) return;
+  const live = () => body.isConnected && body.dataset.tab === 'v';
+  let vs; try { vs = await api.get(`/api/channels/${enc(c.id)}/videos`); } catch (e) { if (live()) body.replaceChildren(h('p', { class: 'err' }, e.message)); return; }
+  if (!live()) return;
   if (!vs.length) return body.replaceChildren(h('p', { class: 'dim' }, 'Sem vídeos.'));
   let key = 'viewsPerDay', dir = -1;
   const by = k => { dir = key === k ? -dir : -1; key = k; draw(); };
