@@ -31,21 +31,21 @@ before(async () => {
   await writeFile(join(appDir, 'app.css'), 'body{}'); await writeFile(join(appDir, 'views', 'x.js'), 'export const x = 1;');
   await writeFile(join(temp, 'secret.js'), 'private');
   saveConfig(dataDir, { apiKey: 'AIzaTESTKEY1234' });
-  s = await startAppServer({ dataDir, appDir, fetch: fakeFetch, now: () => Date.parse('2026-10-27T12:00:00Z') });
+  s = await startAppServer({ dataDir, appDir, fetch: fakeFetch, now: () => Date.parse('2026-10-27T12:00:00Z'), claude: async () => ({ resumo: 'r', pontos: ['p'] }) });
   ok = { token: s.token, origin: s.origin };
 });
 after(async () => { await s.close(); await rm(temp, { recursive: true, force: true }); });
 
-const send = (method, path, { headers = {}, body } = {}) => new Promise((done, bad) => {
-  const req = request(s.origin, { path, method, headers: { Host: new URL(s.origin).host, ...headers } }, r => {
+const send = (method, path, { server = s, headers = {}, body } = {}) => new Promise((done, bad) => {
+  const req = request(server.origin, { path, method, headers: { Host: new URL(server.origin).host, ...headers } }, r => {
     let b = ''; r.setEncoding('utf8'); r.on('data', x => b += x); r.on('end', () => done({ status: r.statusCode, body: b, headers: r.headers }));
   });
   req.on('error', bad); req.end(body);
 });
-const get = (path, headers) => send('GET', path, { headers });
-const post = (path, body, { token, origin } = {}) => send('POST', path, { body: typeof body === 'string' ? body : JSON.stringify(body), headers: { 'Content-Type': 'application/json', ...(token && { 'X-App-Token': token }), ...(origin && { Origin: origin }) } });
-const readSse = async path => {
-  const r = await get(path); assert.match(r.headers['content-type'], /text\/event-stream/);
+const get = (path, headers, server) => send('GET', path, { headers, server });
+const post = (path, body, { token, origin, server } = {}) => send('POST', path, { server, body: typeof body === 'string' ? body : JSON.stringify(body), headers: { 'Content-Type': 'application/json', ...(token && { 'X-App-Token': token }), ...(origin && { Origin: origin }) } });
+const readSse = async (path, server) => {
+  const r = await get(path, {}, server); assert.match(r.headers['content-type'], /text\/event-stream/);
   return r.body.split('\n\n').filter(Boolean).map(b => ({ event: /^event: (.*)$/m.exec(b)[1], data: JSON.parse(/^data: (.*)$/m.exec(b)[1]) }));
 };
 
@@ -130,6 +130,85 @@ test('responses with hostile titles are JSON, never HTML', async () => {
   assert.ok(JSON.parse(v.body).some(x => x.title === '<img src=x onerror=alert(1)>'));
 });
 test('static traversal is rejected', async () => { for (const p of ['/../package.json', '/app/../data/config.json', '/%2e%2e/x', '/data/config.json', '/../secret.js', '/views/../index.html', '//app.css', '/app.css%00']) { const r = await get(p); assert.ok([403, 404].includes(r.status), p); assert.ok(!r.body.includes('private'), p); } });
+// Fase 2: depois dos testes acima, que já mineraram a base.
+test('empty base overview is all zeros', async () => {
+  const t = await mkdtemp(join(tmpdir(), 'app-empty-')), s2 = await startAppServer({ dataDir: join(t, 'd'), appDir: join(t, 'none'), fetch: fakeFetch, now: () => Date.parse('2026-10-27T12:00:00Z') });
+  try {
+    assert.deepEqual(JSON.parse((await get('/api/overview', {}, s2)).body), { channels: 0, newChannels: 0, opportunities: 0, outliers7d: 0, outlierMin: 2, opportunityMin: 70, recent: [] });
+  } finally { await s2.close(); await rm(t, { recursive: true, force: true }); }
+});
+test('quota reports search costs', async () => { assert.deepEqual(JSON.parse((await get('/api/quota')).body).costs, { mine: 301, videos: 202 }); });
+test('videos list, filters and sort', async () => {
+  const r = JSON.parse((await get('/api/videos?sort=multiple')).body); assert.ok(r.total >= 3); assert.ok(r.rows.every(v => 'channelTitle' in v && 'multiple' in v));
+  assert.equal((await get('/api/videos?sort=evil')).status, 400);
+  assert.deepEqual(JSON.parse((await get('/api/videos?ids=vidfixture2')).body).rows.map(v => v.id), ['vidfixture2']);
+});
+test('video mining validates input, estimates 202 and logs history with units', async () => {
+  for (const b of [{ q: '' }, { q: 'x', videoDuration: 'huge' }, { q: 'x', publishedAfter: '2026/10/01' }, { q: 'x', relevanceLanguage: 'eng' }]) assert.equal((await post('/api/videos/mine', b, ok)).status, 400, JSON.stringify(b));
+  const { jobId, estimate } = JSON.parse((await post('/api/videos/mine', { q: 'sleep', videoDuration: 'long' }, ok)).body); assert.equal(estimate, 202);
+  const end = (await readSse(`/api/jobs/${jobId}/events`)).at(-1).data; assert.equal(end.status, 'done'); assert.ok(end.result.videoIds.length);
+  const h = JSON.parse((await get('/api/history')).body).entries.find(e => e.kind === 'videos');
+  assert.equal(h.payload.q, 'sleep'); assert.equal(h.payload.filters.videoDuration, 'long'); assert.ok(h.payload.units > 0); assert.equal(h.payload.status, 'done');
+});
+test('repeating a cached channel search costs 0 units', async () => {
+  const { jobId } = JSON.parse((await post('/api/mine', { q: 'sleep' }, ok)).body); await readSse(`/api/jobs/${jobId}/events`);
+  const h = JSON.parse((await get('/api/history')).body).entries.find(e => e.kind === 'mine'); assert.equal(h.payload.units, 0);
+});
+test('analysis, similar and summary', async () => {
+  assert.equal(JSON.parse((await get(`/api/channels/${C1}/analysis`)).body).count, 3);
+  const sim = JSON.parse((await get(`/api/channels/${C1}/similar`)).body); assert.ok(Array.isArray(sim)); assert.ok(sim.every(x => x.id !== C1));
+  const { jobId, prompt } = JSON.parse((await post(`/api/channels/${C1}/summary`, {}, ok)).body); assert.ok(prompt.includes('Fixture One'));
+  assert.deepEqual((await readSse(`/api/jobs/${jobId}/events`)).at(-1).data.result, { resumo: 'r', pontos: ['p'] });
+});
+test('collections: fixed favorites, duplicates, items, memberships, fav filter, delete', async () => {
+  assert.deepEqual(JSON.parse((await get('/api/collections')).body)[0], { id: 1, name: 'Favoritos', fixed: true, count: 0 });
+  const c = JSON.parse((await post('/api/collections', { name: 'Roma' }, ok)).body);
+  assert.equal((await post('/api/collections', { name: 'roma' }, ok)).status, 400);
+  assert.equal((await post('/api/collections/1/items', { kind: 'channel', id: C1, note: 'ver' }, ok)).status, 200);
+  assert.equal((await post(`/api/collections/${c.id}/items`, { kind: 'video', id: 'vidfixture1' }, ok)).status, 200);
+  assert.equal((await post(`/api/collections/${c.id}/items`, { kind: 'playlist', id: 'x' }, ok)).status, 400);
+  assert.equal((await post(`/api/collections/${c.id}/items`, { kind: 'video', id: 'zzzzzzzzzzz' }, ok)).status, 404);
+  assert.deepEqual(JSON.parse((await get(`/api/memberships?kind=channel&id=${C1}`)).body).ids, [1]);
+  const fav = JSON.parse((await get('/api/collections/1')).body); assert.equal(fav.items[0].note, 'ver'); assert.equal(fav.items[0].row.title, 'Fixture One');
+  assert.equal(JSON.parse((await get('/api/channels?preset=tudo&fav=1')).body).total, 1);
+  assert.equal((await post('/api/collections/1/delete', {}, ok)).status, 400); assert.equal((await post('/api/collections/1/rename', { name: 'x' }, ok)).status, 400);
+  assert.equal((await post(`/api/collections/${c.id}/delete`, {}, ok)).status, 200); assert.equal((await get(`/api/collections/${c.id}`)).status, 404);
+  assert.equal((await get('/api/collections/abc')).status, 400); assert.equal((await post('/api/collections/999/items', { kind: 'channel', id: C1 }, ok)).status, 404);
+});
+test('collections reject bad names, notes and ids without 500', async () => {
+  const c = JSON.parse((await post('/api/collections', { name: ' Grécia ' }, ok)).body); assert.equal(c.name, 'Grécia'); assert.equal(c.count, 0);
+  for (const b of [{ name: '  ' }, { name: 'x'.repeat(61) }, { name: 5 }, {}]) assert.equal((await post('/api/collections', b, ok)).status, 400, JSON.stringify(b));
+  assert.equal((await post(`/api/collections/${c.id}/rename`, { name: 'favoritos' }, ok)).status, 400);
+  assert.equal(JSON.parse((await post(`/api/collections/${c.id}/rename`, { name: 'Egito' }, ok)).body).name, 'Egito');
+  assert.equal((await post('/api/collections/999/rename', { name: 'y' }, ok)).status, 404); assert.equal((await post('/api/collections/999/delete', {}, ok)).status, 404);
+  for (const b of [{ kind: 'channel', id: 'UCbad' }, { kind: 'video', id: C1 }, { kind: 'channel', id: C1, note: 5 }, { kind: 'channel', id: C1, note: 'x'.repeat(501) }]) assert.equal((await post(`/api/collections/${c.id}/items`, b, ok)).status, 400, JSON.stringify(b));
+  assert.equal((await post(`/api/collections/${c.id}/items`, { kind: 'channel', id: 'UCzzzzzzzzzzzzzzzzzzzzzz' }, ok)).status, 404);
+  assert.equal((await post(`/api/collections/${c.id}/items`, { kind: 'video', id: 'vidfixture1', note: null }, ok)).status, 200);
+  assert.equal((await post(`/api/collections/${c.id}/items/remove`, { kind: 'video', id: 'vidfixture1' }, ok)).status, 200);
+  assert.deepEqual(JSON.parse((await get(`/api/collections/${c.id}`)).body).items, []);
+  assert.equal((await get('/api/memberships?kind=playlist&id=x')).status, 400); assert.equal((await get('/api/collections/1234567890')).status, 400);
+});
+test('history logs one open per consecutive visit and lists jobs', async () => {
+  await get(`/api/channels/${C1}`); await get(`/api/channels/${C1}`);
+  const h = JSON.parse((await get('/api/history')).body);
+  assert.equal(h.entries[0].kind, 'open'); assert.notDeepEqual(h.entries[1]?.payload, h.entries[0].payload);
+  assert.ok(h.jobs.some(j => j.kind === 'mine' && j.status === 'done')); assert.ok(h.jobs.every(j => !('result' in j)));
+});
+test('failed search still logs history with units and error status', async () => {
+  const t = await mkdtemp(join(tmpdir(), 'app-quota-')), d = join(t, 'd'); saveConfig(d, { apiKey: 'AIzaTESTKEY1234' });
+  const quota = async () => ({ ok: false, status: 403, json: async () => fx('quota-exceeded') });
+  const s3 = await startAppServer({ dataDir: d, appDir: join(t, 'none'), fetch: quota, now: () => Date.parse('2026-10-27T12:00:00Z') });
+  try {
+    const { jobId } = JSON.parse((await post('/api/videos/mine', { q: 'x' }, { token: s3.token, origin: s3.origin, server: s3 })).body);
+    assert.deepEqual((await readSse(`/api/jobs/${jobId}/events`, s3)).at(-1).data, { status: 'error', error: 'Cota do YouTube esgotada hoje' });
+    const [e] = JSON.parse((await get('/api/history', {}, s3)).body).entries; assert.equal(e.payload.units, 100); assert.equal(e.payload.status, 'error');
+  } finally { await s3.close(); await rm(t, { recursive: true, force: true }); }
+});
+test('config accepts thresholds', async () => {
+  const r = JSON.parse((await post('/api/config', { outlierMin: 3, opportunityMin: 60 }, ok)).body); assert.equal(r.outlierMin, 3); assert.equal(r.opportunityMin, 60);
+  for (const b of [{ outlierMin: 0.5 }, { opportunityMin: 101 }, { opportunityMin: 1.5 }, { outlierMin: '2' }]) assert.equal((await post('/api/config', b, ok)).status, 400, JSON.stringify(b));
+  await post('/api/config', { outlierMin: 2, opportunityMin: 70 }, ok);
+});
 test('corrupted config.json falls back to defaults', async () => {
   await writeFile(join(dataDir, 'config.json'), '{oops');
   const r = await get('/api/config'); assert.equal(r.status, 200); assert.deepEqual(JSON.parse(r.body).weights, DEFAULTS.weights);
