@@ -6,6 +6,7 @@
   "description": "Modular animation studio: watercolor, vector cartoon, pixel art and low poly 3D",
   "scripts": {
     "studio": "node scripts/studio-server.mjs",
+    "app": "node scripts/app-server.mjs",
     "sheet": "node render.mjs --sheet=0,1,2,3,4,5 --out=out/sheet.jpg",
     "video": "node render.mjs --clip --out=out/video.mp4",
     "test": "node --test tests/*.test.mjs",
