@@ -14,22 +14,26 @@ export async function render(root) {
   catch (e) { if (root.isConnected) root.append(h('p', { class: 'err' }, e.message)); return; }
   if (!root.isConnected) return;
   const status = h('p', { class: 'dim' });
+  let busy = false;
 
   // Dentro da validade do cache a repetição não gasta cota.
   async function redo(e) {
+    if (busy) return;
+    busy = true;
     const p = e.payload ?? {}, isVideos = e.kind === 'videos';
-    const cached = Date.now() - Date.parse(e.at) < cfg.cacheHours * 36e5;
+    const cached = p.status !== 'error' && Date.now() - Date.parse(e.at) < cfg.cacheHours * 36e5;
     const cost = cached ? 'sem custo (cache)' : `${quota.costs[isVideos ? 'videos' : 'mine']} unidades de cota`;
-    if (!confirm(`Refazer a busca "${p.q}"? Custo estimado: ${cost}.`)) return;
+    if (!confirm(`Refazer a busca "${p.q}"? Custo estimado: ${cost}.`)) { busy = false; return; }
     status.className = 'dim'; status.textContent = 'Iniciando…';
     try {
       const { jobId } = await api.post(isVideos ? '/api/videos/mine' : '/api/mine', isVideos ? { q: p.q, ...(p.filters ?? {}) } : { q: p.q });
       follow(jobId, root, (ev, d) => {
         if (ev !== 'end') return;
+        busy = false;
         root.replaceChildren(); render(root);
         if (d.status === 'error') root.append(h('p', { class: 'err' }, d.error ?? 'Erro no job'));
       });
-    } catch (err) { status.className = 'err'; status.textContent = err.message; }
+    } catch (err) { busy = false; status.className = 'err'; status.textContent = err.message; }
   }
 
   const searches = hist.entries.filter(e => ['mine', 'videos', 'import', 'refresh'].includes(e.kind)).map(e => {
