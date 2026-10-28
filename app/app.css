@@ -1,0 +1,27 @@
+:root { color-scheme: dark; --bg: #0f1115; --panel: #171a21; --line: #272c37; --fg: #e6e8ee; --dim: #8b92a3; --acc: #ff4d4f; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, sans-serif; }
+#app { display: flex; min-height: 100vh; }
+.menu { width: 220px; flex: none; background: var(--panel); border-right: 1px solid var(--line); padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
+.item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 6px; color: var(--fg); text-decoration: none; }
+a.item:hover { background: var(--line); }
+a.item.on { background: var(--acc); color: #fff; }
+.item.off { color: var(--dim); cursor: not-allowed; }
+.soon { font-size: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; }
+.main { flex: 1; min-width: 0; }
+.top { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; border-bottom: 1px solid var(--line); }
+.quota { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 2px 12px; }
+.quota.low { border-color: var(--acc); color: var(--acc); }
+.content { padding: 24px; }
+h1 { margin-top: 0; font-size: 20px; }
+.settings { display: flex; flex-direction: column; gap: 16px; max-width: 640px; }
+label { display: flex; flex-direction: column; gap: 4px; color: var(--dim); }
+fieldset { border: 1px solid var(--line); border-radius: 6px; display: flex; flex-direction: column; gap: 8px; }
+input { background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; font: inherit; width: 100%; }
+button { background: var(--line); color: var(--fg); border: 0; border-radius: 4px; padding: 6px 12px; font: inherit; cursor: pointer; align-self: flex-start; }
+button.primary { background: var(--acc); color: #fff; }
+table { border-collapse: collapse; width: 100%; }
+th { text-align: left; color: var(--dim); font-weight: normal; }
+td { padding: 2px 4px 2px 0; }
+.err { color: var(--acc); }
+.status { margin: 0; color: var(--dim); }
