@@ -37,6 +37,13 @@ function channelLang(c, vids) {
   return [...n].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 }
 
+// Grava o vídeo e uma captura só se os números mudaram.
+function saveVideo(db, v, at) {
+  db.upsertVideo({ id: v.id, channelId: v.snippet.channelId, title: v.snippet.title, publishedAt: v.snippet.publishedAt, duration: v.contentDetails?.duration, thumb: v.snippet.thumbnails?.medium?.url ?? v.snippet.thumbnails?.default?.url, tags: v.snippet.tags, lang: v.snippet.defaultAudioLanguage });
+  const vs = { views: num(v.statistics?.viewCount), likes: num(v.statistics?.likeCount), comments: num(v.statistics?.commentCount) };
+  if (!same(db.latestVideoSnapshot(v.id), vs)) db.addVideoSnapshot(v.id, at, vs);
+}
+
 export async function ingestChannels(yt, db, ids, report, at) {
   ids = [...new Set(ids)];
   const ok = [], failed = []; let done = 0;
@@ -55,11 +62,7 @@ export async function ingestChannels(yt, db, ids, report, at) {
         db.upsertChannel({ id, title: c.snippet?.title, handle: c.snippet?.customUrl, country: c.snippet?.country, lang: channelLang(c, vids), avatar: c.snippet?.thumbnails?.default?.url, createdAt: c.snippet?.publishedAt, uploads, topics: c.topicDetails?.topicCategories, hiddenSubs: hidden });
         const cs = { subs: hidden ? null : num(st.subscriberCount), views: num(st.viewCount), videos: num(st.videoCount) };
         if (!same(db.channelSnapshots(id).at(-1), cs)) db.addChannelSnapshot(id, at, cs);
-        for (const v of vids) {
-          db.upsertVideo({ id: v.id, channelId: id, title: v.snippet.title, publishedAt: v.snippet.publishedAt, duration: v.contentDetails?.duration, thumb: v.snippet.thumbnails?.medium?.url ?? v.snippet.thumbnails?.default?.url, tags: v.snippet.tags, lang: v.snippet.defaultAudioLanguage });
-          const vs = { views: num(v.statistics?.viewCount), likes: num(v.statistics?.likeCount), comments: num(v.statistics?.commentCount) };
-          if (!same(db.latestVideoSnapshot(v.id), vs)) db.addVideoSnapshot(v.id, at, vs);
-        }
+        for (const v of vids) saveVideo(db, v, at);
         ok.push(id);
       } catch (e) {
         if (FATAL.has(e.reason)) throw e; // o que já foi gravado fica
@@ -73,9 +76,15 @@ export async function ingestChannels(yt, db, ids, report, at) {
 
 export async function mineKeyword(yt, db, q, report, at) {
   const ids = [...new Set([...await yt.searchIds(q, 'video'), ...await yt.searchIds(q, 'channel')])]; // em série: cota esgotada não gasta a 2ª busca
-  const r = await ingestChannels(yt, db, ids, report, at);
-  db.addHistory('mine', { q, found: ids.length });
-  return r;
+  return ingestChannels(yt, db, ids, report, at);
+}
+
+export async function mineVideos(yt, db, q, filters, report, at) {
+  const found = await yt.searchVideos(q, filters);
+  const { ok, failed } = await ingestChannels(yt, db, found.map(x => x.channelId), report, at);
+  const okSet = new Set(ok), want = new Set(found.map(x => x.id)), saved = new Set();
+  for (const v of await yt.videos([...want])) if (okSet.has(v.snippet?.channelId) && want.has(v.id)) { saveVideo(db, v, at); saved.add(v.id); }
+  return { ok, failed, videoIds: found.map(x => x.id).filter(id => saved.has(id)) };
 }
 
 export async function importChannels(yt, db, text, report, at) {

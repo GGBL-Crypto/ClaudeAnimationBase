@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { openDb } from '../scripts/app/db.mjs';
 import { DEFAULTS } from '../scripts/app/config.mjs';
-import { createYouTube, quotaDay, estimateMine, YouTubeError, COSTS } from '../scripts/app/youtube.mjs';
+import { createYouTube, quotaDay, estimateMine, estimateMineVideos, YouTubeError, COSTS } from '../scripts/app/youtube.mjs';
 
 // Fixtures (tests/fixtures/youtube): canais UCfixture1/2/…a/…b em channels.json e search-channel.json; vídeos vidfixture1-3 em playlistItems.json e videos.json (canal UCfixture1); uploads = UUfixture1.
 const fx = n => JSON.parse(readFileSync(new URL(`./fixtures/youtube/${n}.json`, import.meta.url), 'utf8'));
@@ -97,3 +97,11 @@ test('real invalid-key shape maps to keyInvalid and is not charged', async () =>
   await assert.rejects(yt.searchIds('x', 'video'), e => e.reason === 'keyInvalid' && e.message === 'Chave da API inválida');
   assert.equal(db.quotaUsed(quotaDay(now)), 0);
 });
+test('searchVideos sends filters and shares cache with searchIds when unfiltered', async () => {
+  const { f, yt } = mk();
+  await yt.searchIds('sleep', 'video'); assert.deepEqual(await yt.searchVideos('sleep'), [{ id: 'vidfixture1', channelId: 'UCfixture1' }, { id: 'vidfixture2', channelId: 'UCfixture2' }, { id: 'vidfixture3', channelId: 'UCfixture1' }]);
+  assert.equal(f.calls, 1);
+  await yt.searchVideos('sleep', { publishedAfter: '2026-10-01T00:00:00Z', videoDuration: 'long', relevanceLanguage: 'pt' });
+  const u = new URL(f.urls.at(-1)); assert.equal(u.searchParams.get('videoDuration'), 'long'); assert.equal(u.searchParams.get('publishedAfter'), '2026-10-01T00:00:00Z'); assert.equal(u.searchParams.get('relevanceLanguage'), 'pt');
+});
+test('estimateMineVideos', () => { assert.equal(estimateMineVideos(50), 202); });

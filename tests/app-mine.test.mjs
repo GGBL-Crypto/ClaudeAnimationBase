@@ -4,15 +4,15 @@ import { readFileSync } from 'node:fs';
 import { openDb } from '../scripts/app/db.mjs';
 import { DEFAULTS } from '../scripts/app/config.mjs';
 import { createYouTube } from '../scripts/app/youtube.mjs';
-import { parseChannelInput, ingestChannels, mineKeyword, importChannels, refreshChannel } from '../scripts/app/mine.mjs';
+import { parseChannelInput, ingestChannels, mineKeyword, mineVideos, importChannels, refreshChannel } from '../scripts/app/mine.mjs';
 
 // Fixtures (tests/fixtures/youtube): canais UCfixture1/2/…a/…b; vídeos vidfixture1-3 só em UUfixture1 (canal UCfixture1).
 const fx = n => JSON.parse(readFileSync(new URL(`./fixtures/youtube/${n}.json`, import.meta.url), 'utf8'));
 const now = Date.parse('2026-10-27T12:00:00Z'), at = '2026-10-27T12:00:00Z';
 const res = (status, body) => ({ ok: status < 400, status, json: async () => body });
 const report = () => {};
-// fetch falso que filtra por id/handle/playlist. gone = playlists 404; quota = playlists que dão 403; edit = muda a fixture
-function fake({ gone = [], quota = [], edit = {} } = {}) {
+// fetch falso que filtra por id/handle/playlist. gone = playlists 404; drop = canais omitidos em channels; quota = playlists que dão 403; edit = muda a fixture
+function fake({ gone = [], quota = [], drop = [], edit = {} } = {}) {
   const f = async url => {
     const u = new URL(url), m = u.pathname.split('/').pop(), p = k => u.searchParams.get(k);
     (f.calls[m] ??= []).push(p('playlistId') ?? p('id') ?? p('q'));
@@ -20,7 +20,7 @@ function fake({ gone = [], quota = [], edit = {} } = {}) {
     if (m === 'channels') {
       const all = fx('channels').items;
       const items = p('id') ? all.filter(c => p('id').split(',').includes(c.id)) : all.filter(c => p('forHandle') ? c.snippet.customUrl === '@' + p('forHandle').replace('@', '') : false);
-      return res(200, { items: items.map(c => edit.channel?.(c) ?? c) });
+      return res(200, { items: items.filter(c => !drop.includes(c.id)).map(c => edit.channel?.(c) ?? c) });
     }
     if (m === 'playlistItems') {
       const id = p('playlistId');
@@ -52,8 +52,7 @@ test('mineKeyword stores channels, videos and snapshots', async () => {
   const rows = db.channelRows(now, DEFAULTS); assert.equal(rows.length, 4); assert.ok(rows.every(r => r.updatedAt === at));
   assert.equal(db.channel('UCfixture1', now, DEFAULTS).avgViews, Math.round((30000 + 15000 + 5000) / 3));
   assert.equal(db.channelVideos('UCfixture1').length, 3);
-  const h = db.raw.prepare("SELECT payload FROM history WHERE kind='mine'").all();
-  assert.deepEqual(h.map(x => JSON.parse(x.payload)), [{ q: 'sleep history', found: 4 }]);
+  assert.equal(db.raw.prepare('SELECT count(*) n FROM history').get().n, 0);
 });
 test('hostile title is stored as plain text', async () => {
   const { db, yt } = mk();
@@ -118,4 +117,21 @@ test('report gets progress per channel', async () => {
   const { db, yt } = mk(); const seen = [];
   await ingestChannels(yt, db, ['UCfixture1', 'UCfixture2'], (msg, done, total) => seen.push([done, total]), at);
   assert.deepEqual(seen, [[1, 2], [2, 2]]);
+});
+test('mineVideos ingests channels and stores found videos', async () => {
+  const { db, yt } = mk();
+  const r = await mineVideos(yt, db, 'sleep', {}, report, at);
+  assert.deepEqual(r.videoIds, ['vidfixture1', 'vidfixture2', 'vidfixture3']); assert.deepEqual(r.ok.sort(), ['UCfixture1', 'UCfixture2']);
+  assert.equal(db.channelVideos('UCfixture1').length, 3);
+});
+test('mineVideos never stores a video whose channel failed', async () => {
+  const { db, yt } = mk({ drop: ['UCfixture1'] });
+  const r = await mineVideos(yt, db, 'sleep', {}, report, at);
+  assert.deepEqual(r.videoIds, []); assert.ok(r.failed.some(x => x.id === 'UCfixture1'));
+  assert.equal(db.raw.prepare('SELECT count(*) n FROM videos').get().n, 0);
+});
+test('mineVideos keeps saved channels when quota runs out', async () => {
+  const { db, yt } = mk({ quota: ['UUfixture2'] });
+  await assert.rejects(mineVideos(yt, db, 'sleep', {}, report, at), /Cota do YouTube esgotada hoje/);
+  assert.ok(db.channel('UCfixture1', now, DEFAULTS));
 });

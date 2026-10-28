@@ -6,6 +6,7 @@ const MSG = { quotaExceeded: 'Cota do YouTube esgotada hoje', keyInvalid: 'Chave
 // Dia da cota = data no Pacífico (o YouTube zera à meia-noite de lá).
 export const quotaDay = now => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(now);
 export const estimateMine = (channelCount = 50) => 2 * COSTS.search + Math.ceil(channelCount / 50) + channelCount * 2;
+export const estimateMineVideos = (channelCount = 50) => COSTS.search + COSTS.videos + Math.ceil(channelCount / 50) + channelCount * 2;
 
 export class YouTubeError extends Error {
   constructor(message, reason, status) { super(message); this.name = 'YouTubeError'; this.reason = reason; this.status = status; }
@@ -36,6 +37,11 @@ export function createYouTube({ key, db, cfg, fetch = globalThis.fetch, now = Da
     async searchIds(q, type, max = 50) {
       const b = await call('search', { part: 'snippet', q, type, maxResults: Math.min(max, 50) });
       return [...new Set((b.items ?? []).map(i => type === 'video' ? i.snippet?.channelId : i.id?.channelId).filter(Boolean))];
+    },
+    async searchVideos(q, { publishedAfter, videoDuration, relevanceLanguage } = {}, max = 50) {
+      const b = await call('search', { part: 'snippet', q, type: 'video', maxResults: Math.min(max, 50), publishedAfter, videoDuration: videoDuration === 'any' ? undefined : videoDuration, relevanceLanguage });
+      const seen = new Set();
+      return (b.items ?? []).map(i => ({ id: i.id?.videoId, channelId: i.snippet?.channelId })).filter(x => x.id && x.channelId && !seen.has(x.id) && seen.add(x.id));
     },
     async channels({ ids, forHandle, forUsername } = {}) {
       const part = 'snippet,statistics,contentDetails,topicDetails';
