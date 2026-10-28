@@ -1,4 +1,6 @@
-// Regras puras do monitoramento: custo, alertas e decisão do automático.
+// Monitoramento: custo, alertas, decisão do automático e a coleta.
+import { ingestChannels } from './mine.mjs';
+import { quotaDay } from './youtube.mjs';
 const DAY = 864e5;
 
 // unidades de cota: 1 por lote de 50 canais + 2 por canal (playlist + vídeos)
@@ -21,4 +23,25 @@ export function autoRunDecision({ auto, monitored, lastAt, now, remaining, estim
   if (monitored === 0) return 'none';
   if (lastAt && now - Date.parse(lastAt) < DAY) return 'recent';
   return estimate > remaining ? 'quota' : 'run';
+}
+
+// Coleta dos canais seguidos. O yt vem com fresh: true. Primeira coleta de um canal = linha de base, sem alerta.
+export async function runMonitor(yt, db, cfg, report, at, now) {
+  const ids = db.watchList().filter(w => w.monitor).map(w => w.channelId);
+  if (!ids.length) throw new Error('Nenhum canal seguido');
+  const cost = estimateMonitor(ids.length), remaining = cfg.quotaLimit - db.quotaUsed(quotaDay(now));
+  if (cost > remaining) throw new Error(`Cota insuficiente: monitorar ${ids.length} canais custa ~${cost} unidades, restam ${remaining}`);
+  const last = id => db.channelSnapshots(id).at(-1)?.subs ?? null;
+  const prev = new Map(ids.map(id => [id, { videoIds: db.channelVideos(id).map(v => v.id), subs: last(id), baseline: !db.watch(id).lastRun }]));
+  const { ok: got, failed } = await ingestChannels(yt, db, ids, report, at);
+  const ok = [], baseline = []; let alerts = 0;
+  for (const id of got) {
+    const { baseline: first, ...before } = prev.get(id);
+    try { // falha de um canal não derruba os outros
+      if (first) baseline.push(id);
+      else alerts += db.addAlerts(detectAlerts({ channelId: id, at, now, cfg, before, after: { subs: last(id), videos: db.videoRows(id, now) } }));
+      db.setWatchRun(id, at); ok.push(id);
+    } catch (e) { failed.push({ id, error: e.message }); }
+  }
+  return { ok, failed, alerts, baseline };
 }
