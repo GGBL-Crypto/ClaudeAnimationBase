@@ -1,0 +1,11 @@
+{
+  "kind": "youtube#searchListResponse",
+  "etag": "fixture",
+  "regionCode": "US",
+  "pageInfo": { "totalResults": 3, "resultsPerPage": 3 },
+  "items": [
+    { "kind": "youtube#searchResult", "id": { "kind": "youtube#channel", "channelId": "UCfixture1" }, "snippet": { "publishedAt": "2026-01-10T00:00:00Z", "channelId": "UCfixture1", "title": "Fixture One", "channelTitle": "Fixture One" } },
+    { "kind": "youtube#searchResult", "id": { "kind": "youtube#channel", "channelId": "UCfixture00000000000000a" }, "snippet": { "publishedAt": "2026-02-10T00:00:00Z", "channelId": "UCfixture00000000000000a", "title": "Fixture A", "channelTitle": "Fixture A" } },
+    { "kind": "youtube#searchResult", "id": { "kind": "youtube#channel", "channelId": "UCfixture00000000000000b" }, "snippet": { "publishedAt": "2026-03-10T00:00:00Z", "channelId": "UCfixture00000000000000b", "title": "Fixture B", "channelTitle": "Fixture B" } }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "kind": "youtube#searchListResponse",
+  "etag": "fixture",
+  "nextPageToken": "CAUQAA",
+  "regionCode": "US",
+  "pageInfo": { "totalResults": 3, "resultsPerPage": 3 },
+  "items": [
+    { "kind": "youtube#searchResult", "id": { "kind": "youtube#video", "videoId": "vidfixture1" }, "snippet": { "publishedAt": "2026-10-01T10:00:00Z", "channelId": "UCfixture1", "title": "Sleep facts one", "channelTitle": "Fixture One" } },
+    { "kind": "youtube#searchResult", "id": { "kind": "youtube#video", "videoId": "vidfixture2" }, "snippet": { "publishedAt": "2026-10-02T10:00:00Z", "channelId": "UCfixture2", "title": "Sleep facts two", "channelTitle": "Fixture Two" } },
+    { "kind": "youtube#searchResult", "id": { "kind": "youtube#video", "videoId": "vidfixture3" }, "snippet": { "publishedAt": "2026-10-03T10:00:00Z", "channelId": "UCfixture1", "title": "Sleep facts three", "channelTitle": "Fixture One" } }
+  ]
+}

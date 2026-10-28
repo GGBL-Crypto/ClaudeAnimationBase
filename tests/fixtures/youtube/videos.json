@@ -1,0 +1,19 @@
+{
+  "kind": "youtube#videoListResponse",
+  "etag": "fixture",
+  "pageInfo": { "totalResults": 3, "resultsPerPage": 3 },
+  "items": [
+    { "kind": "youtube#video", "id": "vidfixture1",
+      "snippet": { "publishedAt": "2026-10-01T10:00:00Z", "channelId": "UCfixture1", "title": "Sleep facts one", "tags": ["sleep", "facts"], "defaultAudioLanguage": "en", "thumbnails": { "medium": { "url": "https://example.invalid/v1.jpg" } } },
+      "contentDetails": { "duration": "PT10M5S" },
+      "statistics": { "viewCount": "30000", "likeCount": "900", "commentCount": "40" } },
+    { "kind": "youtube#video", "id": "vidfixture2",
+      "snippet": { "publishedAt": "2026-10-02T10:00:00Z", "channelId": "UCfixture1", "title": "<img src=x onerror=alert(1)>", "description": "<script>alert(1)</script>", "thumbnails": { "medium": { "url": "https://example.invalid/v2.jpg" } } },
+      "contentDetails": { "duration": "PT45S" },
+      "statistics": { "viewCount": "15000", "likeCount": "300", "commentCount": "10" } },
+    { "kind": "youtube#video", "id": "vidfixture3",
+      "snippet": { "publishedAt": "2026-10-03T10:00:00Z", "channelId": "UCfixture1", "title": "Sleep facts three", "thumbnails": { "medium": { "url": "https://example.invalid/v3.jpg" } } },
+      "contentDetails": { "duration": "PT1H2M3S" },
+      "statistics": { "viewCount": "5000", "likeCount": "100" } }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "kind": "youtube#channelListResponse",
+  "etag": "fixture",
+  "pageInfo": { "totalResults": 4, "resultsPerPage": 5 },
+  "items": [
+    {
+      "kind": "youtube#channel", "id": "UCfixture1",
+      "snippet": { "title": "Fixture One", "customUrl": "@fixtureone", "publishedAt": "2026-01-10T00:00:00Z", "country": "US", "defaultLanguage": "en", "thumbnails": { "default": { "url": "https://example.invalid/a1.jpg" } } },
+      "contentDetails": { "relatedPlaylists": { "uploads": "UUfixture1" } },
+      "statistics": { "viewCount": "50000", "subscriberCount": "1000", "hiddenSubscriberCount": false, "videoCount": "3" },
+      "topicDetails": { "topicCategories": ["https://en.wikipedia.org/wiki/Knowledge"] }
+    },
+    {
+      "kind": "youtube#channel", "id": "UCfixture2",
+      "snippet": { "title": "Fixture Two", "customUrl": "@fixturetwo", "publishedAt": "2026-02-01T00:00:00Z", "country": "US", "thumbnails": { "default": { "url": "https://example.invalid/a2.jpg" } } },
+      "contentDetails": { "relatedPlaylists": { "uploads": "UUfixture2" } },
+      "statistics": { "viewCount": "20000", "hiddenSubscriberCount": true, "videoCount": "1" }
+    },
+    {
+      "kind": "youtube#channel", "id": "UCfixture00000000000000a",
+      "snippet": { "title": "Fixture A", "customUrl": "@fixturea", "publishedAt": "2026-02-10T00:00:00Z", "country": "BR", "defaultLanguage": "pt", "thumbnails": { "default": { "url": "https://example.invalid/aa.jpg" } } },
+      "contentDetails": { "relatedPlaylists": { "uploads": "UUfixture00000000000000a" } },
+      "statistics": { "viewCount": "8000", "subscriberCount": "200", "hiddenSubscriberCount": false, "videoCount": "2" }
+    },
+    {
+      "kind": "youtube#channel", "id": "UCfixture00000000000000b",
+      "snippet": { "title": "Fixture B", "customUrl": "@fixtureb", "publishedAt": "2026-03-10T00:00:00Z", "thumbnails": { "default": { "url": "https://example.invalid/ab.jpg" } } },
+      "contentDetails": { "relatedPlaylists": { "uploads": "UUfixture00000000000000b" } },
+      "statistics": { "viewCount": "0", "subscriberCount": "0", "hiddenSubscriberCount": false, "videoCount": "0" }
+    }
+  ]
+}

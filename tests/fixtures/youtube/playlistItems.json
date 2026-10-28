@@ -1,0 +1,10 @@
+{
+  "kind": "youtube#playlistItemListResponse",
+  "etag": "fixture",
+  "pageInfo": { "totalResults": 3, "resultsPerPage": 30 },
+  "items": [
+    { "kind": "youtube#playlistItem", "contentDetails": { "videoId": "vidfixture1", "videoPublishedAt": "2026-10-01T10:00:00Z" } },
+    { "kind": "youtube#playlistItem", "contentDetails": { "videoId": "vidfixture2", "videoPublishedAt": "2026-10-02T10:00:00Z" } },
+    { "kind": "youtube#playlistItem", "contentDetails": { "videoId": "vidfixture3", "videoPublishedAt": "2026-10-03T10:00:00Z" } }
+  ]
+}
