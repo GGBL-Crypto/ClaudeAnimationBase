@@ -154,3 +154,12 @@ Limites: revisão de imagens estáticas selecionadas e leitura de código, sem r
 - Importação de `@TED` mais uma linha de lixo: 1 canal gravado (4 unidades) e a linha inválida listada em "Não reconhecidos". Cota do dia ao final: 334 de 10.000.
 - Predefinições "Canais novos" (9 de 65) e "Muita view, pouco inscrito" (39 de 65) filtram a tabela. Painel do canal aberto nas abas Visão geral e Vídeos.
 - Conferência no YouTube: Sleepy Mystery Channel mostra 20 mil inscritos e 62 vídeos, igual ao painel.
+
+## 28/10/2026 — webapp fase 2 (resto da pesquisa)
+
+- `npm test`: 225/225. Aceite com dados reais da YouTube Data API v3. A chave continuou só em `data/config.json` (`git status --porcelain data/` vazio, nenhum arquivo do repositório nem log contém a chave; `git grep AIza` só encontra chaves falsas dos testes).
+- Visão geral: 65 canais, 3 outliers nos últimos 7 dias, 9 canais novos, 17 oportunidades. Outliers: 292 vídeos com "Dados de 28/10/2026", sem `NaN` nem `Infinity`.
+- Minerar vídeos, "roman empire documentary" com duração Longo: 50 vídeos de 28 canais, 154 unidades (medidor 334 → 488, igual ao `units` do histórico; o aviso da tela mostra o teto de ~202). Ordenar por Múltiplo funciona. Conferência no YouTube: o primeiro vídeo tem 13.938.081 views e o app mostra 13,9 mi.
+- Painel de dois canais: Análise (padrões de título, duração, publicação em UTC, "histórico começa em…") e Concorrentes (canais parecidos, com palavras e tópicos em comum que fazem sentido, e a data da coleta).
+- Resumo pelo Claude: gerado de verdade pelo `claude -p` no canal Small Hours Documentary. Com um `claude` falso e títulos hostis em teste, o texto aparece como texto, sem executar nada; sem `claude`, a tela mostra "claude não encontrado no PATH" e o prompt para copiar.
+- Coleções e Favoritos: coleção criada com 1 canal e 1 vídeo, nota do vídeo mantida após recarregar, "Só favoritos" filtra 1 canal. Histórico: Refazer mostra "sem custo (cache)" e registra 0 unidades (medidor parado em 488).
