@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {openDb} from '../scripts/app/db.mjs';
+import {openDb,FAV} from '../scripts/app/db.mjs';
 import {DEFAULTS} from '../scripts/app/config.mjs';
 const now=Date.parse('2026-10-27T12:00:00Z');
 test('snapshots accumulate and channelRows computes metrics',()=>{
@@ -44,4 +44,40 @@ test('history, jobs and raw',()=>{
 test('videos.channel_id is indexed',()=>{
  const db=openDb(':memory:');
  assert.ok(db.raw.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND tbl_name='videos' AND sql LIKE '%channel_id%'").get());
+});
+const seed=db=>{
+ db.upsertChannel({id:'UC1',title:'Hist',createdAt:'2026-09-01T00:00:00Z',hiddenSubs:0,topics:['https://en.wikipedia.org/wiki/History']});
+ for(const[id,views,d]of[['v1',100,'2026-10-20'],['v2',900,'2026-10-21'],['v3',200,'2026-10-22']]){
+  db.upsertVideo({id,channelId:'UC1',title:'Roma '+id,publishedAt:d+'T00:00:00Z',duration:'PT5M'});db.addVideoSnapshot(id,'2026-10-26T00:00:00Z',{views});
+ }
+};
+test('videoRowsAll and video carry channel fields and the multiple',()=>{
+ const db=openDb(':memory:');seed(db);
+ const rows=db.videoRowsAll(now);assert.equal(rows.length,3);assert.equal(rows[0].channelTitle,'Hist');assert.equal(rows[0].capturedAt,'2026-10-26T00:00:00Z');
+ assert.equal(db.video('v2',now).multiple,4.5);assert.equal(db.video('nope',now),null);
+ assert.deepEqual(db.channelTexts(),[{id:'UC1',title:'Hist',topics:['https://en.wikipedia.org/wiki/History'],titles:['Roma v3','Roma v2','Roma v1']}]);
+});
+test('favorites exist and are fixed; names are unique without case',()=>{
+ const db=openDb(':memory:');
+ assert.deepEqual(db.collections(),[{id:1,name:'Favoritos',fixed:true,count:0}]);
+ const id=db.createCollection('Roma');assert.equal(db.createCollection('roma'),null);
+ assert.equal(db.renameCollection(FAV,'x'),false);assert.equal(db.deleteCollection(FAV),false);
+ assert.equal(db.renameCollection(id,'Favoritos'),false);assert.equal(db.renameCollection(id,'Grécia'),true);
+ assert.deepEqual(db.collection(id),{id,name:'Grécia',fixed:false});assert.equal(db.collection(99),null);
+ assert.equal(db.renameCollection(99,'z'),false);assert.equal(db.deleteCollection(99),false);
+});
+test('items keep notes, cascade on delete and report memberships',()=>{
+ const db=openDb(':memory:');seed(db);const id=db.createCollection('Roma');
+ db.addItem(id,'video','v1','ver depois');db.addItem(id,'video','v1');db.addItem(FAV,'video','v1');
+ assert.equal(db.collectionItems(id)[0].note,'ver depois');assert.deepEqual(db.memberships('video','v1'),[1,id]);
+ assert.equal(db.collections().find(c=>c.id===id).count,1);
+ assert.throws(()=>db.addItem(id,'playlist','x'));
+ db.deleteCollection(id);assert.deepEqual(db.memberships('video','v1'),[1]);
+ db.removeItem(FAV,'video','v1');assert.deepEqual(db.collectionItems(FAV),[]);
+});
+test('history newest first and jobs list without result',()=>{
+ const db=openDb(':memory:');assert.equal(db.lastHistory(),null);db.addHistory('mine',{q:'a'});db.addHistory('open',{id:'UC1'});
+ assert.deepEqual(db.history().map(e=>e.kind),['open','mine']);assert.deepEqual(db.lastHistory().payload,{id:'UC1'});
+ db.saveJob({id:'j1',kind:'mine',status:'done',createdAt:'2026-10-27T00:00:00Z',result:{big:1}});
+ assert.deepEqual(db.jobsList(),[{id:'j1',kind:'mine',status:'done',createdAt:'2026-10-27T00:00:00Z',finishedAt:null,error:null}]);
 });

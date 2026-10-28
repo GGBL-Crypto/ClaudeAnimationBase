@@ -14,7 +14,10 @@ CREATE TABLE IF NOT EXISTS quota_log(day TEXT, units INT, method TEXT, at TEXT);
 CREATE TABLE IF NOT EXISTS cache(url TEXT PRIMARY KEY, body TEXT, expires INT);
 CREATE TABLE IF NOT EXISTS history(at TEXT, kind TEXT, payload TEXT);
 CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, kind, status, created_at, finished_at, result TEXT, error);
+CREATE TABLE IF NOT EXISTS collections(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE, created_at);
+CREATE TABLE IF NOT EXISTS collection_items(collection_id INT NOT NULL REFERENCES collections(id) ON DELETE CASCADE, kind TEXT NOT NULL CHECK(kind IN ('channel','video')), item_id TEXT NOT NULL, note TEXT, added_at, PRIMARY KEY(collection_id, kind, item_id));
 `;
+export const FAV = 1; // coleção fixa Favoritos
 const n = x => x ?? null; // node:sqlite não aceita undefined
 const j = x => (x == null ? null : JSON.stringify(x));
 const p = s => (s == null ? null : JSON.parse(s));
@@ -24,6 +27,7 @@ export function openDb(file) {
   const raw = new DatabaseSync(file);
   raw.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;');
   raw.exec(SCHEMA);
+  raw.prepare("INSERT OR IGNORE INTO collections(id,name,created_at) VALUES(?,'Favoritos',?)").run(FAV, new Date().toISOString());
   const q = s => raw.prepare(s);
   const chRow = r => ({ id: r.id, title: r.title, handle: r.handle, country: r.country, lang: r.lang, avatar: r.avatar, createdAt: r.created_at, uploads: r.uploads, topics: p(r.topics), hiddenSubs: r.hidden_subs, tag: r.tag, faceless: r.faceless == null ? null : !!r.faceless, addedAt: r.added_at });
   const s = {
@@ -47,10 +51,36 @@ export function openDb(file) {
     cacheGet: q('SELECT body FROM cache WHERE url=? AND expires>?'),
     cacheSet: q('INSERT OR REPLACE INTO cache(url,body,expires) VALUES(?,?,?)'),
     hist: q('INSERT INTO history(at,kind,payload) VALUES(?,?,?)'),
+    vidAll: q(`SELECT v.id,v.channel_id,v.title,v.published_at,v.duration,v.thumb,v.tags,v.lang,
+      COALESCE((SELECT views FROM video_snapshots WHERE video_id=v.id ORDER BY at DESC LIMIT 1),0) views,
+      (SELECT at FROM video_snapshots WHERE video_id=v.id ORDER BY at DESC LIMIT 1) captured_at,
+      c.title channel_title,c.avatar channel_avatar,c.tag,c.lang channel_lang
+      FROM videos v JOIN channels c ON c.id=v.channel_id ORDER BY v.channel_id, v.published_at DESC`),
+    chTexts: q('SELECT id,title,topics FROM channels ORDER BY added_at, id'),
+    vidTitles: q('SELECT channel_id,title FROM videos ORDER BY published_at DESC'),
+    colAll: q(`SELECT c.id,c.name,(SELECT COUNT(*) FROM collection_items WHERE collection_id=c.id) n FROM collections c ORDER BY c.id<>${FAV}, c.name COLLATE NOCASE`),
+    colOne: q('SELECT id,name FROM collections WHERE id=?'),
+    colNew: q('INSERT OR IGNORE INTO collections(name,created_at) VALUES(?,?)'),
+    colRename: q(`UPDATE OR IGNORE collections SET name=? WHERE id=? AND id<>${FAV}`),
+    colDel: q(`DELETE FROM collections WHERE id=? AND id<>${FAV}`),
+    itemsOf: q('SELECT kind,item_id,note,added_at FROM collection_items WHERE collection_id=? ORDER BY rowid DESC'),
+    itemSet: q('INSERT INTO collection_items(collection_id,kind,item_id,note,added_at) VALUES(?,?,?,?,?) ON CONFLICT(collection_id,kind,item_id) DO UPDATE SET note=COALESCE(excluded.note,note)'),
+    itemDel: q('DELETE FROM collection_items WHERE collection_id=? AND kind=? AND item_id=?'),
+    member: q('SELECT collection_id FROM collection_items WHERE kind=? AND item_id=? ORDER BY collection_id'),
+    histAll: q('SELECT at,kind,payload FROM history ORDER BY rowid DESC LIMIT ?'),
+    jobsAll: q('SELECT id,kind,status,created_at,finished_at,error FROM jobs ORDER BY created_at DESC, rowid DESC LIMIT ?'),
     job: q('INSERT OR REPLACE INTO jobs(id,kind,status,created_at,finished_at,result,error) VALUES(?,?,?,?,?,?,?)'),
   };
   const channelSnapshots = id => s.snaps.all(id).map(r => ({ ...r }));
-  const channelVideos = id => s.vids.all(id).map(r => ({ id: r.id, channelId: r.channel_id, title: r.title, publishedAt: r.published_at, duration: r.duration, thumb: r.thumb, tags: p(r.tags), lang: r.lang, views: r.views }));
+  
+  const vidFields = r => ({ id: r.id, channelId: r.channel_id, title: r.title, publishedAt: r.published_at, duration: r.duration, thumb: r.thumb, tags: p(r.tags), lang: r.lang, views: r.views });
+  const vidExtra = r => ({ channelTitle: r.channel_title, channelAvatar: r.channel_avatar, tag: r.tag, channelLang: r.channel_lang, capturedAt: r.captured_at });
+  const videoRowsAll = now => { // uma consulta; agrupa por canal em JS para o múltiplo
+    const rs = s.vidAll.all(), by = new Map();
+    for (const r of rs) (by.get(r.channel_id) ?? by.set(r.channel_id, []).get(r.channel_id)).push(vidFields(r));
+    return rs.map(r => ({ ...videoRow(vidFields(r), by.get(r.channel_id), now), ...vidExtra(r) }));
+  };
+  const channelVideos = id => s.vids.all(id).map(vidFields);
   const row = (r, now, cfg) => channelRow(chRow(r), channelSnapshots(r.id), channelVideos(r.id), now, cfg);
   return {
     raw,
@@ -65,6 +95,25 @@ export function openDb(file) {
     channelRows: (now, cfg) => s.chAll.all().map(r => row(r, now, cfg)),
     channel(id, now, cfg) { const r = s.chOne.get(id); return r ? { ...row(r, now, cfg), snapshots: channelSnapshots(id) } : null; },
     videoRows(id, now) { const vs = channelVideos(id); return vs.map(v => videoRow(v, vs, now)); },
+    videoRowsAll,
+    video: (id, now) => videoRowsAll(now).find(v => v.id === id) ?? null, // ponytail: varre a base toda; indexar por id se passar de ~100 mil vídeos
+    channelTexts() {
+      const titles = new Map();
+      for (const r of s.vidTitles.all()) (titles.get(r.channel_id) ?? titles.set(r.channel_id, []).get(r.channel_id)).push(r.title);
+      return s.chTexts.all().map(r => ({ id: r.id, title: r.title, topics: p(r.topics), titles: titles.get(r.id) ?? [] }));
+    },
+    collections: () => s.colAll.all().map(r => ({ id: r.id, name: r.name, fixed: r.id === FAV, count: r.n })),
+    collection(id) { const r = s.colOne.get(id); return r ? { id: r.id, name: r.name, fixed: r.id === FAV } : null; },
+    createCollection(name) { const r = s.colNew.run(name, new Date().toISOString()); return r.changes ? Number(r.lastInsertRowid) : null; },
+    renameCollection: (id, name) => s.colRename.run(name, id).changes > 0,
+    deleteCollection: id => s.colDel.run(id).changes > 0,
+    collectionItems: id => s.itemsOf.all(id).map(r => ({ kind: r.kind, id: r.item_id, note: r.note, addedAt: r.added_at })),
+    addItem: (cid, kind, itemId, note = null) => void s.itemSet.run(cid, kind, itemId, n(note), new Date().toISOString()),
+    removeItem: (cid, kind, itemId) => void s.itemDel.run(cid, kind, itemId),
+    memberships: (kind, itemId) => s.member.all(kind, itemId).map(r => r.collection_id),
+    history: (limit = 200) => s.histAll.all(limit).map(r => ({ at: r.at, kind: r.kind, payload: p(r.payload) })),
+    lastHistory() { return this.history(1)[0] ?? null; },
+    jobsList: (limit = 50) => s.jobsAll.all(limit).map(r => ({ id: r.id, kind: r.kind, status: r.status, createdAt: r.created_at, finishedAt: r.finished_at, error: r.error })),
     logQuota: (day, units, method) => void s.quotaIn.run(day, units, method, new Date().toISOString()),
     quotaUsed: day => s.quotaSum.get(day).u,
     cacheGet: (url, now) => s.cacheGet.get(url, now)?.body ?? null,
