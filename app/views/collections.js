@@ -1,12 +1,11 @@
 // Coleções: lista (criar, renomear, apagar) e detalhe (canais e vídeos com nota editável). Favoritos é a coleção 1.
 import { h, fmt } from '../dom.js';
 import { api } from '../api.js';
-import { openChannel, subsText, avatar, dec } from './channel.js';
+import { openChannel, subsText, avatar, mult } from './channel.js';
 
 const FAV = 1;
 const EMPTY = 'Coleção vazia. Use ★ ou "Coleção…" nas listas e no painel.';
 const cell = (...c) => h('td', {}, ...c);
-const mult = m => m == null || !Number.isFinite(m) ? '—' : dec(m) + 'x';
 
 export async function render(root, params) {
   const id = params.get('id');

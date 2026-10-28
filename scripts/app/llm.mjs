@@ -42,11 +42,14 @@ export function validateSummary(o) {
   return { resumo: o.resumo, pontos: o.pontos };
 }
 
-// videoRows: { title, views, durationS }; uma linha por vídeo, título numa linha só.
+// Título vira uma linha só e perde sequências de 3+ < ou > (nenhum título fecha o bloco <<<DADOS … DADOS>>>).
+const oneLine = s => String(s).replace(/\s+/g, ' ').replace(/[<>]{3,}/g, '');
+
+// videoRows: { title, views, durationS }; uma linha por vídeo.
 export function summaryPrompt(template, channel, videoRows, analysis) {
   const vals = {
-    titulo: String(channel.title),
-    videos: videoRows.slice(0, 30).map(v => `${v.views} | ${Math.round(v.durationS / 6) / 10} | ${String(v.title).replace(/\s+/g, ' ')}`).join('\n'),
+    titulo: oneLine(channel.title),
+    videos: videoRows.slice(0, 30).map(v => `${v.views} | ${Math.round(v.durationS / 6) / 10} | ${oneLine(v.title)}`).join('\n'),
     analise: JSON.stringify(analysis),
   };
   return template.replace(/\{\{(\w+)\}\}/g, (_, k) => {

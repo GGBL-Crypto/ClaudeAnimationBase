@@ -4,9 +4,10 @@ import { api } from '../api.js';
 import { loadFavs, favButton } from './collect.js';
 import { openChannel, follow, freq, subsText, views30, money, avatar, isNew, tagText } from './channel.js';
 
-// Mesmos ids e rótulos de PRESETS em scripts/app/filters.mjs.
-const PRESETS = [['espelhar', 'Pra você espelhar'], ['novos', 'Canais novos'], ['muitaView', 'Muita view, pouco inscrito'], ['fabrica', 'Fábrica de vídeo'],
-  ['enxuto', 'Catálogo enxuto'], ['semana', 'Postou esta semana'], ['categoria', 'Por categoria'], ['tudo', 'Tudo']];
+// Mesmos ids, rótulos e primeira ordenação ([campo, direção]) de PRESETS em scripts/app/filters.mjs.
+const PRESETS = [['espelhar', 'Pra você espelhar', 'score', 'desc'], ['novos', 'Canais novos', 'avgViews', 'desc'], ['muitaView', 'Muita view, pouco inscrito', 'disparity', 'desc'],
+  ['fabrica', 'Fábrica de vídeo', 'frequency', 'desc'], ['enxuto', 'Catálogo enxuto', 'avgViews', 'desc'], ['semana', 'Postou esta semana', 'lastPublished', 'desc'],
+  ['categoria', 'Por categoria', 'tag', 'asc'], ['tudo', 'Tudo', 'score', 'desc']];
 const MINE_COST = 301; // estimateMine() de scripts/app/youtube.mjs
 // [parâmetro da URL, rótulo, tipo do input]
 const FILTERS = [['lang', 'Idioma', 'text'], ['country', 'País', 'text'], ['tag', 'Etiqueta', 'text'], ['subsMin', 'Inscritos mín.', 'number'], ['subsMax', 'Inscritos máx.', 'number'],
@@ -93,8 +94,14 @@ export async function render(root, params) {
   const show = id => { st.set('canal', id); sync(); openChannel(panel, id); };
   panel.addEventListener('panel-close', () => { st.delete('canal'); sync(); });
   panel.addEventListener('channel-changed', () => load());
+  // Ordem em vigor: a da URL ou, sem ela, a primeira do recorte.
+  const curSort = () => {
+    if (st.get('sort')) return { key: st.get('sort'), dir: st.get('dir') };
+    const [, , key, dir] = PRESETS.find(p => p[0] === (st.get('preset') || 'tudo')) ?? PRESETS.at(-1);
+    return { key, dir };
+  };
   const sortBy = key => {
-    const asc = st.get('sort') === key ? st.get('dir') !== 'asc' : key === 'title' || key === 'tag';
+    const cur = curSort(), asc = cur.key === key ? cur.dir !== 'asc' : key === 'title' || key === 'tag';
     st.set('sort', key); st.set('dir', asc ? 'asc' : 'desc'); sync(); load();
   };
 
@@ -119,7 +126,7 @@ export async function render(root, params) {
   const name = r => h('div', { class: 'ch' }, avatar(r.avatar),
     h('div', {}, h('strong', {}, r.title ?? r.id), ' ', flag(r.country), ' ', isNew(r), h('small', { class: 'dim block' }, 'dados de ' + fmt.date(r.updatedAt))));
   function table() {
-    const sort = st.get('sort'), arrow = st.get('dir') === 'asc' ? ' ▲' : ' ▼';
+    const { key: sort, dir } = curSort(), arrow = dir === 'asc' ? ' ▲' : ' ▼';
     return h('table', { class: 'grid' },
       h('thead', {}, h('tr', {}, COLS.map(([label, key]) => h('th', {}, key ? h('button', { type: 'button', class: 'link', onClick: () => sortBy(key) }, label + (sort === key ? arrow : '')) : label)))),
       h('tbody', {}, rows.map((r, i) => h('tr', {},

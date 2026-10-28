@@ -1,20 +1,20 @@
 // Minerar vídeos: busca com cota, filtros locais (URL), tabela de vídeos e painel do canal.
 import { h, fmt } from '../dom.js';
 import { api } from '../api.js';
-import { openChannel, follow, avatar } from './channel.js';
+import { openChannel, follow, avatar, mult } from './channel.js';
 import { loadFavs, favButton, collectButton } from './collect.js';
 
 // [valor, rótulo, durationMin, durationMax]: mesmos cortes do videoDuration do YouTube (< 4 min, 4–20 min, > 20 min)
 const DURS = [['', 'Qualquer'], ['short', 'Curto < 4 min', null, 239], ['medium', 'Médio 4–20 min', 240, 1200], ['long', 'Longo > 20 min', 1201, null]];
 const COLS = [[''], ['Título'], ['Canal'], ['Publicado', 'publishedAt'], ['Duração'], ['Views', 'views'], ['Views/dia', 'viewsPerDay'], ['Múltiplo', 'multiple'], ['Nota'], ['★'], ['']];
 const dur = s => !s ? '—' : (s >= 3600 ? Math.floor(s / 3600) + ':' : '') + String(Math.floor(s % 3600 / 60)).padStart(s >= 3600 ? 2 : 1, '0') + ':' + String(s % 60).padStart(2, '0');
-const mult = m => m == null || !Number.isFinite(m) ? '—' : m >= 1 ? `+${fmt.num(Math.round((m - 1) * 100))}% acima da média` : `${fmt.num(Math.round((1 - m) * 100))}% abaixo da média`;
 const durSelect = () => h('select', {}, DURS.map(([v, label]) => h('option', { value: v }, label)));
 
-// sort = { key, dir }; onSort(key) troca a ordem. "Dados de" vem da captura mais recente das linhas.
+// sort = { key, dir }; onSort(key) troca a ordem. "Dados de" mostra a faixa de capturas das linhas (ISO, ordena como texto).
 export function videoTable(rows, { favs, onChannel, sort = {}, onSort }) {
-  const last = rows.reduce((m, r) => r.capturedAt && (!m || r.capturedAt > m) ? r.capturedAt : m, null), arrow = sort.dir === 'asc' ? ' ▲' : ' ▼';
-  return h('table', { class: 'grid' }, h('caption', { class: 'dim' }, 'Dados de ' + fmt.date(last)),
+  const caps = rows.map(r => r.capturedAt).filter(Boolean).sort(), arrow = sort.dir === 'asc' ? ' ▲' : ' ▼';
+  const [a, b] = [fmt.date(caps[0]), fmt.date(caps.at(-1))];
+  return h('table', { class: 'grid' }, h('caption', { class: 'dim' }, 'Dados de ' + (a === b ? a : a + ' a ' + b)),
     h('thead', {}, h('tr', {}, COLS.map(([label, key]) => h('th', {}, key && onSort ? h('button', { type: 'button', class: 'link', onClick: () => onSort(key) }, label + (sort.key === key ? arrow : '')) : label)))),
     h('tbody', {}, rows.map(r => h('tr', {},
       h('td', {}, r.thumb ? h('img', { src: r.thumb, alt: '', class: 'thumb', loading: 'lazy', referrerpolicy: 'no-referrer' }) : null),

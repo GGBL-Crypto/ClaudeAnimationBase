@@ -25,7 +25,7 @@ export function follow(jobId, el, onEvent) {
 const PARTS = [['disparidade', 'Disparidade'], ['novo', 'Canal novo'], ['enxuto', 'Poucos vídeos'], ['ativo', 'Ativo']];
 const enc = encodeURIComponent;
 const dur = s => !s ? '—' : (s >= 3600 ? Math.floor(s / 3600) + ':' : '') + String(Math.floor(s % 3600 / 60)).padStart(s >= 3600 ? 2 : 1, '0') + ':' + String(s % 60).padStart(2, '0');
-const mult = m => m == null || !Number.isFinite(m) ? '—' : m >= 1 ? `+${dec(Math.round((m - 1) * 100))}% acima da média` : `${dec(Math.round((1 - m) * 100))}% abaixo da média`;
+export const mult = m => m == null || !Number.isFinite(m) ? '—' : m >= 1 ? `+${dec(Math.round((m - 1) * 100))}% acima da média` : `${dec(Math.round((1 - m) * 100))}% abaixo da média`;
 const when = iso => fmt.date(iso) === '—' ? '—' : new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 const stat = (k, v) => h('div', {}, h('dt', {}, k), h('dd', {}, v));
 
