@@ -8,23 +8,26 @@ export function createJobs(db) {
   const all = new Map(), queue = [];
   let busy = false;
   const view = ({ ev, fn, ...j }) => j;
-  const save = j => db.saveJob({ id: j.id, kind: j.kind, status: j.status, createdAt: j.createdAt, finishedAt: j.finishedAt, result: j.result, error: j.error });
+  const save = j => { try { db.saveJob({ id: j.id, kind: j.kind, status: j.status, createdAt: j.createdAt, finishedAt: j.finishedAt, result: j.result, error: j.error }); } catch {} }; // falha de gravação não trava a fila
+  const emit = (j, ...a) => { try { j.ev.emit('e', ...a); } catch {} }; // listener que lança não trava a fila
   async function pump() {
     if (busy) return;
     const j = queue.shift(); if (!j) return;
-    busy = true; j.status = 'running'; save(j);
+    busy = true;
     try {
-      j.result = await j.fn((message, done, total) => { j.progress = { done, total, message }; j.ev.emit('e', 'progress', j.progress); });
-      j.status = 'done';
-    } catch (e) { j.status = 'error'; j.error = e?.message ?? String(e); } // só a mensagem, nunca stack
-    j.finishedAt = new Date().toISOString(); save(j);
-    j.ev.emit('e', 'end', endData(j));
-    busy = false; pump();
+      j.status = 'running'; save(j);
+      try {
+        j.result = await j.fn((message, done, total) => { j.progress = { done, total, message }; emit(j, 'progress', j.progress); });
+        j.status = 'done';
+      } catch (e) { j.status = 'error'; j.error = e?.message ?? String(e); } // só a mensagem, nunca stack
+      j.finishedAt = new Date().toISOString(); save(j);
+      emit(j, 'end', endData(j)); j.ev.removeAllListeners();
+    } finally { busy = false; pump().catch(() => {}); }
   }
   return {
     start(kind, fn) {
-      const j = { id: randomUUID(), kind, status: 'queued', progress: { done: 0, total: 0, message: '' }, result: null, error: null, createdAt: new Date().toISOString(), finishedAt: null, fn, ev: new EventEmitter() };
-      all.set(j.id, j); queue.push(j); save(j); pump();
+      const j = { id: randomUUID(), kind, status: 'queued', progress: { done: 0, total: 0, message: '' }, result: null, error: null, createdAt: new Date().toISOString(), finishedAt: null, fn, ev: new EventEmitter().setMaxListeners(0) };
+      all.set(j.id, j); queue.push(j); save(j); pump().catch(() => {});
       return j.id;
     },
     get: id => all.has(id) ? view(all.get(id)) : null,
