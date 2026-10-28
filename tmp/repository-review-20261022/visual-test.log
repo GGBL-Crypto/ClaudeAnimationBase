@@ -1,6 +1,0 @@
-> node scripts/check-visuals.mjs
-PASS: determinismo, workers, contato, isolamento, paleta/grade, aquarela original, loops e prévia. Evidências: out/checks
-(node:2600) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Projetos/yt/ClaudeAnimationBase/src/assets/format.js is not specified and it doesn't parse as CommonJS.
-Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
-To eliminate this warning, add "type": "module" to C:\Projetos\yt\ClaudeAnimationBase\package.json.
-(Use `node --trace-warnings ...` to show where the warning was created)

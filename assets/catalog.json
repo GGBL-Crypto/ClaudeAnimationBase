@@ -20,26 +20,6 @@
       "id": "expressive-robot",
       "version": "1.0.1",
       "manifestSha256": "c70805c1f8f2a0f24e045bc4d2af60890a1af8430ebdeb506bf3cbf2d3f4e244"
-    },
-    {
-      "id": "iara-watercolor-fixture",
-      "version": "1.0.0",
-      "manifestSha256": "fab0c12402a0fafd61c288f305b8d6669dcb5c4c48bed1b3449676e051a722aa"
-    },
-    {
-      "id": "iara-watercolor-fixture",
-      "version": "1.0.1",
-      "manifestSha256": "2794a5e4a51628efef018834ac6dcc079abd868cb43814b306084ffcc9053e7b"
-    },
-    {
-      "id": "iara-watercolor-fixture",
-      "version": "1.0.2",
-      "manifestSha256": "57a2ad291b66fbcde8ff72e738b95a5118da6eb05b10a1eabba13b784d7f40cc"
-    },
-    {
-      "id": "menina-aquarela",
-      "version": "1.0.1",
-      "manifestSha256": "c8a5471b9260d22aa2f6d128d043c7bb595a5975390e4e6667afe05ccdd803d2"
     }
   ]
 }
