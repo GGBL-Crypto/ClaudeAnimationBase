@@ -57,3 +57,25 @@ export function summaryPrompt(template, channel, videoRows, analysis) {
     return vals[k];
   });
 }
+
+export function validateSubniches(o) {
+  const str = (s, n) => typeof s === 'string' && s && s.length <= n;
+  const ok = o && typeof o === 'object' && Array.isArray(o.subnichos) && o.subnichos.length >= 1 && o.subnichos.length <= 8
+    && o.subnichos.every(s => s && typeof s === 'object' && str(s.nome, 80) && str(s.porque, 300)
+      && Array.isArray(s.exemplos) && s.exemplos.length <= 3 && s.exemplos.every(e => str(e, 120)));
+  if (!ok) throw new Error(BAD_FORMAT);
+  return { subnichos: o.subnichos.map(s => ({ nome: s.nome, porque: s.porque, exemplos: s.exemplos })) };
+}
+
+// outliers: { views, multiple, title }; até 30 linhas.
+export function subnichePrompt(template, niche, outliers) {
+  const vals = {
+    nicho: oneLine(niche.name),
+    palavras: niche.topWords.map(w => oneLine(w.word)).join(', '),
+    titulos: outliers.slice(0, 30).map(v => `${v.views} | ${v.multiple} | ${oneLine(v.title)}`).join('\n'),
+  };
+  return template.replace(/\{\{(\w+)\}\}/g, (_, k) => {
+    if (!(k in vals)) throw new Error(`Placeholder desconhecido: ${k}`);
+    return vals[k];
+  });
+}
