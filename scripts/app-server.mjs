@@ -136,7 +136,8 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
       if (!within(appRoot, actual)) throw fail(403, 'Caminho inválido');
       const ext = actual.split('.').pop(), head = { ...BASE, 'Content-Type': MIME[ext] };
       let bytes = await readFile(actual);
-      if (raw === '/' || raw === '/index.html') { bytes = Buffer.from(bytes.toString('utf8').replaceAll('%APP_TOKEN%', token)); head['Content-Security-Policy'] = CSP; }
+      if (ext === 'html') head['Content-Security-Policy'] = CSP;
+      if (raw === '/' || raw === '/index.html') bytes = Buffer.from(bytes.toString('utf8').replaceAll('%APP_TOKEN%', token));
       res.writeHead(200, { ...head, 'Content-Length': bytes.length }); res.end(bytes);
     } catch (e) {
       if (res.headersSent) return void res.destroy();
