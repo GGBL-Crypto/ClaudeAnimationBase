@@ -1,4 +1,4 @@
-# Flat vetorial de divulgação científica (exp-flat)
+# Flat vetorial de divulgação científica (flat)
 
 - Forma: geometria limpa (círculo, elipse, cápsula, arco, polígono curto). Silhueta lê sozinha, sem contorno preto; separação por valor e cor.
 - Cor: 5–7 matizes (azul-petróleo, verde, terracota/ferrugem, laranja-herói, creme, ameixa do subsolo), cada um com claro e escuro. Laranja vivo só na protagonista.

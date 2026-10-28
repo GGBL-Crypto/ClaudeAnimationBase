@@ -1,4 +1,4 @@
-// Recorte de papel (exp-papel): cada forma é um papel com fibra e grão (textura procedural em cache por cor e tom), borda
+// Recorte de papel (paper): cada forma é um papel com fibra e grão (textura procedural em cache por cor e tom), borda
 // rasgada com miolo branco (cenário) ou cortada à tesoura (bonecos), sombra projetada entre camadas. Bonecos de peças
 // rígidas nas juntas da pose, em 2 quadros, com leve tremor de recolocação por desenho. Câmera, mundo e atores vêm de F.
 window.ExpStyle = (() => {

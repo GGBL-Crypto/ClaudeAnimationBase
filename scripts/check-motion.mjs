@@ -5,7 +5,7 @@
 // Com --2d (cenas de src/scenes/exp-estilos.js) também verifica o esqueleto (checkSkeleton): ossos que mudam de tamanho,
 // partes desenhadas soltas das juntas ou que passam da junta final, juntas dobradas além do limite. --style=<id> carrega o
 // estilo e verifica as partes que ele desenha (ExpStyle.parts).
-// Uso: node scripts/check-motion.mjs --project=<id> [--2d] [--style=exp-palito] [--range=0:20] [--fps=30] [--out=relatorio.txt] [--append]
+// Uso: node scripts/check-motion.mjs --project=<id> [--2d] [--style=stick] [--range=0:20] [--fps=30] [--out=relatorio.txt] [--append]
 import vm from 'node:vm';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

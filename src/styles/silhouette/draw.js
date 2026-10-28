@@ -1,4 +1,4 @@
-// Teatro de sombras (exp-silhueta): desenha o quadro F da coreografia comum (exp-estilos.js) como bonecos recortados
+// Teatro de sombras (silhouette): desenha o quadro F da coreografia comum (exp-estilos.js) como bonecos recortados
 // contra uma tela de papel iluminada por trás. Fundo e fibra em cache; camadas paradas desfocadas uma vez (still), a de
 // trás que se move a 1/2 da resolução (soft). Mais longe = sombra mais clara e mais mole. Só Canvas2D, sem kit.
 (() => {

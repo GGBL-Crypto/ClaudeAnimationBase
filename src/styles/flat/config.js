@@ -1,7 +1,7 @@
-// Flat vetorial de divulgação científica (exp/estilos): formas geométricas sem contorno, gradientes suaves, brilho aditivo
+// Flat vetorial de divulgação científica: formas geométricas sem contorno, gradientes suaves, brilho aditivo
 // nas luzes, sombras longas do sol e camadas que esfriam com a distância. Canvas2D puro, sem o kit cartoon.
 AnimationPlatform.registerStyle({
-  id: 'exp-flat', name: 'Flat vetorial (ciência)', backend: 'Canvas2D', scripts: ['src/styles/cartoon/engine.js', 'src/styles/exp-flat/draw.js'],
+  id: 'flat', name: 'Flat vetorial (ciência)', backend: 'Canvas2D', scripts: ['src/styles/cartoon/engine.js', 'src/styles/flat/draw.js'],
   config: {
     palette: {
       skyTop: '#2E6E96', skyLow: '#F4E3BE', haze: '#BFDCD8', sun: '#FFE7A8', cloud: '#FBF6EA', cloudDk: '#D9E6E6',

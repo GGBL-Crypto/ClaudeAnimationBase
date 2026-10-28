@@ -1,4 +1,4 @@
-# Cartoon TV (exp-tv)
+# Cartoon TV (cartoon)
 
 - Traço: contorno grosso e regular na família de cor de cada peça; seres principais com o contorno mais forte do quadro, fundo mais fino e esmaecido.
 - Cor: chapada com luz suave de cima à esquerda; uma cor-herói (laranja vivo da protagonista) que nada mais no quadro usa; fundo dessaturado e mais claro que os seres.

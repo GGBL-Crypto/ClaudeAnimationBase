@@ -1,4 +1,4 @@
-# Aquarela de livro ilustrado (exp-aquarela)
+# Aquarela de livro ilustrado (watercolor)
 
 - Papel: fibra e grão visíveis em todo o quadro, inclusive sobre os seres; o branco do papel é a luz (nuvens, brilho de olho e de casco).
 - Cor: aguadas transparentes que se sobrepõem (cor sobre cor); a borda de cada mancha acumula pigmento e vaza um pouco.

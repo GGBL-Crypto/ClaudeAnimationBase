@@ -1,5 +1,5 @@
 // exp-pov.js (exp/estilos): "POV: você é uma saúva operária", 73 s narrados. Coreografia sem desenho, função pura de t;
-// o estilo (exp-papel) desenha F = EST.frame('POV', t). Câmera na altura da formiga, em perspectiva: o mundo tem y para
+// o estilo (paper) desenha F = EST.frame('POV', t). Câmera na altura da formiga, em perspectiva: o mundo tem y para
 // baixo (chão em y = 0) e profundidade wz (distância à frente, no sentido da marcha). Cada plano tem a sua origem; a câmera
 // está em wz = cz e a tela é X = (x − cx)·k + 960, Y = (y − cy)·k + 540, k = FOCAL / (wz − cz). Para o verificador, um ator
 // em wz tem depth = W0 − wz e cam.z = FOCAL / (W0 − cz): a câmera de frente dele dá a mesma projeção.

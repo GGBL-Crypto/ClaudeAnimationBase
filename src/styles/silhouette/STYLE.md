@@ -1,4 +1,4 @@
-# Teatro de sombras (exp-silhueta)
+# Teatro de sombras (silhouette)
 
 - Traço: não há linha; a forma é o recorte. Silhueta preta lê a pose sozinha: perfil, mandíbula, chapéu, folha. Detalhe só na borda (serrilhado de capim e folha, espinhos, pelos) e em vazados (olho, veias da folha, ornamentos).
 - Peças: membros rígidos sobrepostos, presos por pinos visíveis nas juntas; a peça de cá tem uma fresta de luz sobre a de lá.

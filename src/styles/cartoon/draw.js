@@ -1,4 +1,4 @@
-// Cartoon TV (exp-tv): o C2 do c01 de sauva-operaria desenhando o quadro F da coreografia comum (exp-estilos.js).
+// Cartoon TV (cartoon): o C2 do c01 de sauva-operaria desenhando o quadro F da coreografia comum (exp-estilos.js).
 // Camadas paradas desfocadas uma vez (still), as desfocadas que se movem a 1/4 da resolução (lowres), cor por plano em
 // soft-light e grão em 4 ladrilhos (finish). Câmera, mundo e atores vêm de F; aqui só o desenho.
 (() => {

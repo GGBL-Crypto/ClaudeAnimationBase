@@ -1,4 +1,4 @@
-# exp-nanquim: caneta e nanquim no caderno
+# ink: caneta e nanquim no caderno
 
 - Traço: linha de caneta com pressão (fina nas pontas, cheia no meio), contornos que não fecham certinho (sobra e cruzamento no fecho), largura fixa no papel, não no mundo (o zoom não engorda a caneta).
 - Tom só por hachura: fileiras paralelas entram uma a uma conforme o tom; sombra forte ganha contra-hachura. Luz única do alto à esquerda em tudo (cenário e seres). Pontilhado leve no que é distante.

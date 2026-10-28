@@ -1,7 +1,7 @@
-// Recorte de papel e colagem (exp/estilos): papéis com fibra e grão procedurais, bordas rasgadas ou cortadas à tesoura,
+// Recorte de papel e colagem: papéis com fibra e grão procedurais, bordas rasgadas ou cortadas à tesoura,
 // sombra projetada entre camadas e bonecos articulados em 2 quadros. Canvas2D puro, sem o kit cartoon.
 AnimationPlatform.registerStyle({
-  id: 'exp-papel', name: 'Recorte de papel', backend: 'Canvas2D', scripts: ['src/styles/cartoon/engine.js', 'src/styles/exp-papel/draw.js'],
+  id: 'paper', name: 'Recorte de papel', backend: 'Canvas2D', scripts: ['src/styles/cartoon/engine.js', 'src/styles/paper/draw.js'],
   config: {
     palette: {
       core: '#F7F2E6', sky: '#BFDCE0', sun: '#F6C445', cloud: '#FBF8EF', far: '#9DBFB0', hill: '#6FA36A', back: '#5E9650',
