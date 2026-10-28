@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {isoDuration,disparity,views30d,scoreParts,score,outlierMultiple,videoRow,revenue,channelRow,avgViews,frequency,ageDays} from '../scripts/app/metrics.mjs';
 import {DEFAULTS} from '../scripts/app/config.mjs';
 const now=Date.parse('2026-10-27T12:00:00Z');
+// stringify vira NaN em null: percorre os números de verdade
+const finite=o=>Object.values(o).forEach(v=>{if(typeof v==='number')assert.ok(Number.isFinite(v));else if(Array.isArray(v))v.forEach(x=>assert.ok(typeof x!=='number'||Number.isFinite(x)));else if(v&&typeof v==='object')finite(v);});
 test('isoDuration',()=>{assert.equal(isoDuration('PT1H2M3S'),3723);assert.equal(isoDuration('P1DT1S'),86401);assert.equal(isoDuration('x'),0);});
 test('disparity is null for hidden or zero subs',()=>{assert.equal(disparity(500,null),null);assert.equal(disparity(500,0),null);assert.equal(disparity(null,10),null);assert.equal(disparity(500,1000),.5);});
 test('views30d prefers snapshots 30+ days apart, else sums recent videos',()=>{
@@ -39,7 +41,7 @@ test('avgViews, frequency, ageDays',()=>{
 });
 test('channelRow with no videos has null metrics and no NaN',()=>{
  const r=channelRow({id:'UC1',title:'t',createdAt:'2026-10-01T00:00:00Z',hiddenSubs:0},[{at:'2026-10-26T00:00:00Z',subs:10,views:0,videos:0}],[],now,DEFAULTS);
- assert.equal(r.avgViews,null);assert.equal(r.lastPublished,null);assert.ok(!JSON.stringify(r).includes('NaN'));
+ assert.equal(r.avgViews,null);assert.equal(r.lastPublished,null);finite(r);finite(r.scoreParts);
 });
 test('channelRow hidden subs and full data',()=>{
  const vids=[1,2,3,4].map(i=>({id:'v'+i,thumb:'t'+i,views:i*100,publishedAt:`2026-10-${20+i}T00:00:00Z`}));vids.reverse();
@@ -47,5 +49,18 @@ test('channelRow hidden subs and full data',()=>{
  assert.equal(r.subs,null);assert.equal(r.disparity,null);assert.equal(r.scoreParts.disparidade,0);
  assert.equal(r.updatedAt,'2026-10-26T00:00:00Z');assert.equal(r.avgViews,250);assert.equal(r.views30dSource,'videos');
  assert.deepEqual(r.topThumbs.map(t=>t.id),['v4','v3','v2']);assert.equal(r.lastPublished,vids[0].publishedAt);assert.equal(r.daysSinceLast,3);
- assert.deepEqual(r.revenue,[1,2]);assert.ok(Number.isFinite(r.score));assert.ok(!JSON.stringify(r).includes('NaN'));
+ assert.deepEqual(r.revenue,[1,2]);finite(r);finite(r.scoreParts);
+});
+test('invalid dates give null, not NaN',()=>{
+ assert.equal(ageDays(undefined,now),null);assert.equal(ageDays('lixo',now),null);
+ assert.equal(scoreParts({disparity:1,ageDays:null,videoCount:1,daysSinceLast:0}).novo,0);
+ assert.equal(videoRow({views:5,publishedAt:'lixo'},[],now).viewsPerDay,null);
+ const r=channelRow({id:'UC3',title:'t'},[],[{id:'v',thumb:'t',views:5,publishedAt:'lixo'}],now,DEFAULTS);
+ assert.equal(r.ageDays,null);finite(r);finite(r.scoreParts);
+});
+test('views30d edge cases',()=>{
+ const old=[{publishedAt:'2026-01-01T00:00:00Z',views:900}];
+ assert.deepEqual(views30d([],old,now),{value:0,source:'videos'});
+ assert.deepEqual(views30d([{at:'2026-09-20T00:00:00Z',views:null},{at:'2026-10-26T00:00:00Z',views:5000}],old,now),{value:0,source:'videos'});
+ assert.deepEqual(views30d([{at:'2026-09-20T00:00:00Z',views:4000},{at:'2026-10-26T00:00:00Z',views:null}],old,now),{value:0,source:'videos'});
 });
