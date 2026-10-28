@@ -63,3 +63,34 @@ export function parseFilters(params) {
   for (const k of BOOL) { const v = params.get(k); if (v != null) f[k] = v === '1' || v === 'true'; }
   return f;
 }
+
+// Vídeos: campo null reprova o filtro do campo (sem includeUnknown)
+export const VIDEO_SORTS = ['viewsPerDay', 'multiple', 'views', 'publishedAt'];
+const VRULES = [
+  ['tag', 'tag', eq], ['channelId', 'channelId', eq],
+  ['publishedAfter', 'publishedAt', (v, f) => v >= f],
+  ['durationMin', 'durationS', (v, f) => v >= f], ['durationMax', 'durationS', (v, f) => v <= f],
+  ['viewsMin', 'views', (v, f) => v >= f], ['multipleMin', 'multiple', (v, f) => v >= f],
+];
+export function applyVideoFilters(rows, f = {}, now = Date.now()) {
+  const q = f.q ? norm(f.q) : '';
+  const since = f.maxAgeDays != null ? new Date(now - f.maxAgeDays * 864e5).toISOString() : null;
+  return rows.filter((r) => {
+    if (q && !norm(r.title).includes(q) && !norm(r.channelTitle).includes(q)) return false;
+    if (f.ids && !f.ids.includes(r.id)) return false;
+    if (f.lang != null && (r.lang ?? r.channelLang ?? '').slice(0, 2).toLowerCase() !== f.lang) return false;
+    if (since && !(r.publishedAt > since)) return false;
+    return VRULES.every(([k, field, ok]) => f[k] == null || (r[field] != null && ok(r[field], f[k])));
+  });
+}
+
+const VNUM = ['durationMin', 'durationMax', 'viewsMin', 'multipleMin', 'maxAgeDays'];
+const VSTR = ['q', 'tag', 'lang', 'channelId', 'publishedAfter'];
+export function parseVideoFilters(params) {
+  const f = {};
+  for (const k of VSTR) if (params.get(k)) f[k] = params.get(k);
+  for (const k of VNUM) { const v = params.get(k); if (v != null && v !== '' && Number.isFinite(Number(v))) f[k] = Number(v); }
+  const ids = (params.get('ids') ?? '').split(',').filter((id) => /^[A-Za-z0-9_-]{11}$/.test(id)).slice(0, 50);
+  if (ids.length) f.ids = ids;
+  return f;
+}

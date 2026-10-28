@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PRESETS, applyFilters, sortRows, runPreset, parseFilters } from '../scripts/app/filters.mjs';
+import { PRESETS, applyFilters, sortRows, runPreset, parseFilters, VIDEO_SORTS, applyVideoFilters, parseVideoFilters } from '../scripts/app/filters.mjs';
 
 const rows = [
   { id: 'a', title: 'História Antiga', handle: '@hist', lang: 'pt', subs: 1000, avgViews: 5000, disparity: 5, ageDays: 40, videoCount: 12, frequency: 2, score: 85, daysSinceLast: 3, lastPublished: '2026-10-24', tag: 'historia' },
@@ -41,3 +41,21 @@ test('parseFilters', () => {
   assert.deepEqual(parseFilters(new URLSearchParams('subsMin=100&includeUnknown=1&evil=x')), { subsMin: 100, includeUnknown: true });
   assert.deepEqual(parseFilters(new URLSearchParams('q=oi&faceless=false&lang=pt&subsMax=abc')), { q: 'oi', faceless: false, lang: 'pt' });
 });
+
+const now = Date.parse('2026-10-28T00:00:00Z');
+const vids = [
+  { id: 'v1', title: 'Roma Antiga', channelTitle: 'Hist', channelId: 'UCa', tag: 'historia', lang: 'pt-BR', channelLang: 'pt', publishedAt: '2026-10-25T00:00:00Z', durationS: 1500, views: 9000, viewsPerDay: 4500, multiple: 3 },
+  { id: 'v2', title: 'Sleep', channelTitle: 'Zz', channelId: 'UCb', tag: null, lang: null, channelLang: 'en', publishedAt: '2026-06-01T00:00:00Z', durationS: 120, views: 100, viewsPerDay: 1, multiple: null },
+];
+test('video filters', () => {
+  const vi = (f) => applyVideoFilters(vids, f, now).map((v) => v.id);
+  assert.deepEqual(vi({ q: 'roma' }), ['v1']); assert.deepEqual(vi({ lang: 'en' }), ['v2']); assert.deepEqual(vi({ lang: 'pt' }), ['v1']);
+  assert.deepEqual(vi({ multipleMin: 2 }), ['v1']); assert.deepEqual(vi({ maxAgeDays: 7 }), ['v1']); assert.deepEqual(vi({ durationMax: 239 }), ['v2']);
+  assert.deepEqual(vi({ publishedAfter: '2026-10-01' }), ['v1']); assert.deepEqual(vi({ ids: ['v2'] }), ['v2']); assert.deepEqual(vi({ tag: 'historia' }), ['v1']); assert.deepEqual(vi({ channelId: 'UCb' }), ['v2']);
+  assert.deepEqual(vi({ viewsMin: 1000, durationMin: 600 }), ['v1']);
+});
+test('parseVideoFilters', () => {
+  assert.deepEqual(parseVideoFilters(new URLSearchParams('multipleMin=2&ids=vidfixture1,bad,vidfixture2&evil=1')), { multipleMin: 2, ids: ['vidfixture1', 'vidfixture2'] });
+  assert.deepEqual(parseVideoFilters(new URLSearchParams('ids=bad')), {});
+});
+test('video sorts', () => { assert.deepEqual(VIDEO_SORTS, ['viewsPerDay', 'multiple', 'views', 'publishedAt']); assert.deepEqual(sortRows(vids, 'multiple', 'desc').map((v) => v.id), ['v1', 'v2']); });
