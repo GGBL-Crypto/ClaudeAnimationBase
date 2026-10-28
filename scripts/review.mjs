@@ -5,8 +5,8 @@ import { parseArgs, launchBrowser, openPage } from './render-lib.mjs';
 const args=parseArgs(process.argv.slice(2)), browser=await launchBrowser(args);
 const steps=(a,b,fps=24)=>Array.from({length:Math.floor((b-a)*fps+1e-6)+1},(_,i)=>a+i/fps);
 try {
-  for(const style of args.style?[args.style]:['watercolor','cartoon','pixel']) {
-    const page=await openPage(browser,{...args,project:'visit',style}),dir=join('out','visit',style,'review');mkdirSync(dir,{recursive:true});
+  for(const style of args.style?[args.style]:['watercolor-classic','cartoon','pixel']) {
+    const page=await openPage(browser,{...args,project:'smoke-visit',style}),dir=join('out','smoke-visit',style,'review');mkdirSync(dir,{recursive:true});
     const sheets=[
       ['storyboard',[.35,.9,1.6,2.35,2.8,2.96,3.04,3.35,3.9,4.4,4.9,5.4],4,480,null],
       ['landing',steps(1.9,2.7),5,300,[550,330,720,330]],

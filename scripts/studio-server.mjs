@@ -38,6 +38,7 @@ export async function startStudioServer({ port = 0, root = ROOT } = {}) {
     }
   }
   await walk('src');
+  await walk('fixtures').catch(error => { if (error.code !== 'ENOENT') throw error; });
   // Cartoon characters imported by scripts/import-parts.py (rig.json and part images).
   await walk('assets/characters', /\.(json|png|svg)$/).catch(error => { if (error.code !== 'ENOENT') throw error; });
   for (const file of DEPENDENCY_ROUTES) routes.set('/' + file, resolve(root, file));
@@ -57,8 +58,7 @@ export async function startStudioServer({ port = 0, root = ROOT } = {}) {
         res.writeHead(200,{'Content-Type':'application/json','Content-Length':bytes.length,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Cross-Origin-Resource-Policy':'same-origin'});res.end(req.method==='HEAD'?undefined:bytes);return;
       }
       const actual = await realpath(file),asset=assetRoutes.get(raw);
-      // exp/visual-rico: node_modules desta worktree é junção para a pasta principal; as rotas fixas de dependência passam.
-      if (!within(root, actual) && !DEPENDENCY_ROUTES.includes(raw.slice(1))) return reject(403);
+      if (!within(root, actual)) return reject(403);
       if(asset&&!within(asset.root,actual))return reject(403);
       // Open the verified target itself, so a swapped source symlink is not followed again.
       const bytes = await readFile(actual);

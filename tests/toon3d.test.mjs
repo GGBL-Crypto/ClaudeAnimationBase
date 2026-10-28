@@ -4,8 +4,8 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { catalog } from '../scripts/render-lib.mjs';
 
-// Kit toon3d (exp/visual-rico): a lógica pura do espalhamento, do piscar e do ser 3D gerado das SPECS.
-const platform = catalog(), ctx = vm.createContext({ AnimationPlatform: platform, projectConfig: platform.resolveProject('sauva-exp-e'), window: {} });
+// Kit toon3d: a lógica pura do espalhamento, do piscar e do ser 3D gerado das SPECS.
+const platform = catalog(), ctx = vm.createContext({ AnimationPlatform: platform, projectConfig: platform.resolveProject('smoke-3d'), window: {} });
 for (const file of ['src/motion.js', 'src/timeline.js', 'src/nature/noise.js', 'src/nature/path.js', 'src/nature/gait.js', 'src/nature/creature.js', 'src/nature/specs.js', 'src/nature/env.js',
   'src/styles/toon3d/creature.js', 'src/styles/toon3d/face.js', 'src/styles/toon3d/flora.js'])
   vm.runInContext(readFileSync(file, 'utf8'), ctx, { filename: file });

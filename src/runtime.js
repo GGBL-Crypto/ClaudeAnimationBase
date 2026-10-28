@@ -41,7 +41,7 @@
   async function boot() {
     const params = new URLSearchParams(location.search);
     // p5 installs a PROJECT='square' drawing constant on window. Keep film settings lexical.
-    window.projectConfig = AnimationPlatform.resolveProject(params.get('project') || 'demo', params.get('style') || undefined);
+    window.projectConfig = AnimationPlatform.resolveProject(params.get('project') || 'smoke-2d', params.get('style') || undefined);
     if (AnimationPlatform.styles[projectConfig.style].dimensions !== 3 && ['resolution', 'projection', 'shadows'].some(key => params.has(key))) throw new Error('Resolução/projeção/sombras opcionais são exclusivas de motores 3D');
     await load('src/motion.js'); await load('src/timeline.js');
     for (const src of AnimationPlatform.styles[PROJECT.style].scripts) await load(src);

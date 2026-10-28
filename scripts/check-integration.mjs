@@ -8,12 +8,12 @@ import { ROOT, launchBrowser, closeBrowser, openPage, frameOf, sourceHash } from
 const studio=await startStudioServer(),browser=await launchBrowser(),report=[];
 let fixture, temp;
 try {
-  for(const style of ['watercolor','cartoon','pixel']) {
-    const file=await openPage(browser,{project:'visit',style});
-    const http=await openPage(browser,{project:'visit',style,origin:studio.origin});
-    for(const t of [0,2.5,5.2])assert.ok((await frameOf(file,t)).equals(await frameOf(http,t)),style+': HTTP alterou pixels em '+t);
+  for(const style of ['watercolor-classic','cartoon','pixel']) {
+    const file=await openPage(browser,{project:'smoke-visit',style});
+    const http=await openPage(browser,{project:'smoke-visit',style,origin:studio.origin});
+    for(const t of [0,1,1.9])assert.ok((await frameOf(file,t)).equals(await frameOf(http,t)),style+': HTTP alterou pixels em '+t);
     const baseline=await readFile(join(ROOT,'out/checks',style+'-contact.png')).catch(()=>null);
-    if(baseline)assert.ok(baseline.equals(await frameOf(file,2.5)),style+': mudou desde a referência auditada');
+    if(baseline)assert.ok(baseline.equals(await frameOf(file,1)),style+': mudou desde a referência auditada');
     assert.equal(await http.evaluate(()=>performance.getEntriesByType('resource').some(r=>r.name.includes('/three/'))),false);
     await assert.rejects(file.evaluate(()=>loadAnimationScript({src:'unused.js',type:'module'})),/npm run studio/);
     await file.close();await http.close();report.push({style,fileEqualsHTTP:true,baselineCompared:!!baseline,threeLoaded:false});

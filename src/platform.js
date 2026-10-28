@@ -50,7 +50,7 @@
     }
     return result;
   }
-  function resolveProject(id = 'demo', styleId) {
+  function resolveProject(id = 'smoke-2d', styleId) {
     const source = projects[id]; if (!source) fail(`Projeto desconhecido: ${id}`);
     const style = styles[styleId || source.style]; if (!style) fail(`Estilo desconhecido: ${styleId || source.style}`);
     if (!source.compatibleStyles.includes(style.id)) fail(`O projeto ${id} não é compatível com ${style.id}`);

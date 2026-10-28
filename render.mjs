@@ -38,7 +38,7 @@ async function main() {
   for (const key of Object.keys(args)) if (!allowed.has(key)) throw new Error('Opção desconhecida: --' + key);
   const operations = ['storyboard','sheet','strip','stills','clip','frames','png','encode'].filter(key => args[key] !== undefined);
   if (operations.length !== 1) throw new Error('Escolha exatamente uma operação. Use --help.');
-  const mode = operations[0], project = catalog().resolveProject(args.project || 'demo', args.style);
+  const mode = operations[0], project = catalog().resolveProject(args.project || 'smoke-2d', args.style);
   args.project = project.id; args.style = project.style;
   const style = catalog().styles[project.style];
   if (style.dimensions !== 3 && ['resolution','projection','shadows'].some(key => args[key] !== undefined)) throw new Error('Opções de resolução/projeção/sombras exigem motor 3D');

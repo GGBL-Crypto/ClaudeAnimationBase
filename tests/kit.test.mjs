@@ -9,13 +9,14 @@ function load() {
   const calls = [], c = new Proxy({}, { get: (o, k) => k in o ? o[k] : (...a) => { calls.push(k); return k === 'createLinearGradient' || k === 'createRadialGradient' ? { addColorStop() {} } : undefined; }, set: (o, k, v) => (o[k] = v, true) });
   const ctx = natureContext(['src/nature/noise.js']);
   ctx.window.animationEngine = { context: c };
+  ctx.document = { createElement: () => ({ getContext: () => c }) };  // camadas fora da tela (vignette) no mesmo falso
   vm.runInContext(readFileSync('src/styles/cartoon/kit.js', 'utf8'), ctx, { filename: 'kit.js' });
   return { Kit: ctx.window.Kit, calls, c };
 }
 
-test('Kit expõe os 11 nomes', () => {
+test('Kit expõe os 13 nomes', () => {
   const { Kit } = load();
-  assert.deepEqual(Object.keys(Kit).sort(), ['cam', 'camEnd', 'ellipse', 'flash', 'gradient', 'iris', 'line', 'poly', 'text', 'vignette', 'wipe']);
+  assert.deepEqual(Object.keys(Kit).sort(), ['cam', 'camEnd', 'ellipse', 'flash', 'gradient', 'into', 'iris', 'line', 'poly', 'post', 'text', 'vignette', 'wipe']);
 });
 
 test('cam/camEnd fazem save/restore balanceados', () => {

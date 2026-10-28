@@ -4,7 +4,7 @@ import { natureContext } from './nature-helpers.mjs';
 
 // Esqueleto de ossos fixos (src/nature/skeleton.js + creaturePose): todo osso mede sempre o seu comprimento, joelho e
 // cotovelo dobram para um lado só, pescoço e cabeça só giram dentro de JOINT_LIMITS; pé começa no tornozelo, mão no pulso.
-const ctx = natureContext(['src/nature/noise.js', 'src/nature/path.js', 'src/nature/gait.js', 'src/nature/creature.js', 'src/nature/specs.js', 'src/nature/skeleton.js', 'src/nature/crowd.js', 'src/scenes/exp-estilos.js']);
+const ctx = natureContext(['src/nature/noise.js', 'src/nature/path.js', 'src/nature/gait.js', 'src/nature/creature.js', 'src/nature/specs.js', 'src/nature/skeleton.js', 'src/nature/crowd.js', 'src/nature/actors.js', 'fixtures/smoke/walker-2d.js']);
 const flat = () => 600, P = ctx.makePath([[0, 600], [4000, 600]]), TYPES = ['child', 'adult', 'elder', 'heavy', 'thin'];
 const d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]), cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
 const specOf = id => TYPES.includes(id) ? ctx.humanSpec(id) : ctx.SPECS[id];
@@ -71,15 +71,18 @@ test('every creature exposes joints and bones; dead and flinching poses keep the
   for (const id of ['adult', 'dog']) { checkSkeleton(walk(id, 20, 30, { alive: 0 }), id + ' morto'); checkSkeleton(walk(id, 20, 30, { flinch: 1 }), id + ' susto'); }
 });
 
-test('scene H: the explorer keeps every bone through walk, crouch, hand on knee and nod', () => {
-  for (let i = 0; i <= 240; i++) {
-    const t = i / 30, p = ctx.EST.frame('H', t).actors.find(a => a.kind === 'human').pose; checkSkeleton(p, `H t=${t.toFixed(2)}`);
-    if (t > 4.7) assert.ok(d(p.joints.wristL, p.joints.kneeL) < .02 * p.size, `H t=${t.toFixed(2)} pulso no joelho`);
+test('smoke 2D: the walker keeps every bone and plants its feet on the ground', () => {
+  for (let i = 0; i <= 60; i++) {
+    const t = i / 30, F = ctx.EST.frame('H', t), p = F.actors[0].pose; checkSkeleton(p, `smoke t=${t.toFixed(2)}`);
+    assert.ok(Math.min(p.joints.ankleL[1], p.joints.ankleR[1]) < F.world.ground(p.joints.pelvis[0]), `smoke t=${t.toFixed(2)} tornozelo acima do chão`);
   }
 });
 
-test('scene A: the hero ant keeps its neck through the head turn (nod)', () => {
-  for (let t = ctx.EST.times.T2; t < 20; t += .25) checkSkeleton(ctx.EST.frame('A', t).actors.find(a => a.id === 'hero').pose, `A t=${t.toFixed(2)}`);
+test('actors.js: person walks its legs, stops, and talkHands only moves hands while talking', () => {
+  const c = { ...ctx.person('a', 'adult', 400, 1, [[0, 2, .7]], [0, 100], { y: 600, seed: 1, talk: [[1, 2]] }), mood: [[0, 'neutral']] };
+  assert.ok(Math.abs(ctx.go(5, c.legs) - 1.4) < 1e-9, 'trecho anda v·(t1 − t0)'); assert.equal(ctx.go(0, c.legs), 0);
+  const p = ctx.personPose(c, 1.5); checkSkeleton(p, 'person');
+  assert.equal(ctx.talkHands(c, p, .5).length, 0); assert.equal(ctx.talkHands(c, p, 1.5).length, 2);
 });
 
 test('handTo puts the hand tip exactly on the target; lowered keeps the bones; stepTo plants the ankle', () => {
