@@ -27,7 +27,7 @@ function drawK(c, F, cam, line, ring) {
     else if (o.kind === 'fence') { for (const k of [.35, .75]) line([[o.x0, o.y - k * o.h], [o.x1, o.y - k * o.h]], WOOD, 2); for (let px = o.x0; px <= o.x1; px += 60) line([[px, o.y], [px, o.y - o.h]], WOOD, 3); }
     else if (o.kind === 'bush') oval(x, y, s * .8, s, LEAF, Math.PI, TAU);
     else if (o.kind === 'post') { line([[x, y], [x, y - o.h]], WOOD, 3); box(x - 9, y - o.h - 18, 18, 18, WOOD); }
-    else if (o.kind === 'cart') { box(x - s, y - .95 * s, 2 * s, .45 * s, WOOD); for (const d of [-.5, .5]) ring(x + d * s, y - .3 * s, .3 * s, WOOD); line([[x + s, y - .8 * s], [x + 1.6 * s, y - .5 * s]], WOOD, 2); }
+    else if (o.kind === 'cart') { box(x - s, y - .95 * s, 1.5 * s, .45 * s, WOOD); for (const d of [-.6, .1]) ring(x + d * s, y - .3 * s, .3 * s, WOOD); line([[x + .5 * s, y - .8 * s], [x + s, y - .5 * s]], WOOD, 2); }
     else if (o.kind === 'boat') line([[x - s / 2, y - .3 * s], [x + s / 2, y - .3 * s], [x + .35 * s, y], [x - .35 * s, y], [x - s / 2, y - .3 * s]], WOOD, 2);
     else if (o.kind === 'tuft') line([[x - .4 * s, y - s], [x, y], [x, y - s], [x, y], [x + .4 * s, y - s]], LEAF, 1.5);
   };

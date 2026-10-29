@@ -78,8 +78,10 @@ var { KIT_SCENES, KIT_DEFAULTS, kitFrame, castActor } = (() => {
     // Céu noturno composto: horizonte a ~60% da altura, pinheiros perto (f = .7) nas bordas, casa com 1 a 2 janelas e cerca do lado da casa.
     'ceu-noturno': { extras: ['moon', 'meteor'], exterior: true, build(p, phase, L) {
       const s = p.seed, g = flat(s + 1, 905, 6), k = seg(phase, .46, .54), x0 = 300 + 700 * rnd(s, 6000), y0 = 80 + 160 * rnd(s, 6001);
-      const ats = [.3, .5, .7], G = gapsOf(ats), side = rnd(s, 10400) < .5 ? G[0] : G.at(-1), near = hills(s + 3, 790, 50, 300), hx = inGap(side, rnd(s, 10500), 80), lights = [];
-      const house = [building(p, phase, L, hx, near(hx) + 6, 120, 110, 'gable', 0, true)]; glow(lights, house, .7);
+      const ats = [.3, .5, .7], G = gapsOf(ats), side = rnd(s, 10400) < .5 ? G[0] : G.at(-1), near = hills(s + 3, 790, 50, 300), hx = inGap(side, rnd(s, 10500), 90), lights = [];
+      const house = [building(p, phase, L, hx, near(hx) + 6, 180, 140, 'gable', 0, true)];  // 3 janelas numa fileira; no máximo 2 acesas
+      let lit = 0; for (const w of house[0].windows) if (w.lit && ++lit > 2) w.lit = 0;
+      glow(lights, house, .7);
       const pines = [...trees(s + 5, 4, -140, 420, near, 200, 300, ['pine']), ...trees(s + 6, 4, 1500, 2060, near, 200, 300, ['pine'])];
       const out = outside(p, phase, L, [{ kind: 'ridge', f: .3, prof: hills(s + 2, 700, 110, 360) }, { kind: 'ridge', f: .7, prof: near }, { kind: 'treeline', f: .7, trees: pines },
         { kind: 'buildings', f: .7, items: house }, groundLayer(p, g, 'grass'), { kind: 'props', f: 1, items: [fence(side, g), ...tufts(s + 9, g, 16)] }], g, lights, ats,
