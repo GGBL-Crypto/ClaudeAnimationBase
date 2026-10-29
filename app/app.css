@@ -43,7 +43,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .chip, .seg button, .tabs button { border-radius: 14px; }
 .chip.on, .seg button.on, .tabs button.on { background: var(--acc); color: #fff; }
 .filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; align-items: end; margin-bottom: 12px; }
-.filters .check { flex-direction: row; align-items: center; }
+.filters .check, .settings .check { flex-direction: row; align-items: center; }
 .check input { width: auto; }
 .split { display: flex; gap: 16px; align-items: flex-start; }
 .list { flex: 1; min-width: 0; overflow-x: auto; }
@@ -101,3 +101,9 @@ a.chip { display: inline-block; background: var(--line); color: var(--fg); paddi
 .hist li { padding: 6px 0; border-bottom: 1px solid var(--line); }
 .summary { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
 .copy { width: 100%; min-height: 120px; font: 12px/1.4 ui-monospace, monospace; }
+/* Sino de alertas, seguir/concorrente */
+.tools { display: flex; gap: 12px; align-items: center; }
+.alerts { position: absolute; z-index: 5; top: 100%; right: 0; width: 420px; max-width: 90vw; max-height: 60vh; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin-top: 4px; }
+.alerts a { color: var(--fg); overflow-wrap: anywhere; }
+.alerts .dim a { color: var(--dim); }
+.row button.on { background: var(--acc); color: #fff; }

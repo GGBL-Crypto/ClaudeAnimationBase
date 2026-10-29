@@ -81,6 +81,16 @@ export async function analysisTab(body, c) {
     summaryBox(c)));
 }
 
+// Marca o canal semelhante como concorrente (POST /watch).
+function markBtn(id) {
+  const btn = h('button', { type: 'button', onClick: async () => {
+    btn.disabled = true;
+    try { await api.post(`/api/channels/${enc(id)}/watch`, { competitor: true }); btn.textContent = 'É concorrente'; }
+    catch (e) { btn.disabled = false; btn.title = e.message; }
+  } }, 'Marcar concorrente');
+  return btn;
+}
+
 export async function similarTab(body, c, open) {
   body.append(h('p', { class: 'dim' }, 'Carregando…'));
   const live = () => body.isConnected && body.dataset.tab === 'c';
@@ -96,5 +106,5 @@ export async function similarTab(body, c, open) {
       h('td', {}, r.sharedWords?.length ? h('div', {}, 'Palavras: ' + r.sharedWords.join(', ')) : null,
         r.sharedTopics?.length ? h('div', {}, 'Tópicos: ' + r.sharedTopics.join(', ')) : null),
       h('td', {}, subsText(r.subs), h('br'), h('small', { class: 'dim' }, 'dados de ' + fmt.date(r.updatedAt))), h('td', {}, fmt.num(r.avgViews)),
-      h('td', {}, h('button', { type: 'button', onClick: () => open(r.id) }, 'Analisar')))))));
+      h('td', {}, h('button', { type: 'button', onClick: () => open(r.id) }, 'Analisar'), ' ', markBtn(r.id)))))));
 }

@@ -17,6 +17,9 @@ export async function render(root) {
   const hours = h('input', { type: 'number', min: '1', step: '1', value: String(cfg.cacheHours) });
   const outlier = h('input', { type: 'number', min: '1', max: '100', step: 'any', value: String(cfg.outlierMin) });
   const opp = h('input', { type: 'number', min: '0', max: '100', step: '1', value: String(cfg.opportunityMin) });
+  const jump = h('input', { type: 'number', min: '1', step: 'any', value: String(cfg.subsJumpPct) });
+  const niche = h('input', { type: 'number', min: '1', max: '100', step: '1', value: String(cfg.nicheMin) });
+  const auto = h('input', { type: 'checkbox', checked: cfg.monitorAuto !== false });
   const w = Object.fromEntries(WEIGHTS.map(([k]) => [k, h('input', { type: 'number', min: '0', step: '1', value: String(cfg.weights[k] ?? 0) })]));
   const rows = h('tbody');
   const addRow = (...vals) => rows.append(h('tr', {},
@@ -30,7 +33,7 @@ export async function render(root) {
       const [t, l, lo, hi] = [...tr.querySelectorAll('input')].map(i => i.value.trim());
       if (t || l || lo || hi) rpm[`${t}|${l}`] = [Number(lo), Number(hi)];
     }
-    const body = { cacheHours: Number(hours.value), outlierMin: Number(outlier.value), opportunityMin: Number(opp.value), weights: Object.fromEntries(Object.entries(w).map(([k, i]) => [k, Number(i.value)])), rpm };
+    const body = { cacheHours: Number(hours.value), outlierMin: Number(outlier.value), opportunityMin: Number(opp.value), subsJumpPct: Number(jump.value), nicheMin: Number(niche.value), monitorAuto: auto.checked, weights: Object.fromEntries(Object.entries(w).map(([k, i]) => [k, Number(i.value)])), rpm };
     if (key.value.trim()) body.apiKey = key.value.trim();
     save_.disabled = true; status.className = 'status'; status.textContent = 'Salvando…';
     try {
@@ -46,6 +49,9 @@ export async function render(root) {
     h('label', {}, 'Validade do cache (horas)', hours),
     h('label', {}, 'Limiar de outlier (× a mediana do canal)', outlier),
     h('label', {}, 'Score mínimo de oportunidade', opp),
+    h('label', {}, 'Salto de inscritos para alerta (%)', jump),
+    h('label', {}, 'Semelhança mínima para agrupar nichos (1–100)', niche),
+    h('label', { class: 'check' }, auto, 'Monitorar automaticamente com o app aberto'),
     h('fieldset', {}, h('legend', {}, 'Pesos do score'), WEIGHTS.map(([k, label]) => h('label', {}, label, w[k]))),
     h('fieldset', {}, h('legend', {}, 'Tabela RPM (US$ por mil views)'),
       h('table', {}, h('thead', {}, h('tr', {}, [...COLS, ''].map(t => h('th', {}, t)))), rows),
