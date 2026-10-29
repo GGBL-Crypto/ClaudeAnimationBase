@@ -328,7 +328,7 @@ window.ExpStyle = (() => {
     // Cabeça no eixo base → topo (o rosto em y < 0); o eixo inteiro mede 2,1 R.
     bone('neck', dk(Wr.skin, .1));
     const h = axis(q('head'));
-    c.save(); c.translate(...h.m); c.rotate(h.a + Math.PI / 2); c.scale(f, 1); head(p, h.L / 2.1, sd, lw, Wr, gear.includes('hat')); c.restore();
+    c.save(); c.translate(...h.m); c.rotate(h.a + Math.PI / 2); c.scale(f, 1); head(p, h.L / 2.1, sd, lw, Wr, gear); c.restore();
     for (const [n] of nr) if (!n.startsWith('leg')) armOrLate(n.slice(-1), false);
     if (a.holds === 'book') {  // livro aberto entre as mãos (cena K): capa vermelha e as páginas do papel
       const bx = (J.handL[0] + J.handR[0]) / 2, by = (J.handL[1] + J.handR[1]) / 2, s = .07 * S;
@@ -339,17 +339,20 @@ window.ExpStyle = (() => {
   }
   // Cabelo no quadro da cabeça (R): calota de trás e do alto e o penteado; o careca só tem a franja de trás.
   const CAP = [[.55, -.72], [.3, -1.06], [-.3, -1.1], [-.82, -.78], [-1.02, -.2], [-.96, .3], [-.6, .38], [-.42, -.05], [-.05, -.55], [.32, -.58]];
-  function head(p, R, sd, lw, Wr, hat) {
+  // Gear da cabeça: hat (chapéu), hood (capuz na cor da camisa, aberto no rosto), helmet (calota de metal).
+  function head(p, R, sd, lw, Wr, gear) {
+    const hat = gear.includes('hat'), hood = gear.includes('hood'), helm = gear.includes('helmet');
     const F = p.face || {}, ex = F.expression || 'neutral', shut = (F.blink || 0) > .5, sk = Wr.skin, hr = Wr.hair, st = Wr.style;
     const pts = a => a.map(([u, v]) => [u * R, v * R]);
     // Queixo e garganta por baixo do rosto: cobrem o topo do pescoço (que para na base da cabeça), mesmo com a cabeça inclinada.
     blot(oval(0, .9 * R, .55 * R, .45 * R, 0, sd + 49, 10, .04), sk, lw, { shade: false });
-    if (hat || st === 'bald') blot(oval(-.55 * R, -.1 * R, .48 * R, .48 * R, 0, sd + 51, 10), hr, lw, { shade: false });
-    if (st === 'bun') blot(oval(-.88 * R, -.78 * R, .36 * R, .34 * R, 0, sd + 47, 10), hr, lw);
-    if (st === 'pigtails') for (const v of [-.35, .3]) blot(oval(-1.05 * R, v * R, .26 * R, .32 * R, .3, sd + 45 + v, 9), hr, lw, { shade: false });
+    if (hood) blot(oval(-.22 * R, -.12 * R, 1.22 * R, 1.3 * R, 0, sd + 41, 14), dk(Wr.shirt, .12), lw);  // capuz por trás da cabeça
+    else if (hat || helm || st === 'bald') blot(oval(-.55 * R, -.1 * R, .48 * R, .48 * R, 0, sd + 51, 10), hr, lw, { shade: false });
+    if (st === 'bun' && !hood) blot(oval(-.88 * R, -.78 * R, .36 * R, .34 * R, 0, sd + 47, 10), hr, lw);
+    if (st === 'pigtails' && !hood) for (const v of [-.35, .3]) blot(oval(-1.05 * R, v * R, .26 * R, .32 * R, .3, sd + 45 + v, 9), hr, lw, { shade: false });
     blot(oval(0, 0, .95 * R, 1.05 * R, 0, sd + 53), sk, lw);
     blot(oval(.97 * R, .12 * R, .2 * R, .17 * R, 0, sd + 55, 9), sk, lw, { shade: false });  // nariz
-    blot(oval(-.15 * R, .1 * R, .17 * R, .23 * R, 0, sd + 57, 9), dk(sk, .12), lw, { shade: false });  // orelha
+    if (!hood) blot(oval(-.15 * R, .1 * R, .17 * R, .23 * R, 0, sd + 57, 9), dk(sk, .12), lw, { shade: false });  // orelha
     trace(oval(.4 * R, .38 * R, .2 * R, .13 * R, 0, sd + 59, 9)); c.globalAlpha = (ex === 'happy' ? .42 : .25) * A; c.fillStyle = P.red; c.fill(); c.globalAlpha = 1;  // bochecha
     // Olho, sobrancelha e boca por expressão, em nanquim sépia (olho grande o bastante para atuar).
     const eye = [.45 * R, .02 * R], ink = P.ink, stroke = (w, a = .9) => { c.globalAlpha = a * A; c.strokeStyle = ink; c.lineWidth = w; c.lineCap = 'round'; c.stroke(); };
@@ -377,7 +380,11 @@ window.ExpStyle = (() => {
     c.globalAlpha = 1;
     // Nanquim leve: nuca e queixo.
     c.globalAlpha = .5 * A; c.strokeStyle = P.ink; c.lineWidth = lw; c.beginPath(); c.ellipse(0, 0, .97 * R, 1.07 * R, 0, 1.9, 2.9); c.stroke(); c.beginPath(); c.ellipse(0, 0, .97 * R, 1.07 * R, 0, .5, 1.2); c.stroke(); c.globalAlpha = 1;
-    if (hat) {  // chapéu de explorador: copa, fita e aba
+    if (hood) blot(pts([[.55, -.92], [.15, -1.3], [-.55, -1.25], [-1.12, -.6], [-1.15, .35], [-.75, .98], [-.3, 1.0], [-.42, .35], [-.4, -.35], [-.05, -.78], [.42, -.72]]), Wr.shirt, lw, { shade: false });  // borda do capuz em volta do rosto
+    else if (helm) {  // capacete: calota de metal com a luz do papel e a aba
+      blot(pts([[-.98, -.12], [-.95, -.72], [-.5, -1.18], [.12, -1.25], [.62, -1.0], [.9, -.48], [.95, -.22]]), '#8E959A', lw);
+      blot(oval(0, -.2 * R, 1.02 * R, .12 * R, -.03, sd + 67, 14, .04), dk('#8E959A', .2), lw, { shade: false });
+    } else if (hat) {  // chapéu de explorador: copa, fita e aba
       blot(pts([[-.78, -.62], [-.72, -1.17], [-.45, -1.42], [.1, -1.48], [.55, -1.32], [.74, -1.02], [.8, -.62]]), P.hat, lw);
       blot(pts([[-.78, -.62], [-.76, -.84], [.78, -.84], [.8, -.62]]), P.band, lw, { shade: false });
       blot(oval(.05 * R, -.64 * R, 1.6 * R, .17 * R, -.04, sd + 65, 16, .05), dk(P.hat, .08), lw, { light: false });
@@ -1021,11 +1028,14 @@ window.ExpStyle = (() => {
     for (const [i, m] of Mp.marks.entries()) { wc(ell(m.x, m.y, 9, 9, 10, i), '#8A3A2A', 230, .05, .3); nib([...ell(m.x, m.y, 16, 16, 12, i + 4), ell(m.x, m.y, 16, 16, 12, i + 4)[0]], .35, '#5A2E22'); }
     nibBroken([...R, R[0]], .6, 4, .8, 1, '#7A5A3A');
   };
+  let KBASE = null;
   function kitScene(F) {
     const K = F.world.kit, S = K.sky, I = K.interior, M = STYLE.moods[K.mood], base = `K|${F.shot}|${K.mood}|${K.seed}`;
+    // Cena nova (cena + mood + semente): os caches K da anterior saem (10 a 40 MB por cena); o quadro não muda, só o tempo.
+    if (base !== KBASE) { for (const key of STILL.keys()) if (key[0] === 'K') STILL.delete(key); KBASE = base; }
     if (K.map) {
       const Pp = K.map.paper, r = K.map.route;
-      c.resetTransform(); still('Kdesk', [0, 0, W, H], .4, () => { const R = dense([[-60, -60], [W + 60, -60], [W + 60, H + 60], [-60, H + 60]], 80); flat(R, '#C9A27A'); wc(R, '#A87A52', 150, .2, .6); for (let j = 0; j < 22; j++) wc(ell(W * hash(j * 3.3), 30 + 48 * j, 500 + 500 * hash(j * 1.7), 9 + 8 * hash(j), 24, j), '#8A6040', 70, .2, .6); });
+      at(1); still('Kdesk', [-140, -100, W + 280, H + 200], .4, () => { const R = dense([[-200, -160], [W + 200, -160], [W + 200, H + 160], [-200, H + 160]], 80); flat(R, '#C9A27A'); wc(R, '#A87A52', 150, .2, .6); for (let j = 0; j < 22; j++) wc(ell(W * hash(j * 3.3), 30 + 48 * j, 500 + 500 * hash(j * 1.7), 9 + 8 * hash(j), 24, j), '#8A6040', 70, .2, .6); });
       at(1); still(`Kmap|${K.seed}`, [Pp.x - 20, Pp.y - 20, Pp.w + 40, Pp.h + 40], 1, paintMap(K.map), () => c.rect(Pp.x, Pp.y, Pp.w, Pp.h));
       if (r) {  // trecho da rota até a fração k do comprimento, tracejado em vermelho-terra
         const d = r.pts.slice(1).map((q, i) => Math.hypot(q[0] - r.pts[i][0], q[1] - r.pts[i][1])); let left = r.k * d.reduce((a, b) => a + b, 0); const pts = [r.pts[0]];
