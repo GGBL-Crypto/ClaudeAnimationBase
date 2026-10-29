@@ -17,7 +17,7 @@ const ROWS = [
 
 export async function render(root, params) {
   let seq = 0;
-  const sel = params?.get('my'); // canal meu escolhido (hash ?my=<n>); sem ele, todos
+  const sel = params?.get('my') || null;// canal meu escolhido (hash ?my=<n>); sem ele, todos
   const box = h('div'), panel = h('aside', { class: 'panel', hidden: true }), msg = h('p', { class: 'status' });
   panel.addEventListener('channel-changed', () => load());
 
@@ -48,7 +48,7 @@ export async function render(root, params) {
       h('tbody', {},
         ROWS.map(([label], i) => h('tr', {}, h('th', { scope: 'row' }, label), rows.map(r => cell('td', i, r)))),
         h('tr', {}, h('th', { scope: 'row' }, 'Dados'), rows.map(r => h('td', { class: 'dim' }, 'Dados de ' + fmt.date(r.updatedAt)))),
-        h('tr', {}, h('th', {}), rows.map(r => { const b = h('button', { type: 'button', onClick: () => remove(r.id, b) }, 'Remover'); return h('td', {}, b); })))));
+        sel == null ? h('tr', {}, h('th', {}), rows.map(r => { const b = h('button', { type: 'button', onClick: () => remove(r.id, b) }, 'Remover'); return h('td', {}, b); })) : null))); // filtrado: desligar é em Meus canais
   }
 
   function vids(videos) {
