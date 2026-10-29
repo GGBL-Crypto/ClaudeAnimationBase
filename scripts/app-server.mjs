@@ -230,7 +230,7 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
       const videos = db.videoRowsAll(t).filter(v => ids.has(v.channelId) && t - Date.parse(v.publishedAt) <= 30 * DAY).sort((a, b) => (a.publishedAt < b.publishedAt) - (a.publishedAt > b.publishedAt)).slice(0, 200);
       return { rows: [...ids].map(id => chRow(id, t, c)), videos };
     }],
-    ['GET', /^\/api\/niches$/, () => { const t = now(); return nicheList(t, cfg(), db.videoRowsAll(t)); }], // ponytail: O(n²) em buildNiches
+    ['GET', /^\/api\/niches$/, () => { const t = now(); return nicheList(t, cfg(), db.videoRowsAll(t)); }],
     ['GET', /^\/api\/niches\/detail$/, (m, req, res, u) => niche(u.searchParams.get('id'))],
     ['POST', /^\/api\/niches\/tag$/, async (m, req) => {
       const b = await readJson(req), tag = text(b.tag, 40) ? b.tag.trim() : no('Etiqueta inválida (1 a 40 caracteres)'), { niche: n, rows } = niche(b.id);

@@ -58,7 +58,7 @@ export function analyzeChannel(videos, snaps) {
   };
 }
 
-const jaccard = (a, b) => {
+export const jaccard = (a, b) => {
   let i = 0;
   for (const x of a) if (b.has(x)) i++;
   const u = a.size + b.size - i;

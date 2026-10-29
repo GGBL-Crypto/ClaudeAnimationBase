@@ -1,5 +1,5 @@
 // Nichos sem LLM: etiqueta manual, agrupamento por semelhança entre os sem etiqueta e vizinhos (puro).
-import { similarChannels, titleWords, topicName } from './analysis.mjs';
+import { jaccard, titleWords, topicName } from './analysis.mjs';
 
 const DAY = 86400000;
 const tally = (items) => { const m = new Map(); for (const x of items) m.set(x, (m.get(x) || 0) + 1); return m; };
@@ -14,12 +14,17 @@ export function buildNiches({ texts, rows, videos, now, cfg }) {
   const untagged = [];
   for (const c of texts) { const tag = tagOf(c); if (tag) add(`tag:${tag.toLowerCase()}`, tag, 'etiqueta', c); else untagged.push(c); }
 
-  // União por ligação simples entre os sem etiqueta.
-  // ponytail: similarChannels é O(n²) entre os sem etiqueta; índice invertido por palavra se passar de ~3 000 canais.
+  // União por ligação simples entre os sem etiqueta; mesma nota de similarChannels (70% palavras, 30% tópicos), conjuntos feitos uma vez.
+  // ponytail: pares O(n²) só com Jaccard (600 canais ~0,4 s); índice invertido por palavra se medir lento, ~2 000+ canais.
   const parent = new Map(untagged.map((c) => [c.id, c.id]));
   const find = (x) => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
   const min = cfg.nicheMin ?? 25;
-  for (const c of untagged) for (const o of similarChannels(c, untagged, Infinity)) if (o.score >= min) parent.set(find(o.id), find(c.id));
+  const sets = untagged.map((c) => ({ w: new Set(c.titles.flatMap(titleWords)), t: new Set((c.topics || []).map(topicName)) }));
+  for (let i = 0; i < untagged.length; i++) for (let j = i + 1; j < untagged.length; j++) {
+    const a = sets[i], b = sets[j], jw = jaccard(a.w, b.w);
+    const score = Math.round(100 * (a.t.size || b.t.size ? 0.7 * jw + 0.3 * jaccard(a.t, b.t) : jw));
+    if (score && score >= min) parent.set(find(untagged[j].id), find(untagged[i].id));
+  }
   const comps = new Map();
   for (const c of untagged) { const r = find(c.id); if (!comps.has(r)) comps.set(r, []); comps.get(r).push(c); }
   const solo = [];
