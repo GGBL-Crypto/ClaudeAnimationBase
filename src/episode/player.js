@@ -13,13 +13,17 @@
   // Desloca em x tudo que é coordenada da pose: pares [x, y] e objetos com x.
   const shiftX = (v, dx) => Array.isArray(v) ? (v.length === 2 && typeof v[0] === 'number' ? [v[0] + dx, v[1]] : v.map(e => shiftX(e, dx)))
     : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, e]) => [k, k === 'x' && typeof e === 'number' ? e + dx : shiftX(e, dx)])) : v;
+  // Parado, castActor deixa os pés onde a passada os pôs em X (em at .5 o adulto fica de pernas abertas): para as poses paradas,
+  // escolho por pessoa o at perto do meio (até 140 px, uma passada) com os tornozelos mais juntos.
+  const spread = (m, at) => { const J = castActor(m, 'stand', at, 1, 0, 12, () => 0, 0).pose.joints; return Math.abs(J.ankleL[0] - J.ankleR[0]); };
+  const AT = Object.fromEntries(E.cast.map(m => [m.id, Array.from({ length: 36 }, (_, i) => .5 + i * 4 / 1920).reduce((b, at) => spread(m, at) < spread(m, b) ? at : b)]));
   const sheet = t => {
     const cast = E.cast.slice(0, 4), lt = t % 2, actors = [], rocks = [];
     cast.forEach((m, i) => ROWS.forEach(([action, beat], r) => {
       const gy = CY - 540 / Z + ROW * (r + 1) - 15, ground = () => gy, colX = CX + (i - (cast.length - 1) / 2) * COL;
       // O walk atravessa a tela (X vem da fase): escolho a fase que cai a 1/8 de passada por tempo (a pose se repete a cada meia passada) e deslocamos para a coluna.
-      const walk = action === 'walk', X = 960 + (beat || 0) * .125 * humanSpec(m.body).stride * 180, phase = walk ? (X + 200) / 2320 : lt / 2;
-      const a = castActor(m, action, .5, 1, phase, 12, ground, walk ? phase * 12 : lt), dx = colX - (walk ? X : 960);
+      const walk = action === 'walk', X = walk ? 960 + beat * .125 * humanSpec(m.body).stride * 180 : AT[m.id] * 1920, phase = walk ? (X + 200) / 2320 : lt / 2;
+      const a = castActor(m, action, walk ? .5 : AT[m.id], 1, phase, 12, ground, walk ? phase * 12 : lt), dx = colX - X;
       actors.push({ ...shiftX({ ...a, ground: null }, dx), ground, depth: actors.length });
       if (a.seated) rocks.push({ kind: 'rock', x: colX, y: gy, s: .25 * a.pose.size, k: 0, seed: 1 });
     }));

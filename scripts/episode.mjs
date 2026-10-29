@@ -1,6 +1,7 @@
 // Orquestrador do episódio (decisão 12). Uso: node scripts/episode.mjs <pasta> [--steps=narrate,build,loops,segments,mix,assemble,verify] [--workers=2]
 // Cada etapa é idempotente; uma linha JSON por evento no stdout ({step, done, total, message}); em falha, {step, error} e código 1.
 // Os filhos rodam com cwd na raiz e recebem caminhos relativos com / (o filtro subtitles do FFmpeg não lida com "C:").
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -14,6 +15,7 @@ const FPS = 24;
 // out: raiz das saídas, só para testes (narrate.mjs e mix-audio.mjs gravam sempre em out/episodes/<id>).
 export async function runEpisode(dir, { steps = STEPS, workers = 2, out = 'out', run = (cmd, args) => spawnRun(cmd, args, { capture: true, cwd: ROOT }), log = line => console.log(line) } = {}) {
   const emit = o => log(JSON.stringify(o)), at = p => join(ROOT, p);
+  const writeIfChanged = (f, text) => { if (!existsSync(at(f)) || readFileSync(at(f), 'utf8') !== text) writeFileSync(at(f), text); };
   let step = 'validate';
   try {
     const d = relative(ROOT, resolve(dir)).replace(/\\/g, '/'), read = f => JSON.parse(readFileSync(at(`${d}/${f}`), 'utf8')), ep = read('episode.json');
@@ -51,25 +53,39 @@ export async function runEpisode(dir, { steps = STEPS, workers = 2, out = 'out',
         let made = 0;
         mkdirSync(at(`${E}/seg`), { recursive: true });
         for (const sb of p.storyboard) {
-          const s = byId.get(sb.id), dur = Math.round((sb.end - sb.start) * FPS) / FPS, loop = `${A}/${s.acervo}.mp4`, base = `${E}/seg/${s.acervo}-${+dur.toFixed(3)}`;
+          const s = byId.get(sb.id), dur = (Math.round(sb.end * FPS) - Math.round(sb.start * FPS)) / FPS, loop = `${A}/${s.acervo}.mp4`, base = `${E}/seg/${s.acervo}-${+dur.toFixed(3)}`;
           if (!existsSync(at(loop))) throw new Error(`Plano ${sb.id}: loop ausente no acervo; rode a etapa loops`);
           if (!existsSync(at(base + '.mp4'))) { await run('ffmpeg', segmentArgs(loop, dur, base + '.partial.mp4')); renameSync(at(base + '.partial.mp4'), at(base + '.mp4')); made++; }
           files.push(base.slice(E.length + 1) + '.mp4');
         }
-        writeFileSync(at(`${E}/concat.txt`), concatList(files));
+        writeIfChanged(`${E}/concat.txt`, concatList(files));
         return { done: files.length, total: files.length, message: `${made} cortados, ${files.length - made} em cache` };
       },
-      mix: async () => ({ message: (await run('node', ['scripts/mix-audio.mjs', d])).trim() }),
-      async assemble() {
-        writeFileSync(at(`${E}/subs.ass`), buildAss({ timing: planOf().timing, episode: ep, style: ep.style }));
-        await run('ffmpeg', assembleArgs({ list: `${E}/concat.txt`, ass: `${E}/subs.ass`, audio: `${E}/mix.m4a`, out: `${E}/video.mp4` }));
-        return { message: `${E}/video.mp4` };
+      // narrate.mjs regrava narration.wav a cada execução (mesmo com o TTS em cache): a guarda é pelo conteúdo, não pela data.
+      async mix() {
+        const keyFile = at(`${E}/mix.key`), key = createHash('sha256').update(readFileSync(at(`${E}/narration.wav`))).update(String(planOf().timing.duration)).update(readFileSync(at('scripts/mix-audio.mjs'))).digest('hex');
+        if (existsSync(at(`${E}/mix.m4a`)) && existsSync(keyFile) && readFileSync(keyFile, 'utf8') === key) return { message: 'mix.m4a em dia (narração igual)' };
+        rmSync(keyFile, { force: true });
+        const message = (await run('node', ['scripts/mix-audio.mjs', d])).trim();
+        writeFileSync(keyFile, key);
+        return { message };
       },
+      // Refaz só se lista, legenda ou mix forem mais novos que o vídeo (os dois primeiros só são gravados quando o conteúdo muda).
+      async assemble() {
+        const list = `${E}/concat.txt`, ass = `${E}/subs.ass`, audio = `${E}/mix.m4a`, video = `${E}/video.mp4`, mtime = f => statSync(at(f)).mtimeMs;
+        writeIfChanged(ass, buildAss({ timing: planOf().timing, episode: ep, style: ep.style }));
+        if (existsSync(at(video)) && [list, ass, audio].every(f => mtime(video) >= mtime(f))) return { message: `${video} em dia` };
+        await run('ffmpeg', assembleArgs({ list, ass, audio, out: `${E}/video.partial.mp4` }));
+        renameSync(at(`${E}/video.partial.mp4`), at(video));
+        return { message: video };
+      },
+      // Sempre roda: é a porta de saída.
       async verify() {
         const { timing } = planOf(), r = JSON.parse(await run('node', ['scripts/verify-video.mjs', `${E}/video.mp4`]));
-        const found = `${r.width}x${r.height}, ${r.fps} fps, ${r.frames} quadros, ${r.duration} s, áudio ${r.audio}`;
-        if (Math.abs(r.duration - timing.duration) > 1 / FPS + 1e-3 || Math.abs(r.fps - FPS) > 1e-3 || r.width !== 1920 || r.height !== 1080 || !r.audio)
-          throw new Error(`Vídeo fora do esperado (${timing.duration} s, 1920x1080, ${FPS} fps, com áudio): ${found}`);
+        const acodec = (await run('ffprobe', ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', `${E}/video.mp4`])).trim();
+        const found = `${r.width}x${r.height}, ${r.fps} fps, ${r.frames} quadros, ${r.duration} s, áudio ${acodec || r.audio}`;
+        if (Math.abs(r.duration - timing.duration) > 1 / FPS + 1e-3 || Math.abs(r.fps - FPS) > 1e-3 || r.width !== 1920 || r.height !== 1080 || !r.audio || acodec !== 'aac')
+          throw new Error(`Vídeo fora do esperado (${timing.duration} s, 1920x1080, ${FPS} fps, áudio aac): ${found}`);
         return { message: found };
       },
     };
