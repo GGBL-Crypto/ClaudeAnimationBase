@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { CLAUDE_ARGS, runClaude, validateSummary, summaryPrompt, validateSubniches, subnichePrompt } from '../scripts/app/llm.mjs';
+import { CLAUDE_ARGS, CLAUDE_IMAGE_ARGS, runClaude, runClaudeImages, oneLine, validateSummary, summaryPrompt, validateSubniches, subnichePrompt } from '../scripts/app/llm.mjs';
 
 // Filho falso: grava chamada e stdin; responde ou trava conforme as opções.
 function fakeSpawn({ stdout = '', code = 0, error, hang } = {}) {
@@ -69,4 +69,21 @@ test('subniche prompt file has the three placeholders', () => {
 test('prompt file has the three placeholders', () => {
   const t = readFileSync(new URL('../prompts/analise-canal.md', import.meta.url), 'utf8');
   for (const k of ['{{titulo}}', '{{videos}}', '{{analise}}']) assert.ok(t.includes(k), k);
+});
+test('runClaudeImages sends one stream-json user line with images and parses result line', async () => {
+  const sp = fakeSpawn({ stdout: '{"type":"system"}\n{"type":"result","is_error":false,"result":"```json\\n{\\"ok\\":1}\\n```"}\n' });
+  assert.deepEqual(await runClaudeImages('P', [{ mediaType: 'image/jpeg', base64: 'AAA' }], { spawn: sp }), { ok: 1 });
+  const msg = JSON.parse(sp.calls[0].stdin.trim());
+  assert.equal(msg.type, 'user'); assert.deepEqual(msg.message.content[0], { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'AAA' } });
+  assert.deepEqual(msg.message.content.at(-1), { type: 'text', text: 'P' });
+  assert.deepEqual(sp.calls[0].args, CLAUDE_IMAGE_ARGS); assert.equal(typeof oneLine, 'function');
+});
+test('runClaudeImages errors', async () => {
+  const run = o => runClaudeImages('P', [], { spawn: fakeSpawn(o) });
+  await assert.rejects(run({ stdout: '{"type":"result","is_error":true,"result":"limite"}\n' }), /limite/);
+  await assert.rejects(run({ stdout: '{"type":"system"}\n' }), /não é JSON válido/);
+  await assert.rejects(run({ stdout: '{"type":"result","result":"não é json"}\n' }), /não é JSON válido/);
+  await assert.rejects(run({ code: 1 }), /código 1/);
+  await assert.rejects(run({ error: Object.assign(new Error('x'), { code: 'ENOENT' }) }), /claude não encontrado no PATH/);
+  const sp = fakeSpawn({ hang: true }); await assert.rejects(runClaudeImages('P', [], { spawn: sp, timeoutMs: 20 }), /demorou demais/); assert.ok(sp.killed);
 });
