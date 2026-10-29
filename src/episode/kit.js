@@ -35,6 +35,13 @@ var { KIT_SCENES, KIT_DEFAULTS, kitFrame, castActor } = (() => {
     return { x, y, w, h, roof, windows };
   }
   const glow = (lights, items, f) => { for (const b of items) for (const w of b.windows) if (w.lit) lights.push({ x: w.x + w.w / 2, y: w.y + w.h / 2, r: 50, k: w.lit, f }); };
+  // Primeiro plano (props de f = 1): só nas faixas livres, fora de spots ± 130 px (o ator e a etiqueta acima dele).
+  // inGap: x na faixa [lo, hi] com a meia largura half dentro dela (v 0..1); faixa estreita demais = o meio.
+  const gapsOf = ats => { const e = [-40, ...ats.flatMap(a => [a * 1920 - 130, a * 1920 + 130]), 1960], G = []; for (let i = 0; i < e.length; i += 2) if (e[i + 1] - e[i] > 40) G.push([e[i], e[i + 1]]); return G; };
+  const inGap = ([lo, hi], v, half = 0) => hi - lo > 2 * half ? lerp(lo + half, hi - half, v) : (lo + hi) / 2;
+  const fence = ([lo, hi], g) => ({ kind: 'fence', x0: lo + 20, x1: hi - 20, y: g((lo + hi) / 2) + 2, h: 80 });
+  const tufts = (s, g, n) => Array.from({ length: n }, (_, i) => { const x = 1920 * (i + rnd(s, i + 10000)) / n; return { kind: 'tuft', x, y: g(x) + 2, s: 8 + 14 * rnd(s, i + 10100), seed: s * 23 + i }; });
+  const stone = (s, g, gap, i, s0, s1) => { const x = inGap(gap, rnd(s, i + 10200), 1.2 * s1); return { kind: 'rock', x, y: g(x) + 4, s: lerp(s0, s1, rnd(s, i + 10300)), k: 0, seed: s + i }; };
 
   // Céu (sem paralaxe): estrelas cintilam (tw), nuvens balançam no lugar (até 40 px, 1 ciclo por loop); o = {area, stars, clouds, celestial}.
   const SUN = { dawn: { x: 360, y: 600, r: 70, glow: .9 }, day: { x: 1420, y: 170, r: 58, glow: .5 }, dusk: { x: 1560, y: 620, r: 78, glow: 1 } };
@@ -64,13 +71,19 @@ var { KIT_SCENES, KIT_DEFAULTS, kitFrame, castActor } = (() => {
       const layers = [{ kind: 'ridge', f: .2, prof: far }, { kind: 'ridge', f: .45, prof: near }, { kind: 'treeline', f: .45, trees: trees(s + 4, 7, -100, 2020, near, 90, 150, ['broad', 'broad', 'pine']) }];
       if (has(p, 'farm')) { const b = [building(p, phase, L, 1420, near(1420) + 6, 200, 130, 'gable', 0, true), building(p, phase, L, 1580, near(1580) + 6, 80, 170, 'tower', 1)]; layers.push({ kind: 'buildings', f: .45, items: b }); glow(lights, b, .45); }
       if (has(p, 'fireflies')) for (let i = 0; i < 14; i++) lights.push({ x: 100 + 1720 * rnd(s, i + 4000) + 40 * cyc(phase, 1, rnd(s, i + 4100)), y: 640 + 200 * rnd(s, i + 4200) + 18 * cyc(phase, 2, rnd(s, i + 4300)), r: 10, k: Math.max(0, cyc(phase, per(L, 2.5), rnd(s, i + 4400))) ** 2, f: 1 });
-      layers.push(groundLayer(p, g, 'grass'));
-      return outside(p, phase, L, layers, g, lights, [.25, .5, .75]);
+      const ats = [.25, .5, .75], G = gapsOf(ats);
+      layers.push(groundLayer(p, g, 'grass'), { kind: 'props', f: 1, items: [fence(rnd(s, 10400) < .5 ? G[0] : G.at(-1), g), ...tufts(s + 9, g, 16)] });
+      return outside(p, phase, L, layers, g, lights, ats);
     } },
+    // Céu noturno composto: horizonte a ~60% da altura, pinheiros perto (f = .7) nas bordas, casa com 1 a 2 janelas e cerca do lado da casa.
     'ceu-noturno': { extras: ['moon', 'meteor'], exterior: true, build(p, phase, L) {
       const s = p.seed, g = flat(s + 1, 905, 6), k = seg(phase, .46, .54), x0 = 300 + 700 * rnd(s, 6000), y0 = 80 + 160 * rnd(s, 6001);
-      const out = outside(p, phase, L, [{ kind: 'ridge', f: .3, prof: hills(s + 2, 860, 140, 360) }, groundLayer(p, g, 'grass')], g, [], [.3, .5, .7],
-        { sky: { stars: 240, area: { x: 0, y: 0, w: 1920, h: 780 }, ...(p.time === 'night' && !has(p, 'moon') && { celestial: null }), ...(p.weather === 'clear' && { clouds: 0 }) } });
+      const ats = [.3, .5, .7], G = gapsOf(ats), side = rnd(s, 10400) < .5 ? G[0] : G.at(-1), near = hills(s + 3, 790, 50, 300), hx = inGap(side, rnd(s, 10500), 80), lights = [];
+      const house = [building(p, phase, L, hx, near(hx) + 6, 120, 110, 'gable', 0, true)]; glow(lights, house, .7);
+      const pines = [...trees(s + 5, 4, -140, 420, near, 200, 300, ['pine']), ...trees(s + 6, 4, 1500, 2060, near, 200, 300, ['pine'])];
+      const out = outside(p, phase, L, [{ kind: 'ridge', f: .3, prof: hills(s + 2, 700, 110, 360) }, { kind: 'ridge', f: .7, prof: near }, { kind: 'treeline', f: .7, trees: pines },
+        { kind: 'buildings', f: .7, items: house }, groundLayer(p, g, 'grass'), { kind: 'props', f: 1, items: [fence(side, g), ...tufts(s + 9, g, 16)] }], g, lights, ats,
+        { sky: { stars: 240, area: { x: 0, y: 0, w: 1920, h: 700 }, ...(p.time === 'night' && !has(p, 'moon') && { celestial: null }), ...(p.weather === 'clear' && { clouds: 0 }) } });
       // Meteoro de (x0, y0) a (x1, y1); k = progresso (desenhe só com 0 < k < 1).
       out.kit.sky.meteor = has(p, 'meteor') ? { x0, y0, x1: x0 + 520, y1: y0 + 240, k } : null;
       return out;
@@ -82,8 +95,10 @@ var { KIT_SCENES, KIT_DEFAULTS, kitFrame, castActor } = (() => {
       const layers = [{ kind: 'ridge', f: .15, prof: coast }, { kind: 'sea', f: .5, y: seaY, waves }];
       if (has(p, 'lighthouse')) { layers.push({ kind: 'buildings', f: .5, items: [{ x: 1640, y: seaY + 10, w: 64, h: 250, roof: 'tower', windows: [{ x: 1628, y: seaY - 226, w: 24, h: 24, lit: 1 }] }] }); lights.push({ x: 1640, y: seaY - 214, r: 260, k: .55 + .45 * cyc(phase, per(L, 4)), f: .5 }); }
       if (has(p, 'ship')) layers.push({ kind: 'props', f: .5, items: [{ kind: 'ship', x: 520, y: seaY + 4 + 3 * cyc(phase, per(L, 3)), s: 120, k: .5 + .5 * cyc(phase, per(L, 3), .25), seed: s }] });
-      layers.push(groundLayer(p, g, 'sand'));
-      return outside(p, phase, L, layers, g, lights, [.25, .5, .75]);
+      // Barco na areia numa borda (pela semente) e pedras nas outras faixas livres.
+      const ats = [.25, .5, .75], G = gapsOf(ats), j = rnd(s, 10400) < .5 ? 0 : G.length - 1, bx = inGap(G[j], rnd(s, 10500), 90);
+      layers.push(groundLayer(p, g, 'sand'), { kind: 'props', f: 1, items: [{ kind: 'boat', x: bx, y: g(bx) + 2, s: 160 }, ...G.flatMap((gp, i) => i === j ? [] : [stone(s, g, gp, i, 18, 36)])] });
+      return outside(p, phase, L, layers, g, lights, ats);
     } },
     floresta: { extras: ['mist', 'campfire'], exterior: true, build(p, phase, L) {
       const s = p.seed, g = flat(s + 1, 900, 8), far = hills(s + 2, 640, 130, 600), mid = hills(s + 3, 800, 60, 380), lights = [];
@@ -93,7 +108,10 @@ var { KIT_SCENES, KIT_DEFAULTS, kitFrame, castActor } = (() => {
         const x = 1250, fl = .5 + .3 * cyc(phase, per(L, .5)) + .2 * cyc(phase, per(L, .31), .3);  // tremor 0..1
         layers.push({ kind: 'props', f: 1, items: [{ kind: 'fire', x, y: g(x), s: 70, k: fl, seed: s }] }); lights.push({ x, y: g(x) - 40, r: 320, k: .7 + .3 * fl, f: 1 });
       }
-      return outside(p, phase, L, layers, g, lights, [.2, .45, .8], { fog: has(p, 'mist') ? .45 : 0 });
+      // Um arbusto por faixa livre (menos a da fogueira) e tufos.
+      const ats = [.2, .45, .8], bushes = gapsOf(ats).filter(([lo, hi]) => !(has(p, 'campfire') && lo < 1250 && 1250 < hi)).map((gp, i) => { const x = inGap(gp, rnd(s, i + 10500), 90), h = 70 + 40 * rnd(s, i + 10600); return { kind: 'bush', x, y: g(x) + 4, s: h, seed: s * 29 + i }; });
+      layers.push({ kind: 'props', f: 1, items: [...bushes, ...tufts(s + 9, g, 14)] });
+      return outside(p, phase, L, layers, g, lights, ats, { fog: has(p, 'mist') ? .45 : 0 });
     } },
     deserto: { extras: ['ruins', 'caravan'], exterior: true, build(p, phase, L) {
       const s = p.seed, g = flat(s + 1, 915, 10), d1 = dunes(s + 2, 730, 100, 520), d2 = dunes(s + 3, 830, 70, 360), layers = [{ kind: 'dunes', f: .3, prof: d1 }];
@@ -101,8 +119,9 @@ var { KIT_SCENES, KIT_DEFAULTS, kitFrame, castActor } = (() => {
       if (has(p, 'caravan')) layers.push({ kind: 'props', f: .3, items: Array.from({ length: 4 }, (_, i) => ({ kind: 'camel', x: 300 + 95 * i, y: d1(300 + 95 * i) + 2, s: 60, k: .5 + .5 * cyc(phase, per(L, 3), .2 * i), seed: s + i })) });
       layers.push({ kind: 'dunes', f: .6, prof: d2 });
       if (has(p, 'ruins')) layers.push({ kind: 'props', f: .6, items: Array.from({ length: 5 }, (_, i) => { const x = 1150 + 120 * i; return { kind: 'column', x, y: d2(x) + 4, s: 120 + 180 * rnd(s, i + 7000), k: 0, seed: s + i }; }) });
-      layers.push(groundLayer(p, g, 'sand'));
-      return outside(p, phase, L, layers, g, [], [.25, .5, .75]);
+      const ats = [.25, .5, .75];  // pedras soltas, uma por faixa livre, e tufos secos
+      layers.push(groundLayer(p, g, 'sand'), { kind: 'props', f: 1, items: [...gapsOf(ats).map((gp, i) => stone(s, g, gp, i, 14, 34)), ...tufts(s + 9, g, 12)] });
+      return outside(p, phase, L, layers, g, [], ats);
     } },
     'cidade-antiga': { extras: ['temple', 'wall'], exterior: true, build(p, phase, L) {
       const s = p.seed, g = flat(s + 1, 905, 4), base = 840, lights = [], roofs = ['flat', 'gable', 'dome', 'tower', 'flat'];
@@ -110,8 +129,12 @@ var { KIT_SCENES, KIT_DEFAULTS, kitFrame, castActor } = (() => {
       if (has(p, 'temple')) items = [...items.filter(b => Math.abs(b.x - 960) > 300), { x: 960, y: base, w: 460, h: 230, roof: 'temple', windows: [] }];
       const layers = [{ kind: 'ridge', f: .2, prof: hills(s + 2, 660, 120, 600) }, { kind: 'buildings', f: .5, items }]; glow(lights, items, .5);
       if (has(p, 'wall')) layers.push({ kind: 'buildings', f: .8, items: [{ x: 960, y: 880, w: 2300, h: 80, roof: 'flat', windows: [] }] });
-      layers.push(groundLayer(p, g, 'stone'));
-      return outside(p, phase, L, layers, g, lights, [.2, .5, .8]);
+      // Postes com lanterna nas bordas (acesos com as janelas, ao entardecer e à noite) e a carroça numa faixa do meio.
+      const ats = [.2, .5, .8], G = gapsOf(ats), posts = [G[0], G.at(-1)].map((gp, i) => { const x = inGap(gp, rnd(s, i + 10500), 20); return { kind: 'post', x, y: g(x) + 2, h: 200 }; });
+      if (p.time === 'night' || p.time === 'dusk') for (const o of posts) lights.push({ x: o.x, y: o.y - o.h, r: 140, k: .85, f: 1 });
+      const cx = inGap(G[rnd(s, 10400) < .5 ? 1 : G.length - 2], rnd(s, 10600), 90);
+      layers.push(groundLayer(p, g, 'stone'), { kind: 'props', f: 1, items: [...posts, { kind: 'cart', x: cx, y: g(cx) + 2, s: 70 }] });
+      return outside(p, phase, L, layers, g, lights, ats);
     } },
     // Interior: parede, janela (o céu e o clima valem só nela), chão e móveis; props {kind, x (meio), y (base), s (altura), w?}.
     'interior-vela': { extras: ['book', 'scroll'], exterior: false, build(p, phase, L) {
@@ -132,7 +155,18 @@ var { KIT_SCENES, KIT_DEFAULTS, kitFrame, castActor } = (() => {
       const land = (cx, cy, R, j) => Array.from({ length: 48 }, (_, i) => { const a = TAU * i / 48; let r = 1; for (let m = 2; m <= 5; m++) r += .14 / (m - 1) * Math.sin(m * a + TAU * rnd(s, j * 10 + m)); return [cx + R * r * Math.cos(a), cy + .8 * R * r * Math.sin(a)]; });
       const marks = [[560, 430], [1240, 640], [1350, 260]].map(([x, y], i) => [x + 40 * (rnd(s, i + 9000) - .5), y + 40 * (rnd(s, i + 9100) - .5)]);
       const route = has(p, 'route') ? { pts: [marks[0], [900, 500 + 80 * (rnd(s, 9200) - .5)], marks[1], [1330, 450], marks[2]], k: .5 - .5 * Math.cos(TAU * phase) } : null;
-      return { kit: { sky: { stars: [], celestial: null, clouds: [] }, layers: [], interior: null, map: { paper: { x: 200, y: 100, w: 1520, h: 880 }, coasts: [land(640, 480, 300, 1), land(1260, 620, 260, 2), land(1340, 270, 120, 3)], route, marks: marks.map(([x, y]) => ({ x, y })) },
+      // Detalhe: 16 ondas no mar (fora das terras e da rosa; ±4 px em y, 1 ciclo por loop), rosa dos ventos no canto livre de
+      // baixo à esquerda, picos (3 a 6) e matas (3 a 8) dentro das terras, a mais de 70 px das cidades e entre si; ícone centrado em (x, y − s/2). C = terras [cx, cy, R].
+      const C = [[640, 480, 300], [1260, 620, 260], [1340, 270, 120]], compass = { x: 330, y: 860, r: 70 }, waves = [], icons = [];
+      const onLand = (x, y) => C.some(([cx, cy, R]) => ((x - cx) / R) ** 2 + ((y - cy) / (.8 * R)) ** 2 < 1.4 ** 2);  // raio da costa ≤ 1,29 R
+      for (let i = 0; i < 400 && waves.length < 16; i++) { const x = 260 + 1400 * rnd(s, i + 11000), y = 160 + 760 * rnd(s, i + 11500); if (!onLand(x, y) && Math.hypot(x - compass.x, y - compass.y) > compass.r + 40) waves.push({ x, y: y + 4 * cyc(phase, 1, rnd(s, i + 12000)) }); }
+      const place = (n, k, s0, s1) => { const out = []; for (let i = 0; i < 300 && out.length < n; i++) {
+        const [cx, cy, R] = C[i % 3], a = TAU * rnd(s, k + i), r = .5 * R * Math.sqrt(rnd(s, k + 300 + i)), sz = lerp(s0, s1, rnd(s, k + 600 + i)), x = cx + r * Math.cos(a), y = cy + .8 * r * Math.sin(a) + sz / 2;
+        if ([...marks, ...icons].every(([mx, my]) => Math.hypot(x - mx, y - my) > 70)) { out.push({ x, y, s: sz }); icons.push([x, y]); }
+      } return out; };
+      const peaks = place(3 + Math.floor(4 * rnd(s, 12400)), 12500, 40, 64), woods = place(3 + Math.floor(6 * rnd(s, 12401)), 13500, 30, 44);
+      return { kit: { sky: { stars: [], celestial: null, clouds: [] }, layers: [], interior: null, map: { paper: { x: 200, y: 100, w: 1520, h: 880 }, coasts: C.map(([cx, cy, R], j) => land(cx, cy, R, j + 1)), route, marks: marks.map(([x, y]) => ({ x, y })),
+        waves, compass, peaks, woods, border: true },
         weather: { kind: 'clear', drops: [], fog: 0 }, lights: [] }, ground: g, cam: camOf(p, phase), spots: [] };
     } },
   };

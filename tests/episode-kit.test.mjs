@@ -90,3 +90,23 @@ test('kit.time carries the time param (interior mood is "interior", the window n
     assert.equal(k.time, time); assert.equal(k.mood, scene === 'interior-vela' ? 'interior' : time);
   }
 });
+
+test('every exterior scene has a foreground that keeps actor spots clear', () => {
+  for (const id of ['campo', 'ceu-noturno', 'floresta', 'mar', 'deserto', 'cidade-antiga']) {
+    const F = kitFrame({ scene: id, params: P }, 1, 12), fg = F.world.kit.layers.filter(l => l.kind === 'props' && l.f >= .7).flatMap(l => l.items);
+    assert.ok(fg.length >= 2, id);
+    const spots = KIT_SCENES[id].build(P, 0, 12).spots.map(sp => sp.x);
+    for (const it of fg) for (const x of spots) assert.ok(Math.abs((it.x ?? (it.x0 + it.x1) / 2) - x) > 120 || it.kind === 'tuft', `${id}: ${it.kind} sobre o ator`);
+  }
+});
+test('night sky is composed: near trees, a lit house, sky about 60% of height', () => {
+  const k = kitFrame({ scene: 'ceu-noturno', params: P }, 1, 12).world.kit;
+  assert.ok(k.layers.some(l => l.kind === 'treeline' && l.f >= .7));
+  assert.ok(k.layers.some(l => l.kind === 'buildings' && l.items.some(b => b.windows.some(w => w.lit > .5))));
+  const horizon = Math.min(...[0, 480, 960, 1440, 1920].map(x => k.layers.find(l => l.kind === 'ridge').prof(x)));
+  assert.ok(horizon > .5 * 1080 && horizon < .7 * 1080);
+});
+test('map carries waves, compass, peaks and woods', () => {
+  const M = kitFrame({ scene: 'mapa', params: { ...P, extras: ['route'] } }, 1, 12).world.kit.map;
+  assert.ok(M.waves.length >= 12 && M.compass.r > 0 && M.peaks.length >= 3 && M.woods.length >= 3 && M.border === true);
+});

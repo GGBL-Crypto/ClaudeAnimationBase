@@ -47,16 +47,27 @@ kit = {
     {kind: 'treeline', f, trees: [{x, y, h, kind: 'pine'|'broad'|'palm', seed}]},
     {kind: 'buildings', f, items: [{x, y, w, h, roof: 'flat'|'gable'|'dome'|'temple'|'tower', windows: [{x, y, w, h, lit}]}]},
     {kind: 'sea', f, y, waves: [{x, y, len, k}]}, {kind: 'ground', f, prof, surface: 'grass'|'sand'|'stone'|'snow'},
-    {kind: 'props', f, items: [{kind: 'ship'|'camel'|'column'|'fire'|'rock', x, y, s, k, seed}]} ],
+    {kind: 'props', f, items: [{kind: 'ship'|'camel'|'column'|'fire'|'rock', x, y, s, k, seed}
+      | {kind: 'fence', x0, x1, y, h} | {kind: 'bush', x, y, s, seed} | {kind: 'post', x, y, h} | {kind: 'cart', x, y, s} | {kind: 'boat', x, y, s} | {kind: 'tuft', x, y, s, seed}]} ],
   interior: { wall: {y0, y1}, window: {x, y, w, h}, floorY, props: [{kind: 'table'|'candle'|'book'|'scroll'|'chair'|'shelf', x, y, s, w?, dir?, flame?: {h, flick}}] } | null,
-  map: { paper: {x, y, w, h}, coasts: [[[x, y], ...]], route: {pts: [[x, y], ...], k} | null, marks: [{x, y}] } | null,
+  map: { paper: {x, y, w, h}, coasts: [[[x, y], ...]], route: {pts: [[x, y], ...], k} | null, marks: [{x, y}],
+         waves: [{x, y}], compass: {x, y, r}, peaks: [{x, y, s}], woods: [{x, y, s}], border: true } | null,
   weather: { kind: 'clear'|'rain'|'snow'|'fog', drops: [{x, y, k}], fog },
-  lights: [{x, y, r, k, f}]  // janelas, vela, fogueira, vaga-lumes, farol; k = intensidade 0..1; f = camada do que ilumina
+  lights: [{x, y, r, k, f}]  // janelas, vela, fogueira, vaga-lumes, farol, postes; k = intensidade 0..1; f = camada do que ilumina
 }
 ```
 
 - Mundo em px de 1920×1080, y para baixo, câmera como acima. O céu não tem paralaxe (f = 0); as camadas usam a câmera do seu f. `wide`: cx = 960 + balanço de até 8 px, cy = 540, z = 1 (o ator em `at` fica em x = at · 1920 na tela). `mid`: cy = 610, z = 1,35.
 - Prédio: x = meio da base, y = base, h até o beiral (o telhado vai acima). Janela: canto de cima à esquerda; `lit` 0..1 (0 = apagada; tremula). Prop de camada e de interior: x = meio, y = base, s = altura (cadeira: altura do assento; mesa: do tampo; livro e rolo: largura), `k` = 0..1 do movimento próprio, contínuo na emenda (balanço do barco, cabeça do camelo, tremor do fogo). A cadeira tem `dir` (para onde olha quem senta; o encosto fica atrás). `fire` e `candle` acompanham uma luz em `lights`.
+- Primeiro plano: toda cena de exterior tem uma camada `props` de f = 1 (depois do chão), escolhida pela semente e sem `extras`. Fica fora de `spots` ± 120 px (a área inteira do adereço, não só o meio), exceto `tuft`, espalhado pela largura toda. `campo`: cerca e tufos; `ceu-noturno`: cerca e tufos (mais a cena composta abaixo); `floresta`: um arbusto por faixa livre (nenhum na faixa da fogueira) e tufos; `mar`: barco na areia numa borda e `rock` nas outras faixas; `deserto`: `rock` e tufos; `cidade-antiga`: dois postes nas bordas e a carroça. `interior-vela` e `mapa` não têm. Nenhum adereço novo se move.
+  - `fence`: de x0 a x1, y = base, h = altura dos mourões (80); travessas e mourões ficam com o estilo.
+  - `bush`: x = meio, y = base, s = altura (70 a 110), largura ~1,6·s.
+  - `post`: poste com lanterna; x = meio, y = base, h = altura até a base da lanterna (200), lanterna em (x, y − h) e acima. Aceso quando `kit.time` é `dusk` ou `night`: há então uma luz em `lights` em (x, y − h), f = 1.
+  - `cart`: carroça; x = meio, y = base (rodas no chão), s = altura (70), largura ~2·s com o varal.
+  - `boat`: barco a remo na areia; x = meio, y = base, s = comprimento do casco (160), altura ~.3·s.
+  - `tuft`: tufo de capim ou flor; x = meio, y = base, s = altura (8 a 22). A cor segue o `surface` do chão (`sand` = seco, `snow` = sob neve).
+- `ceu-noturno` composto: ridge longe (f = .3) com o horizonte a ~60% da altura (y ≈ 600 a 650), ridge perto (f = .7) com pinheiros (`treeline` f = .7) nas duas bordas e uma casa (`buildings` f = .7, telhado `gable`, 2 janelas, ao menos 1 acesa fora do dia, com luz em `lights`), na borda da cerca. As estrelas vão até y = 700.
+- Mapa: `border: true` pede a moldura dupla do pergaminho. `waves`: 16 marcas de onda no mar (fora das terras e da rosa), (x, y) = meio da marca, já oscilando ±4 px em y com 1 ciclo por loop. `compass`: rosa dos ventos de centro (x, y) e raio r, com o norte para cima, no canto livre de baixo à esquerda. `peaks` (3 a 6, montanha) e `woods` (3 a 8, mata ou árvore): dentro das terras, x = meio, y = base, s = altura do ícone; longe 70 px das cidades e entre si.
 - Meteoro: desenhe só com 0 < k < 1, a cabeça em lerp((x0, y0), (x1, y1), k). Rota do mapa: desenhe a fração k do comprimento. No interior, céu e clima seguem a janela: câmera de f = 1 (não f = 0) e recorte pelo retângulo `interior.window`. O mapa não tem céu, clima nem atores.
 - Nuvens balançam no lugar: x = x0 + até 40 px · sen(2πφ + fase da nuvem); não dão a volta no quadro.
 - `fog` 0..1: névoa (clima `fog`) ou neblina baixa (extra `mist`). Gotas e flocos: a posição já se move; a chuva cai na vertical (o estilo escolhe o traço).
