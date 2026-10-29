@@ -163,3 +163,12 @@ Limites: revisão de imagens estáticas selecionadas e leitura de código, sem r
 - Painel de dois canais: Análise (padrões de título, duração, publicação em UTC, "histórico começa em…") e Concorrentes (canais parecidos, com palavras e tópicos em comum que fazem sentido, e a data da coleta).
 - Resumo pelo Claude: gerado de verdade pelo `claude -p` no canal Small Hours Documentary. Com um `claude` falso e títulos hostis em teste, o texto aparece como texto, sem executar nada; sem `claude`, a tela mostra "claude não encontrado no PATH" e o prompt para copiar.
 - Coleções e Favoritos: coleção criada com 1 canal e 1 vídeo, nota do vídeo mantida após recarregar, "Só favoritos" filtra 1 canal. Histórico: Refazer mostra "sem custo (cache)" e registra 0 unidades (medidor parado em 488).
+
+## 28/10/2026 — webapp fase 3 (monitoramento, concorrentes e nichos)
+
+- `npm test`: 253/253. Aceite com dados reais da YouTube Data API v3 e a `data/` real, pelo servidor (`startAppServer`) dirigido por script. `git status --porcelain data/` vazio; `git grep AIzaSy` só acha o texto do próprio plano (sem chave).
+- Monitoramento: 5 canais seguidos, "Atualizar agora" previu 11 unidades e gastou 10 (o medidor foi de 488 para 498; o teto inclui um pedido que não aconteceu). Os 5 ficaram com `lastRun`, linha de base, 0 alertas. Segunda atualização: mais 10 unidades (498 para 508, `fresh` gasta cota de novo), 0 alertas, nenhum duplicado.
+- Reinício do app: o `tick` da partida devolveu `recent` e não rodou de novo. O Histórico tem as 2 entradas `monitor` (5 ok, 0 falhas, 10 unidades cada).
+- Concorrentes: 3 canais marcados e a rota devolveu as 3 linhas. Nenhum vídeo dos últimos 30 dias (a base é antiga). O comparativo lado a lado não foi conferido canal a canal contra o painel nesta rodada; só no navegador com dados falsos (tasks 9).
+- Nichos: 4 nichos em 91 canais (3 automáticos de 44, 28 e 2 canais, mais "Sem grupo" com 17), vizinhos com palavras em comum (history, sleep, documentary), sem `NaN`, 1,5 s para montar. "Sugerir subnichos" gerou de verdade pelo `claude -p` 8 subnichos com exemplos em molde (`[lugar]`, `[número]`), em 27 s.
+- Não conferido: a tela no navegador com os dados reais (as telas foram verificadas com Playwright e dados falsos); alertas de vídeo novo e outlier com dados reais (a base ainda é linha de base).
