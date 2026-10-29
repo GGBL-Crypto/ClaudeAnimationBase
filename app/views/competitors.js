@@ -56,7 +56,7 @@ export async function render(root) {
       v.thumb ? h('img', { src: v.thumb, alt: '', class: 'thumb', loading: 'lazy', referrerpolicy: 'no-referrer' }) : h('span', { class: 'thumb' }),
       h('div', {}, h('a', { href: 'https://www.youtube.com/watch?v=' + encodeURIComponent(v.id), target: '_blank', rel: 'noopener noreferrer' }, v.title ?? v.id),
         h('div', { class: 'dim' }, `${v.channelTitle ?? v.channelId} · publicado ${fmt.ago(v.publishedAt)}`),
-        h('div', {}, `${fmt.num(v.views)} views · ${fmt.num(v.viewsPerDay)}/dia · ${mult(v.multiple)}`)))));
+        h('div', {}, `${fmt.num(v.views)} views · ${fmt.num(v.viewsPerDay)}/dia · ${mult(v.multiple)} · dados de ${fmt.date(v.capturedAt)}`)))));
   }
 
   function draw(rows, videos) {

@@ -30,10 +30,10 @@ const when = iso => fmt.date(iso) === '—' ? '—' : new Date(iso).toLocaleStri
 const stat = (k, v) => h('div', {}, h('dt', {}, k), h('dd', {}, v));
 
 // Alterna Seguir/Concorrente (POST /watch) com o estado devolvido pelo servidor.
-function watchBtn(c, field, off, on, msg) {
+function watchBtn(c, field, off, on, msg, changed) {
   const btn = h('button', { type: 'button', class: c.watch?.[field] ? 'on' : null, onClick: async () => {
     btn.disabled = true;
-    try { c.watch = await api.post(`/api/channels/${enc(c.id)}/watch`, { [field]: !c.watch?.[field] }); btn.classList.toggle('on', c.watch[field]); btn.textContent = c.watch[field] ? on : off; msg.className = 'status'; msg.textContent = ''; }
+    try { c.watch = await api.post(`/api/channels/${enc(c.id)}/watch`, { [field]: !c.watch?.[field] }); btn.classList.toggle('on', c.watch[field]); btn.textContent = c.watch[field] ? on : off; msg.className = 'status'; msg.textContent = ''; changed(); }
     catch (e) { msg.className = 'status err'; msg.textContent = e.message; }
     finally { btn.disabled = false; }
   } }, c.watch?.[field] ? on : off);
@@ -124,7 +124,7 @@ function draw(panel, c, weights, tab = 'o') {
         h('a', { href: 'https://www.youtube.com/channel/' + enc(c.id), rel: 'noopener noreferrer', target: '_blank' }, 'Visitar canal')),
       closeBtn(panel)),
     h('div', { class: 'row' }, refresh, tag, face, h('button', { type: 'button', onClick: saveTag }, 'Salvar etiqueta')),
-    h('div', { class: 'row' }, star, collectButton('channel', c.id), watchBtn(c, 'monitor', 'Seguir', 'Seguindo', msg), watchBtn(c, 'competitor', 'Concorrente', 'É concorrente', msg), soon('Modelar')),
+    h('div', { class: 'row' }, star, collectButton('channel', c.id), watchBtn(c, 'monitor', 'Seguir', 'Seguindo', msg, changed), watchBtn(c, 'competitor', 'Concorrente', 'É concorrente', msg, changed), soon('Modelar')),
     msg, tabs, body);
   pick(tab);
 }

@@ -36,7 +36,7 @@ export async function render(root) {
     } catch (err) { busy = false; status.className = 'err'; status.textContent = err.message; }
   }
 
-  const searches = hist.entries.filter(e => ['mine', 'videos', 'import', 'refresh'].includes(e.kind)).map(e => {
+  const searches = hist.entries.filter(e => ['mine', 'videos', 'import', 'refresh', 'monitor'].includes(e.kind)).map(e => {
     const p = e.payload ?? {}, redoable = e.kind === 'mine' || e.kind === 'videos';
     return h('li', {}, describeEntry(e),
       e.kind === 'videos' && p.filters && Object.keys(p.filters).length ? h('small', { class: 'dim' }, ' [' + Object.entries(p.filters).map(([k, v]) => `${k}=${v}`).join(', ') + ']') : null,
