@@ -144,7 +144,8 @@ export function openDb(file) {
     alerts: (limit = 50) => s.alertAll.all(limit).map(r => ({ id: r.id, at: r.at, kind: r.kind, channelId: r.channel_id, channelTitle: r.channel_title, videoId: r.video_id, payload: p(r.payload), seen: !!r.seen })),
     unseenAlerts: () => s.alertUnseen.get().u,
     markAlertsSeen(ids) { if (ids === 'all') raw.exec('UPDATE alerts SET seen=1'); else for (const id of ids) s.alertSeen.run(id); },
-    lastHistoryOf(kind) { const r = s.histOf.get(kind); return r ? { at: r.at, kind: r.kind, payload: p(r.payload) } : null; },
+    // statuses opcional: só entradas cujo payload.status está na lista
+    lastHistoryOf(kind, statuses) { const r = statuses ? q(`SELECT at,kind,payload FROM history WHERE kind=? AND json_extract(payload,'$.status') IN (${statuses.map(() => '?')}) ORDER BY rowid DESC LIMIT 1`).get(kind, ...statuses) : s.histOf.get(kind); return r ? { at: r.at, kind: r.kind, payload: p(r.payload) } : null; },
     close: () => raw.close(),
   };
 }

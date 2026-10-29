@@ -7,11 +7,11 @@ const DAY = 864e5;
 export const estimateMonitor = n => n ? Math.ceil(n / 50) + 2 * n : 0;
 
 export function detectAlerts({ channelId, at, now, cfg, before, after }) {
-  const out = [], seen = new Set(before.videoIds), mk = (kind, ref, payload) => out.push({ channelId, at, kind, ref, payload });
+  const out = [], seen = new Set(before.videoIds), mk = (kind, ref, payload, videoId = null) => out.push({ channelId, at, kind, ref, videoId, payload });
   for (const v of after.videos) {
     const age = now - Date.parse(v.publishedAt);
-    if (!seen.has(v.id) && age <= 7 * DAY) mk('newVideo', v.id, { title: v.title });
-    if (age <= 30 * DAY && v.multiple >= cfg.outlierMin) mk('outlier', v.id, { title: v.title, multiple: v.multiple });
+    if (!seen.has(v.id) && age <= 7 * DAY) mk('newVideo', v.id, { title: v.title }, v.id);
+    if (age <= 30 * DAY && v.multiple >= cfg.outlierMin) mk('outlier', v.id, { title: v.title, multiple: v.multiple }, v.id);
   }
   const from = before.subs, to = after.subs;
   if (from > 0 && to != null && to - from >= 100 && (to - from) * 100 >= from * cfg.subsJumpPct) mk('subsJump', `${channelId}@${at}`, { from, to, pct: Math.round((to - from) * 100 / from) });

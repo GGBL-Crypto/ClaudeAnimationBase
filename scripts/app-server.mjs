@@ -68,7 +68,7 @@ const colId = m => /^\d{1,9}$/.test(m[1]) ? Number(m[1]) : no('Coleção inváli
 const colName = x => text(x, 60) ? x.trim() : no('Nome inválido (1 a 60 caracteres)');
 const item = (kind, id) => Object.hasOwn(ITEM, kind) && typeof id === 'string' && ITEM[kind].test(id) ? { kind, id } : no('Item inválido');
 // Id de nicho por query ou corpo: solo, c:<canal> ou tag:<etiqueta>.
-const NICHE = /^(solo|c:UC[A-Za-z0-9_-]{22}|tag:[^]{1,60})$/, DAY = 864e5;
+const NICHE = /^(solo|c:UC[A-Za-z0-9_-]{22}|tag:[^]{1,60})$/, DAY = 864e5, RAN = ['done', 'skipped']; // monitor que conta para a regra de 24 h; erro não conta
 
 export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app', fetch, now = Date.now, claude = prompt => runClaude(prompt).then(validateSummary), subniches = prompt => runClaude(prompt).then(validateSubniches), monitorEveryMs = 3600e3 } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Porta inválida');
@@ -92,10 +92,11 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
   const followed = () => db.watchList().filter(w => w.monitor);
   const monitorJob = (count, auto) => job('monitor', (yt, report, t) => runMonitor(yt, db, cfg(), report, t, now()), { fresh: true, log: { count, auto } });
   // Checagem automática: o histórico (feito ou pulado) marca a última vez; job do monitor na fila conta como recente.
+  const monitorBusy = () => jobs.list().some(j => j.kind === 'monitor' && (j.status === 'queued' || j.status === 'running'));
   const tick = async () => {
     const c = cfg(), t = now(), count = followed().length, estimate = estimateMonitor(count), remaining = c.quotaLimit - db.quotaUsed(quotaDay(t));
-    const d = autoRunDecision({ auto: c.monitorAuto, monitored: count, lastAt: db.lastHistoryOf('monitor')?.at ?? null, now: t, remaining, estimate });
-    if (d === 'run' && jobs.list().some(j => j.kind === 'monitor' && (j.status === 'queued' || j.status === 'running'))) return 'recent';
+    const d = autoRunDecision({ auto: c.monitorAuto, monitored: count, lastAt: db.lastHistoryOf('monitor', RAN)?.at ?? null, now: t, remaining, estimate });
+    if (d === 'run' && monitorBusy()) return 'recent';
     if (d === 'run') monitorJob(count, true);
     if (d === 'quota') db.addHistory('monitor', { status: 'skipped', reason: 'quota', auto: true, estimate, remaining });
     return d;
@@ -179,7 +180,7 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
       const id = chId(m), { tag = null, faceless = null } = await readJson(req);
       if (tag !== null && (typeof tag !== 'string' || tag.length > 60) || faceless !== null && typeof faceless !== 'boolean') throw fail(400, 'Etiqueta inválida');
       channel(id); db.setChannelTag(id, { tag: tag?.trim() || null, faceless });
-      return channel(id);
+      return { ...channel(id), watch: db.watch(id) };
     }],
     // Coleções: tipo, id e existência conferidos aqui (o banco lançaria em CHECK/FK, e aceitaria id fora da base).
     ['GET', /^\/api\/collections$/, () => db.collections()],
@@ -206,11 +207,12 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
     ['GET', /^\/api\/history$/, () => ({ entries: db.history(200), jobs: db.jobsList(50) })],
     // Fase 3: monitoramento, alertas, concorrentes e nichos.
     ['GET', /^\/api\/monitor$/, () => {
-      const t = now(), c = cfg(), list = followed(), lastAt = db.lastHistoryOf('monitor')?.at ?? null;
-      return { channels: list.map(w => ({ ...chRow(w.channelId, t, c), lastRun: w.lastRun })), lastAt, nextAt: lastAt && new Date(Date.parse(lastAt) + DAY).toISOString(), auto: c.monitorAuto, estimate: estimateMonitor(list.length) };
+      const t = now(), c = cfg(), list = followed(), lastAt = db.lastHistoryOf('monitor', ['done'])?.at ?? null, ranAt = db.lastHistoryOf('monitor', RAN)?.at ?? null;
+      return { channels: list.map(w => ({ ...chRow(w.channelId, t, c), lastRun: w.lastRun })), lastAt, nextAt: ranAt && new Date(Date.parse(ranAt) + DAY).toISOString(), auto: c.monitorAuto, estimate: estimateMonitor(list.length) };
     }],
     ['POST', /^\/api\/monitor\/run$/, () => {
       const count = followed().length; if (!count) no('Nenhum canal seguido');
+      if (monitorBusy()) throw fail(409, 'Monitoramento já em andamento');
       return { jobId: monitorJob(count, false), estimate: estimateMonitor(count) };
     }],
     ['GET', /^\/api\/alerts$/, (m, req, res, u) => {

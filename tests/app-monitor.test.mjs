@@ -14,6 +14,7 @@ test('new recent video and outlier alerts', () => {
   const videos = [{ id: 'new00000001', title: 'N', publishedAt: '2026-10-27T00:00:00Z', multiple: 3 }, { id: 'old00000001', title: 'O', publishedAt: '2026-09-01T00:00:00Z', multiple: 5 }];
   const a = detectAlerts({ channelId: 'UC1', at: 'T', now, cfg, before: { videoIds: ['old00000001'], subs: 1000 }, after: { subs: 1000, videos } });
   assert.deepEqual(a.map(x => [x.kind, x.ref]), [['newVideo', 'new00000001'], ['outlier', 'new00000001']]);
+  assert.deepEqual(a.map(x => x.videoId), ['new00000001', 'new00000001']);
 });
 test('new but old video is not alerted', () => {
   const v = [{ id: 'late0000001', title: 'L', publishedAt: '2026-10-01T00:00:00Z', multiple: 1 }];

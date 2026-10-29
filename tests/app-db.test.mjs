@@ -105,3 +105,8 @@ test('alerts order newest first, payload round-trips, mark seen by ids', () => {
   db.markAlertsSeen([l[0].id]); assert.equal(db.unseenAlerts(), 1); assert.equal(db.alerts().find(x => x.id === l[0].id).seen, true);
   db.markAlertsSeen([]); assert.equal(db.unseenAlerts(), 1);
 });
+test('lastHistoryOf filters by payload status', () => {
+  const db = openDb(':memory:'); db.addHistory('monitor', { status: 'done', n: 1 }); db.addHistory('monitor', { status: 'error' });
+  assert.equal(db.lastHistoryOf('monitor').payload.status, 'error'); assert.equal(db.lastHistoryOf('monitor', ['done', 'skipped']).payload.n, 1);
+  assert.equal(db.lastHistoryOf('monitor', ['skipped']), null); assert.equal(db.lastHistoryOf('mine', ['done']), null);
+});

@@ -103,7 +103,7 @@ test('mine job streams progress and end, then channels list shows rows', async (
 test('channel detail, tag and refresh', async () => {
   const c = JSON.parse((await get(`/api/channels/${C1}`)).body); assert.equal(c.title, 'Fixture One'); assert.ok(Array.isArray(c.snapshots));
   assert.equal((await get('/api/channels/UCzzzzzzzzzzzzzzzzzzzzzz')).status, 404);
-  const t = JSON.parse((await post(`/api/channels/${C1}/tag`, { tag: 'curiosidades', faceless: true }, ok)).body); assert.equal(t.tag, 'curiosidades'); assert.equal(t.faceless, true);
+  const t = JSON.parse((await post(`/api/channels/${C1}/tag`, { tag: 'curiosidades', faceless: true }, ok)).body); assert.equal(t.tag, 'curiosidades'); assert.equal(t.faceless, true); assert.deepEqual(Object.keys(t.watch).sort(), ['competitor', 'lastRun', 'monitor', 'since']);
   assert.equal((await post(`/api/channels/${C1}/tag`, { tag: 5 }, ok)).status, 400);
   const n = calls.length;
   const { jobId } = JSON.parse((await post(`/api/channels/${C1}/refresh`, {}, ok)).body);
@@ -241,7 +241,7 @@ test('monitor run streams end and alerts endpoint answers', async () => {
   const m = JSON.parse((await get('/api/monitor')).body); assert.equal(Date.parse(m.nextAt) - Date.parse(m.lastAt), 864e5); assert.equal(m.channels[0].lastRun, '2026-10-27T12:00:00.000Z');
   const h = JSON.parse((await get('/api/history')).body).entries.find(e => e.kind === 'monitor'); assert.deepEqual([h.payload.count, h.payload.auto, h.payload.status], [1, false, 'done']);
   const a = JSON.parse((await get('/api/alerts')).body); assert.equal(typeof a.unseen, 'number'); assert.ok(a.unseen >= 1);
-  const o = a.alerts.find(x => x.kind === 'outlier'); assert.equal(o.payload.title, 'Sleep facts one'); assert.equal(o.channelTitle, 'Fixture One');
+  const o = a.alerts.find(x => x.kind === 'outlier'); assert.equal(o.payload.title, 'Sleep facts one'); assert.equal(o.channelTitle, 'Fixture One');  assert.equal(o.videoId, 'vidfixture1');
   assert.equal(JSON.parse((await post('/api/alerts/seen', { ids: [o.id] }, ok)).body).unseen, a.unseen - 1);
   assert.equal(JSON.parse((await post('/api/alerts/seen', { all: true }, ok)).body).unseen, 0);
   for (const b of [{}, { all: false }, { ids: '1' }, { ids: [1.5] }, { ids: ['1'] }, { ids: [null] }]) assert.equal((await post('/api/alerts/seen', b, ok)).status, 400, JSON.stringify(b));
@@ -278,6 +278,23 @@ test('tick: runs once, then recent; quota skip is logged once', async () => {
     assert.equal(n, 0);
     await post('/api/config', { monitorAuto: false }, q.a); assert.equal(await q.sv.tick(), 'off');
   } finally { await q.done(); }
+});
+test('failed monitor run does not block auto; skipped counts but is not lastAt', async () => {
+  const q = await watched(9999);
+  try {
+    const { jobId } = JSON.parse((await post('/api/monitor/run', {}, q.a)).body); // sem cota: job termina em erro
+    assert.equal((await readSse(`/api/jobs/${jobId}/events`, q.sv)).at(-1).data.status, 'error');
+    assert.equal(await q.sv.tick(), 'quota'); // erro não conta como recente
+    const m = JSON.parse((await get('/api/monitor', {}, q.sv)).body); assert.equal(m.lastAt, null); assert.ok(m.nextAt); // skip dá o próximo, não a última
+    assert.equal(await q.sv.tick(), 'recent');
+  } finally { await q.done(); }
+});
+test('monitor run refuses while one is queued or running', async () => {
+  const w = await watched(0, () => new Promise(() => {}));
+  try {
+    assert.equal((await post('/api/monitor/run', {}, w.a)).status, 200);
+    const r = await post('/api/monitor/run', {}, w.a); assert.equal(r.status, 409); assert.deepEqual(JSON.parse(r.body), { error: 'Monitoramento já em andamento' });
+  } finally { await w.done(); }
 });
 test('niches routes', async () => {
   const n = JSON.parse((await get('/api/niches')).body); assert.ok(Array.isArray(n.niches)); assert.ok(n.niches.some(x => x.id === 'tag:curiosidades'));
