@@ -16,7 +16,7 @@ import { runClaude, runClaudeImages, validateSummary, summaryPrompt, validateSub
 import { estimateMonitor, autoRunDecision, runMonitor } from './app/monitor.mjs';
 import { buildNiches } from './app/niches.mjs';
 import { subtopics, modelPrompt, validateModel, modelViews } from './app/modeling.mjs';
-import { EPISODE_STYLES, VOICES, validateProfile, profileFromConcept } from './app/profiles.mjs';
+import { EPISODE_STYLES, styleNames, VOICES, validateProfile, profileFromConcept } from './app/profiles.mjs';
 import { fetchThumbs } from './app/thumbs.mjs';
 import { sampleVoice } from './app/voice.mjs';
 
@@ -320,6 +320,7 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
       const uniq = [...new Set(ids)], rows = uniq.map(id => chRow(id, t, c) ?? no('Canal fora da base: ' + id)); // antes de gravar: o banco lançaria em FK
       db.setMyCompetitors(n, uniq); return { competitors: rows };
     }],
+    ['GET', /^\/api\/styles$/, () => styleNames()],
     ['GET', /^\/api\/voices$/, () => ({ voices: VOICES, wpm: cfg().voiceWpm })],
     ['POST', /^\/api\/voices\/sample$/, async (m, req) => {
       const { voice, speed, lang } = await readJson(req);

@@ -4,7 +4,6 @@ import { api } from '../api.js';
 import { avatar, subsText } from './channel.js';
 
 const enc = encodeURIComponent;
-const STYLES = [['flat', 'Flat'], ['watercolor', 'Aquarela']]; // espelha EPISODE_STYLES do servidor
 const LANGS = [['pt', 'Português'], ['en', 'Inglês']];
 const BLANK = { name: '', tag: '', lang: 'pt', style: 'flat', speed: 1, targetMin: 30, toleranceMin: 3, titleTemplates: [], descriptionTemplate: '' };
 const short = v => String(v ?? '').replace(/^kokoro:/, '');
@@ -16,12 +15,12 @@ export async function render(root, params) {
   try {
     const id = params.get('id'), novo = params.get('novo');
     if (id == null && novo == null) return await list(root);
-    const { voices } = await api.get('/api/voices');
+    const [{ voices }, styles] = await Promise.all([api.get('/api/voices'), api.get('/api/styles')]);
     let p;
     if (id != null) p = await api.get('/api/mychannels/' + enc(id));
     else if (/^\d+:[012]$/.test(novo)) { const [m, i] = novo.split(':'); p = await api.get(`/api/models/${m}/profile/${i}`); }
     else p = { ...BLANK, voice: 'kokoro:' + voices.pt[0] };
-    if (root.isConnected) form(root, p, voices, id != null);
+    if (root.isConnected) form(root, p, voices, id != null, styles);
   } catch (e) { if (root.isConnected) root.append(h('p', { class: 'err' }, e.message)); }
 }
 
@@ -40,11 +39,11 @@ async function list(root) {
       h('a', { href: '#/meus?id=' + enc(r.id) }, 'Editar')))) : h('p', { class: 'empty' }, 'Nenhum canal ainda. Crie um do zero ou a partir de uma modelagem.'));
 }
 
-function form(root, p, voices, saved) {
+function form(root, p, voices, saved, styles) {
   const id = saved ? p.id : null;
   const status = h('p', { class: 'status' });
   const name = h('input', { type: 'text', maxlength: '60', value: p.name ?? '' }), tag = h('input', { type: 'text', maxlength: '40', value: p.tag ?? '' });
-  const lang = h('select', {}, LANGS.map(([v, t]) => h('option', { value: v }, t))), style = h('select', {}, STYLES.map(([v, t]) => h('option', { value: v }, t)));
+  const lang = h('select', {}, LANGS.map(([v, t]) => h('option', { value: v }, t))), style = h('select', {}, styles.map(s => h('option', { value: s.id }, s.name)));
   const voice = h('select', {});
   lang.value = p.lang; style.value = p.style;
   const fillVoices = keep => {

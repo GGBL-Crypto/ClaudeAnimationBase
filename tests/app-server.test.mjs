@@ -406,7 +406,7 @@ test('my channels CRUD with validation and competitors filter', async () => {
   const p = { name: 'Roma à Noite', lang: 'pt', style: 'flat', voice: 'kokoro:pm_alex' };
   const c = JSON.parse((await post('/api/mychannels', p, ok)).body); assert.equal(c.targetMin, 30); assert.deepEqual(c.titleTemplates, []); assert.deepEqual(c.competitors, []);
   assert.equal((await post('/api/mychannels', { ...p, name: 'roma à noite' }, ok)).status, 409);
-  assert.equal((await post('/api/mychannels', { ...p, style: 'pixel' }, ok)).status, 400);
+  assert.equal((await post('/api/mychannels', { ...p, style: 'stick' }, ok)).status, 400);
   for (const b of [{ ...p, name: 'x', lang: 'es' }, { ...p, name: 'x', voice: 'kokoro:af_heart' }, { ...p, name: 'x', targetMin: 5 }, { ...p, name: 'x', modelId: 999999 }, { lang: 'pt' }]) assert.equal((await post('/api/mychannels', b, ok)).status, 400, JSON.stringify(b));
   assert.equal((await post(`/api/mychannels/${c.id}/competitors`, { ids: [CH] }, ok)).status, 200);
   assert.deepEqual(JSON.parse((await get('/api/competitors?my=' + c.id)).body).rows.map(r => r.id), [CH]);
@@ -421,6 +421,11 @@ test('my channels CRUD with validation and competitors filter', async () => {
   assert.equal((await get('/api/mychannels/abc')).status, 400); assert.equal((await post('/api/mychannels/999999', p, ok)).status, 404);
   assert.equal((await get('/api/competitors?my=999999')).status, 404); assert.equal((await get('/api/competitors?my=x')).status, 400);
   assert.deepEqual(JSON.parse((await get('/api/competitors')).body).rows.map(r => r.id), [CH]); // sem my: todos
+});
+test('GET /api/styles lists video styles with names', async () => {
+  const r = await get('/api/styles'); assert.equal(r.status, 200); assert.equal(r.headers['x-content-type-options'], 'nosniff');
+  const rows = JSON.parse(r.body); assert.deepEqual(rows.map((s) => s.id), ['flat', 'pixel', 'watercolor']); assert.ok(rows.every((s) => s.name));
+  assert.equal((await get('/api/styles', { Host: 'evil.test' })).status, 403);
 });
 test('voice sample saves wpm and serves wav', async () => {
   const r = JSON.parse((await post('/api/voices/sample', { voice: 'kokoro:pm_alex', speed: 1, lang: 'pt' }, ok)).body);

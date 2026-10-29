@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EPISODE_STYLES, VOICES, PROFILE_DEFAULTS, validateProfile, profileFromConcept } from '../scripts/app/profiles.mjs';
+import { EPISODE_STYLES, styleNames, VOICES, PROFILE_DEFAULTS, validateProfile, profileFromConcept } from '../scripts/app/profiles.mjs';
 
 const base = { name: 'Roma à Noite', lang: 'pt', style: 'flat', voice: 'kokoro:pm_alex' };
 
 test('constants', () => {
-  assert.deepEqual(EPISODE_STYLES, ['flat', 'watercolor']);
+  assert.deepEqual(EPISODE_STYLES, ['flat', 'pixel', 'watercolor']);
+  assert.deepEqual(styleNames().map((s) => s.id), EPISODE_STYLES); assert.ok(styleNames().every((s) => s.name));
   assert.deepEqual(VOICES.pt, ['pm_alex', 'pf_dora', 'pm_santa']);
   assert.equal(VOICES.en.length, 5);
   assert.deepEqual(PROFILE_DEFAULTS, { speed: 1, targetMin: 30, toleranceMin: 3, format: 'long-16:9', titleTemplates: [], descriptionTemplate: '' });
@@ -28,7 +29,7 @@ test('trims and keeps valid values; format is forced', () => {
 });
 
 test('invalid fields give field messages', () => {
-  const cases = [[{ lang: 'es' }, /pt ou en/], [{ lang: 'constructor' }, /pt ou en/], [{ style: 'pixel' }, /Estilo/], [{ voice: 'kokoro:af_heart' }, /Voz/], [{ targetMin: 5 }, /Duração/], [{ speed: 2 }, /Velocidade/], [{ name: ' ' }, /Nome/], [{ titleTemplates: Array(11).fill('x') }, /moldes/], [{ anchorId: '../x' }, /Âncora/],
+  const cases = [[{ lang: 'es' }, /pt ou en/], [{ lang: 'constructor' }, /pt ou en/], [{ style: 'stick' }, /Estilo/], [{ voice: 'kokoro:af_heart' }, /Voz/], [{ targetMin: 5 }, /Duração/], [{ speed: 2 }, /Velocidade/], [{ name: ' ' }, /Nome/], [{ titleTemplates: Array(11).fill('x') }, /moldes/], [{ anchorId: '../x' }, /Âncora/],
     [{ tag: 'x'.repeat(41) }, /Etiqueta/], [{ toleranceMin: 16 }, /Tolerância/], [{ targetMin: 30.5 }, /Duração/], [{ titleTemplates: ['x'.repeat(121)] }, /moldes/], [{ descriptionTemplate: 'x'.repeat(2001) }, /Descrição/], [{ speed: 'rápido' }, /Velocidade/]];
   for (const [patch, re] of cases) assert.throws(() => validateProfile({ ...base, ...patch }), (e) => re.test(e.message) && e.status === 400);
   assert.throws(() => validateProfile(null), (e) => e.status === 400);

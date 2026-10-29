@@ -1,5 +1,10 @@
 // Perfil de canal próprio: validação e perfil sugerido a partir de um conceito da modelagem.
-export const EPISODE_STYLES = ['flat', 'watercolor']; // fase 5 troca pela marca de capacidade dos estilos
+import { catalog } from '../render-lib.mjs';
+
+// Estilos de vídeo = os que declaram episodeScenes no config.js
+const withScenes = Object.values(catalog().styles).filter((s) => s.config?.episodeScenes?.length).sort((a, b) => (a.id < b.id ? -1 : 1));
+export const EPISODE_STYLES = withScenes.map((s) => s.id);
+export const styleNames = () => withScenes.map(({ id, name }) => ({ id, name }));
 export const VOICES = { pt: ['pm_alex', 'pf_dora', 'pm_santa'], en: ['af_heart', 'af_bella', 'am_michael', 'bf_emma', 'bm_george'] };
 export const PROFILE_DEFAULTS = { speed: 1, targetMin: 30, toleranceMin: 3, format: 'long-16:9', titleTemplates: [], descriptionTemplate: '' };
 
