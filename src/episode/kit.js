@@ -158,10 +158,18 @@ var { KIT_SCENES, kitFrame, castActor } = (() => {
 
   // Pessoa do elenco numa ação, sem desenho. at 0..1 → x = at · 1920 (o walk ignora at e atravessa a tela: começa fora em
   // φ = 0 e termina fora em φ = 1); t = tempo do loop (lt mod L). Respiração e piscada com período que divide L.
+  // s de pés juntos perto de s: fase do pé L em duty/2 (mesma semente e variação de passada que creaturePose usa).
+  function stillS(s, spec, seed) {
+    const g = GAITS[spec.gait], vary = { ...ORGANIC, ...spec.organic }.vary, h = g.duty / 2 - g.offsets.L;
+    return gaitDist(Math.round(gaitPhase(s, spec.stride, vary, seed + 501) - h) + h, spec.stride, vary, seed + 501);
+  }
   function castActor(member, action, at, dir, phase, L, ground, t) {
     const spec0 = humanSpec(member.body), size = HEIGHT[member.body], seed = [...member.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7);
     const X = action === 'walk' ? (dir > 0 ? lerp(-200, 2120, phase) : lerp(2120, -200, phase)) : at * 1920;
-    const path = makePath(dir > 0 ? [[-1200, 0], [3200, 0]] : [[3200, 0], [-1200, 0]]), s = (dir > 0 ? X + 1200 : 3200 - X) / size;
+    // Parado: a passada em s = X/size deixaria os pés abertos conforme o x. Uso o s mais próximo em que o pé L está no meio do apoio
+    // (âncora = s) e o R no meio do balanço (desce sob a raiz): pés juntos em qualquer at. O caminho começa onde esse s cai em X.
+    const s = action === 'walk' ? (dir > 0 ? X + 1200 : 3200 - X) / size : stillS((dir > 0 ? X + 1200 : 3200 - X) / size, spec0, seed);
+    const x0 = X - dir * s * size, path = makePath([[x0, 0], [x0 + dir * 4400, 0]]);
     // ponytail: o micro-ajuste da cabeça e o cabelo de creaturePose usam noise1(t) e não fecham em φ = 1 (salto de ~1 px no topo da cabeça
     // na emenda); para zerar, dar a creaturePose um tempo periódico (o.loop) em src/nature/creature.js.
     const Pb = 3 + hash(seed * 3.7 + 1), tp = phase * per(L, Pb) * Pb;  // creaturePose respira com período Pb: tp fecha o ciclo em φ = 1

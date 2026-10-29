@@ -59,6 +59,14 @@ test('actors stand on the ground at x = at * 1920, adult ~180 px, cast colors ke
   assert.ok(Math.abs(J.toeL[1] - F.world.ground(J.toeL[0])) < 1.5, 'pé no chão');
   assert.equal(F.cam.cy, 540); assert.equal(F.cam.z, 1); assert.ok(Math.abs(F.cam.cx - 960) <= 12);
 });
+// Parado, sem sobra da passada em x: tornozelos juntos (de pé natural ~0-5 px; a passada aberta dava até ~70 px) em qualquer at.
+test('standing actors keep their feet together at any at', () => {
+  for (const action of ['stand', 'point', 'look-up']) for (const body of ['adult', 'elder', 'child']) for (const dir of [1, -1]) for (const at of [.3, .5, .7]) {
+    const J = kitFrame({ scene: 'campo', params: P, cast: [{ id: 'viajante', body }], actors: [{ cast: 'viajante', action, at, dir }] }, 2, 12).actors[0].pose.joints;
+    assert.ok(Math.abs(J.ankleL[0] - J.ankleR[0]) < 12, `${action}/${body}/${dir}@${at}: ${Math.abs(J.ankleL[0] - J.ankleR[0]).toFixed(1)} px`);
+    assert.ok(Math.abs(J.pelvis[0] - at * 1920) < 2, `${action}@${at}: pelve em ${J.pelvis[0]}`);
+  }
+});
 test('sitters get a seat; the map has no actors; L outside 10..20 is refused', () => {
   const F = kitFrame({ scene: 'interior-vela', params: { ...P, extras: ['book'] }, cast: [{ id: 'a', body: 'elder' }], actors: [{ cast: 'a', action: 'read', at: .4, dir: 1 }] }, 0, 12);
   assert.equal(F.actors[0].seated, 1); assert.equal(F.actors[0].holds, 'book'); assert.ok(F.world.kit.interior.props.some(p => p.kind === 'chair'));
