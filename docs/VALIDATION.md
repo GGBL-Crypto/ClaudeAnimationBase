@@ -180,3 +180,13 @@ Limites: revisão de imagens estáticas selecionadas e leitura de código, sem r
 - Perfil a partir do conceito 1 (idioma `en` herdado do âncora, voz `kokoro:af_heart`). Amostras de voz pelo Kokoro: `pm_alex` 1,0 = 176 palavras por minuto (20,5 s), `af_heart` 1,0 = 153 (22,8 s); WAV servido com status 200 e gravado em `voiceWpm`. O pt ficou acima da faixa de 130 a 170 esperada no plano; a fase 6 usa o valor medido.
 - Concorrentes: 3 canais ligados ao perfil; `?my=<n>` devolve 3 linhas e "Todos" 6. O perfil de teste foi apagado depois; as marcas de concorrente ficaram na base.
 - Não conferido: as telas no navegador com os dados reais (Playwright/Chrome só com dados falsos, nas tasks 7 a 9); ouvir o áudio (só status, tamanho e wpm).
+
+## 29/10/2026 — webapp fase 5 (motor de episódio)
+
+- `npm test`: 367/367. `npm run test:visual`: PASS, 16 estilo×cena (smoke-kit em debug, flat, watercolor e pixel). `git status --porcelain data/ out/ src/episodes.js`: vazio.
+- Demo (`fixtures/episodes/demo`, 8 planos, 3 capítulos, 2 pessoas) por `node scripts/episode.mjs`, uma cópia por estilo em `out/tmp/demo-<estilo>/`. ffprobe nos 3: h264 1920×1080, 24 fps, 1883 quadros, 78,458 s (igual ao `timing.json`), AAC 48 kHz. `decoded-sheet.png` aberto nos 3: legenda com a palavra destacada, HUD nos planos s2, s5 e s7, etiqueta "Leitor" sobre o ator, as 8 cenas no idioma de cada estilo.
+- Tempo por etapa na primeira execução (s): pixel: loops 165, segmentos 12, montagem 10, verificação 13 (narração e mix já em cache). flat: narração 64, loops 187, segmentos 15, mix 19, montagem 12, verificação 17. watercolor: narração 57, loops 962, segmentos 14, mix 13, montagem 10, verificação 16. Segunda execução: 0 loops renderizados, mix e montagem pulados, cerca de 13 s (só a verificação).
+- Acervo: 8 loops de 12 s por estilo; pixel cerca de 6 MB, flat 6,7 MB, watercolor 29,5 MB. Vídeo da demo: pixel 7,4 MB, flat 7,5 MB, watercolor 19 MB.
+- Episódio longo em pixel (`out/tmp/long-pixel`, 18 capítulos, 48 planos, narração descritiva sem fatos, 3 696 palavras): 1536,4 s (25,6 min), 36 874 quadros, AAC, −14,2 LUFS e −1,8 dBTP, 119 MB. `verify` aprovado e `decoded-sheet.png` aberto. Etapas (s): narração 735, build 0,1, loops 0 (8 já no acervo), segmentos 45, mix 349, montagem 198, verificação 294; total 1621 s (27 min). Escalado para 30 min: cerca de 32 min.
+- Pixel × story de 28/10 (folha `out/check/story/compare.png`): céu pontilhado, estrelas e lua em faixas iguais ou melhores; luz de janelas e fogueira melhor; mais cenas e climas. Pior: a cena `ceu-noturno` é vazia perto da composição do story, e os bonecos são mais finos e menos icônicos que os de cabeça grande.
+- Não conferido: ouvir o áudio inteiro; o estúdio no navegador com o `ep-demo`.
