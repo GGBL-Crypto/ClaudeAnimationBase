@@ -128,11 +128,11 @@ a.chip { display: inline-block; background: var(--line); color: var(--fg); paddi
   .content { padding: 16px; }
 }
 /* Nichos */
-.card .row { margin-bottom: 0; justify-content: space-between; }
-.card .strong { font-weight: 600; color: var(--fg); overflow-wrap: anywhere; }
-.card p { margin: 0; }
-.card .words { margin: 0; }
-.card ul { margin: 0; padding-left: 18px; overflow-wrap: anywhere; }
+.card.niche .row { margin-bottom: 0; justify-content: space-between; }
+.card.niche .strong { font-weight: 600; color: var(--fg); overflow-wrap: anywhere; }
+.card.niche p { margin: 0; }
+.card.niche .words { margin: 0; padding: 0; }
+.card.niche ul:not(.words) { margin: 0; padding-left: 18px; overflow-wrap: anywhere; }
 .nb { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 8px; overflow-wrap: anywhere; }
 .niche-h { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
 .tbl { overflow-x: auto; }

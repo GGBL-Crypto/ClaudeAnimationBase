@@ -19,7 +19,7 @@ function neighbors(n) {
 }
 
 function card(n) {
-  return h('article', { class: 'card' },
+  return h('article', { class: 'card niche' },
     h('div', { class: 'row' }, h('a', { href: href(n.id), class: 'strong' }, n.name), badge(n)),
     h('p', { class: 'dim' }, stats(n)), words(n, 5),
     n.topTopics?.length ? h('small', { class: 'dim' }, 'Tópicos: ' + n.topTopics.join(', ')) : null,
@@ -36,10 +36,10 @@ function tagBox(n, rows) {
     const ok = h('button', { type: 'button', class: 'primary', onClick: async () => {
       ok.disabled = true; msg.className = 'status'; msg.textContent = 'Gravando…';
       try { await api.post('/api/niches/tag', { id: n.id, tag }); location.hash = href('tag:' + tag.toLowerCase()); }
-      catch (e) { ok.disabled = false; box.hidden = true; msg.className = 'status err'; msg.textContent = e.message; }
+      catch (e) { ok.disabled = false; input.disabled = false; box.hidden = true; msg.className = 'status err'; msg.textContent = e.message; }
     } }, 'Gravar');
-    box.replaceChildren(h('span', {}, `Gravar a etiqueta em ${free} canais sem etiqueta?`), ok, h('button', { type: 'button', onClick: () => { box.hidden = true; } }, 'Cancelar'));
-    box.hidden = false;
+    box.replaceChildren(h('span', {}, `Gravar a etiqueta em ${free} canais sem etiqueta?`), ok, h('button', { type: 'button', onClick: () => { box.hidden = true; input.disabled = false; } }, 'Cancelar'));
+    box.hidden = false; input.disabled = true; // o texto confirmado é o que será gravado
   };
   return h('div', {}, h('div', { class: 'row' }, input, h('button', { type: 'button', onClick: ask }, 'Etiquetar grupo como…')), box, msg);
 }
@@ -58,7 +58,7 @@ function subBox(n, hasOutliers) {
         h('details', { open: true }, h('summary', {}, 'Prompt para copiar'), copy,
           h('button', { type: 'button', onClick: () => navigator.clipboard?.writeText(copy.value).catch(() => {}) }, 'Copiar')));
     }
-    out.replaceChildren(h('div', { class: 'cards' }, r.subnichos.map(s => h('article', { class: 'card' },
+    out.replaceChildren(h('div', { class: 'cards' }, r.subnichos.map(s => h('article', { class: 'card niche' },
       h('strong', {}, String(s.nome ?? '')), h('p', {}, String(s.porque ?? '')),
       h('small', { class: 'dim' }, 'Moldes de título:'), h('ul', {}, (Array.isArray(s.exemplos) ? s.exemplos : []).map(x => h('li', {}, String(x)))),
       h('small', { class: 'dim' }, 'gerado pelo Claude; confira antes de usar')))));
