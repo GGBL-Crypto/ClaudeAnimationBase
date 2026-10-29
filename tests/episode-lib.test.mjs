@@ -6,7 +6,18 @@ test('wordTimes is proportional and covers the sentence', () => {
   const w = wordTimes({ start: 10, end: 13, text: 'O céu se move.' });
   assert.equal(w[0].start, 10); assert.equal(w.at(-1).end, 13); assert.ok(w[0].end - w[0].start < w[1].end - w[1].start);
 });
-test('chunks of up to 7 words', () => { assert.deepEqual(chunks(wordTimes({ start: 0, end: 9, text: 'um dois três quatro cinco seis sete oito nove' })).map(c => c.words.length), [7, 2]); });
+test('chunks break by width and never split words', () => {
+  const w = wordTimes({ start: 0, end: 10, text: 'O farol de Alexandria era uma das sete maravilhas do mundo antigo' });
+  for (const c of chunks(w, 34)) assert.ok(c.words.map(x => x.w).join(' ').length <= 34);
+  const long = chunks(wordTimes({ start: 0, end: 2, text: 'inconstitucionalissimamente sim' }), 20);
+  assert.deepEqual(long.map(c => c.words.map(x => x.w).join(' ')), ['inconstitucionalissimamente', 'sim']);
+});
+test('pixel captions use the new sizes', () => {
+  const ass = buildAss({ style: 'pixel', episode: { chapters: [], shots: [] }, timing: { chapters: [], shots: [] } });
+  assert.match(ass, /Style: Caption,Press Start 2P,40,/); assert.match(ass, /Style: Chapter,Press Start 2P,64,/);
+  assert.match(ass, /Style: Hud,Press Start 2P,30,/); assert.match(ass, /Style: Place,Press Start 2P,34,/); assert.match(ass, /Style: Tag,Press Start 2P,26,/);
+  assert.match(buildAss({ style: 'flat', episode: { chapters: [], shots: [] }, timing: { chapters: [], shots: [] } }), /Style: Caption,Atkinson Hyperlegible,60,/);
+});
 test('ass escapes override braces and backslashes', () => {
   const ass = buildAss({ style: 'pixel', episode: { chapters: [{ id: 'c', title: 'A {\\b1} B' }], shots: [] }, timing: { chapters: [{ id: 'c', title: 'A {\\b1} B', start: 0, end: 5 }], shots: [{ id: 's', start: 0, end: 5, speech: [{ start: 1, end: 2, text: 'Olá {x}\\n mundo' }] }] } });
   assert.ok(!/\{\\b1\}/.test(ass)); assert.match(ass, /Olá ｛x｝/); assert.match(ass, /PlayResX: 1920/); assert.match(ass, /Press Start 2P/);

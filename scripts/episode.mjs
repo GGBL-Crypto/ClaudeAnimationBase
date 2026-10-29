@@ -2,12 +2,24 @@
 // Cada etapa é idempotente; uma linha JSON por evento no stdout ({step, done, total, message}); em falha, {step, error} e código 1.
 // Os filhos rodam com cwd na raiz e recebem caminhos relativos com / (o filtro subtitles do FFmpeg não lida com "C:").
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ROOT, catalog, sourceSnapshot, parseArgs, run as spawnRun } from './render-lib.mjs';
 import { episodeProject } from './build-episode.mjs';
 import { validateEpisode, acervoKey, segmentArgs, concatList, assembleArgs, buildAss } from './episode-lib.mjs';
+
+// Limpeza manual do acervo: apaga entradas de outro sourceHash (ou sem ele) e arquivos fora do índice. Sem pasta ou índice, não faz nada.
+export function pruneAcervo(dir, sourceHash, { rm = rmSync } = {}) {
+  const indexFile = join(dir, 'index.json'), res = { files: 0, bytes: 0 };
+  if (!existsSync(dir)) return res;
+  const index = existsSync(indexFile) ? JSON.parse(readFileSync(indexFile, 'utf8')) : {}, keep = {};
+  const drop = f => { const p = join(dir, f); res.bytes += statSync(p).size; res.files++; rm(p, { force: true }); };
+  for (const [k, v] of Object.entries(index)) { if (v.sourceHash === sourceHash) keep[k] = v; else if (existsSync(join(dir, `${k}.mp4`))) drop(`${k}.mp4`); }
+  for (const e of readdirSync(dir, { withFileTypes: true })) if (e.isFile() && e.name !== 'index.json' && !(e.name.endsWith('.mp4') && e.name.slice(0, -4) in keep)) drop(e.name);
+  if (existsSync(indexFile)) writeFileSync(indexFile, JSON.stringify(keep, null, 2) + '\n');
+  return res;
+}
 
 export const STEPS = ['narrate', 'build', 'loops', 'segments', 'mix', 'assemble', 'verify'];
 const FPS = 24;
@@ -37,14 +49,14 @@ export async function runEpisode(dir, { steps = STEPS, out = 'out', run = (cmd, 
       build: async () => ({ message: (await run('node', ['scripts/build-episode.mjs', d])).trim() }),
       // Só as chaves que faltam no acervo, em série (um Chrome por vez). Render em tmp e só então movido para o acervo.
       async loops() {
-        const unique = [...new Map(planOf().shots.map(s => [s.acervo, s])).values()], todo = unique.filter(s => !existsSync(at(`${A}/${s.acervo}.mp4`)));
+        const { sourceHash } = planOf(), unique = [...new Map(planOf().shots.map(s => [s.acervo, s])).values()], todo = unique.filter(s => !existsSync(at(`${A}/${s.acervo}.mp4`)));
         const indexFile = at(`${A}/index.json`), index = existsSync(indexFile) ? JSON.parse(readFileSync(indexFile, 'utf8')) : {};
         for (const [i, s] of todo.entries()) {
           emit({ step, done: i, total: todo.length, message: `${s.scene} (${s.key})` });
           const tmp = `${A}/tmp/${s.acervo}.mp4`, file = `${A}/${s.acervo}.mp4`;
           await run('node', ['render.mjs', `--project=ep-${ep.id}`, `--loop=${s.key}`, '--clip', `--out=${tmp}`]);  // ponytail: --workers não vale com --clip (um processo, um Chrome); se a velocidade do loop da aquarela pesar, renderizar com --frames --workers e depois --encode
           renameSync(at(tmp), at(file)); rmSync(at(tmp + '.review'), { recursive: true, force: true });
-          index[s.acervo] = { style: ep.style, scene: s.scene, params: s.params, L: s.loopLen, createdAt: new Date().toISOString(), bytes: statSync(at(file)).size };
+          index[s.acervo] = { style: ep.style, scene: s.scene, params: s.params, L: s.loopLen, createdAt: new Date().toISOString(), bytes: statSync(at(file)).size, sourceHash };
           writeFileSync(indexFile, JSON.stringify(index, null, 2) + '\n');
         }
         return { done: todo.length, total: todo.length, message: `${todo.length} renderizados, ${unique.length - todo.length} já no acervo` };
@@ -101,8 +113,11 @@ export async function runEpisode(dir, { steps = STEPS, out = 'out', run = (cmd, 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [dir, ...rest] = process.argv.slice(2);
   let opts;
-  try {
-    if (!dir || dir.startsWith('--')) throw new Error('Uso: node scripts/episode.mjs <pasta> [--steps=narrate,build,loops,segments,mix,assemble,verify]');
+  if (dir === '--prune-acervo' && !rest.length) {
+    const r = pruneAcervo(join(ROOT, 'out/acervo'), sourceSnapshot().hash);
+    console.log(JSON.stringify({ step: 'prune', files: r.files, mb: +(r.bytes / 1048576).toFixed(1) }));
+  } else try {
+    if (!dir || dir.startsWith('--')) throw new Error('Uso: node scripts/episode.mjs <pasta> [--steps=narrate,build,loops,segments,mix,assemble,verify] | --prune-acervo');
     const a = parseArgs(rest), steps = a.steps ? String(a.steps).split(',') : STEPS;
     for (const k of Object.keys(a)) if (k !== 'steps' && k !== 'workers') throw new Error(`Opção desconhecida: --${k}`);
     for (const s of steps) if (!STEPS.includes(s)) throw new Error(`Etapa desconhecida: ${s} (etapas: ${STEPS.join(', ')})`);

@@ -6,10 +6,10 @@ import { join } from 'node:path';
 import { ROOT, catalog } from './render-lib.mjs';
 import { canonShot } from './build-episode.mjs';
 
-// Fonte, cor de destaque (RGB) e tamanhos por estilo de vídeo (decisão 11). watercolor usa o mesmo que flat.
+// Fonte, cor de destaque (RGB), tamanhos e largura máxima da legenda (caracteres) por estilo de vídeo (decisão 11). watercolor usa o mesmo que flat.
 const FACES = {
-  pixel: { font: 'Press Start 2P', hl: 'F4C542', bold: 0, cap: 32, chapter: 56, hud: 28, place: 26, tag: 26 },
-  flat: { font: 'Atkinson Hyperlegible', hl: 'FFD166', bold: -1, cap: 54, chapter: 96, hud: 46, place: 42, tag: 42 },
+  pixel: { font: 'Press Start 2P', hl: 'F4C542', bold: 0, cap: 40, capOl: 4, chapter: 64, hud: 30, place: 34, tag: 26, width: 34 },
+  flat: { font: 'Atkinson Hyperlegible', hl: 'FFD166', bold: -1, cap: 60, chapter: 96, hud: 46, place: 48, tag: 40, width: 44 },
 };
 
 export const assEscape = s => String(s).replace(/\\/g, '＼').replace(/\{/g, '｛').replace(/\}/g, '｝').replace(/\r?\n|\r/g, ' ');
@@ -24,9 +24,12 @@ export function wordTimes({ start, end, text }) {
   });
 }
 
-export function chunks(words, max = 7) {
-  const out = [];
-  for (let i = 0; i < words.length; i += max) { const g = words.slice(i, i + max); out.push({ words: g, start: g[0].start, end: g.at(-1).end }); }
+// Blocos de legenda por largura: até maxChars caracteres (palavras e espaços); palavra maior que o limite fica sozinha.
+export function chunks(words, maxChars = 44) {
+  const out = []; let g = [], len = 0;
+  const flush = () => { if (g.length) out.push({ words: g, start: g[0].start, end: g.at(-1).end }); g = []; len = 0; };
+  for (const w of words) { if (g.length && len + 1 + w.w.length > maxChars) flush(); len += (g.length ? 1 : 0) + w.w.length; g.push(w); }
+  flush();
   return out;
 }
 
@@ -58,7 +61,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-${st('Caption', f.cap, 2, { mv: 70 })}
+${st('Caption', f.cap, 2, { mv: 70, ol: f.capOl })}
 ${st('Chapter', f.chapter, 5, { ol: 4 })}
 ${st('Hud', f.hud, 7, { ...box, ml: 50, mv: 50 })}
 ${st('Place', f.place, 8, { ...box, mv: 50 })}
@@ -83,7 +86,7 @@ export function buildAss({ timing, episode, style }) {
   const shotsEp = Object.fromEntries((episode.chapters || []).flatMap(c => c.shots || []).map(s => [s.id, s]));
   for (const sh of timing.shots || []) {
     for (const sent of sh.speech || []) {
-      for (const ch of chunks(wordTimes(sent))) {
+      for (const ch of chunks(wordTimes(sent), f.width)) {
         for (const [i, cur] of ch.words.entries())
           line(cur.start, cur.end, 'Caption', ch.words.map((x, j) => j === i ? `{\\1c${hl}}${assEscape(x.w)}{\\r}` : assEscape(x.w)).join(' '));
       }
