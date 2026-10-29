@@ -20,3 +20,67 @@ test('hud and tag events come from shot.hud', () => {
   const ass = buildAss({ style: 'pixel', episode, timing: { chapters: [{ id: 'c', title: 'C', start: 0, end: 6 }], shots: [{ id: 's', start: 0, end: 6, speech: [] }] } });
   for (const s of ['Hud', 'Place', 'Tag']) assert.match(ass, new RegExp(`,${s},`)); assert.match(ass, /1811/);
 });
+
+// --- validateEpisode ---
+import { readFileSync } from 'node:fs';
+import { validateEpisode } from '../scripts/episode-lib.mjs';
+const demo = () => JSON.parse(readFileSync('fixtures/episodes/demo/episode.json', 'utf8'));
+const shotOf = (ep, id) => ep.chapters.flatMap(c => c.shots).find(s => s.id === id);
+const bad = (name, mut, re) => test(`validateEpisode rejects ${name}`, () => { const ep = demo(); mut(ep); assert.throws(() => validateEpisode(ep), re); });
+
+test('validateEpisode accepts the demo with no warnings', () => { assert.deepEqual(validateEpisode(demo()), { ok: true, warnings: [] }); });
+bad('missing id', ep => { delete ep.id; }, /id:/);
+bad('a bad id', ep => { ep.id = 'Demo 1'; }, /id:/);
+bad('missing title', ep => { delete ep.title; }, /title:/);
+bad('an unknown style', ep => { ep.style = 'nope'; }, /style:/);
+bad('a style without episodeScenes', ep => { ep.style = 'debug'; }, /style:/);
+bad('loopLen below 10', ep => { ep.loopLen = 9; }, /loopLen:/);
+bad('loopLen above 20', ep => { ep.loopLen = 21; }, /loopLen:/);
+bad('a non-numeric lengthScale', ep => { ep.lengthScale = 'x'; }, /lengthScale:/);
+bad('a bad intro', ep => { ep.intro = -1; }, /intro:/);
+bad('a bad fps', ep => { ep.fps = 0; }, /fps:/);
+bad('a bad voice', ep => { ep.voice = 3; }, /voice:/);
+bad('a cast over 6', ep => { ep.cast = Array.from({ length: 7 }, (_, i) => ({ id: `p${i}`, body: 'adult' })); ep.chapters = [{ id: 'c', title: 'C', shots: [{ id: 's', scene: { id: 'campo', params: {} } }] }]; }, /Elenco/);
+bad('a bad body', ep => { ep.cast[0].body = 'giant'; }, /Elenco inválido/);
+bad('no chapters', ep => { ep.chapters = []; }, /chapters:/);
+bad('a chapter without title', ep => { delete ep.chapters[0].title; }, /chapters\[0\]\.title:/);
+bad('a chapter without shots', ep => { ep.chapters[0].shots = []; }, /chapters\[0\]\.shots:/);
+bad('a duplicate chapter id', ep => { ep.chapters[1].id = 'c1'; }, /Capítulo repetido: c1/);
+bad('a duplicate shot id', ep => { shotOf(ep, 's2').id = 's1'; }, /Plano repetido: s1/);
+bad('a shot id outside the pattern', ep => { shotOf(ep, 's1').id = 'S 1'; }, /Plano inválido: id/);
+bad('a shot without scene', ep => { delete shotOf(ep, 's1').scene; }, /s1: scene/);
+bad('an unknown scene', ep => { shotOf(ep, 's1').scene.id = 'lua'; }, /Cena desconhecida: lua/);
+bad('an invalid param', ep => { shotOf(ep, 's1').scene.params.weather = 'hail'; }, /Parâmetro inválido em ceu-noturno: weather/);
+bad('an extra outside the scene list', ep => { shotOf(ep, 's1').scene.params.extras = ['lighthouse']; }, /Parâmetro inválido em ceu-noturno: extras/);
+bad('an actor outside the cast', ep => { shotOf(ep, 's1').actors[0].cast = 'ninguem'; }, /Elenco sem ninguem/);
+bad('an invalid action', ep => { shotOf(ep, 's1').actors[0].action = 'dance'; }, /Ação inválida/);
+bad('walk indoors', ep => { shotOf(ep, 's7').actors[0].action = 'walk'; }, /walk só vale em cena de exterior/);
+bad('actors on the map', ep => { shotOf(ep, 's8').actors = [{ cast: 'leitor', action: 'stand' }]; }, /não tem atores/);
+bad('more than 3 actors', ep => { shotOf(ep, 's1').actors = Array(4).fill({ cast: 'leitor', action: 'stand' }); }, /Até 3 atores/);
+bad('narration without sources', ep => { delete ep.sources; }, /sources:/);
+bad('a source without url', ep => { delete ep.sources[0].url; }, /sources\[0\]\.url:/);
+bad('a source without accessed', ep => { delete ep.sources[1].accessed; }, /sources\[1\]\.accessed:/);
+bad('a non-string narration', ep => { shotOf(ep, 's1').narration = 5; }, /narration:/);
+bad('a bad hold', ep => { shotOf(ep, 's3').hold = 0; }, /hold:/);
+bad('a hud field of the wrong type', ep => { shotOf(ep, 's2').hud.place = 4; }, /hud\.place:/);
+bad('a tag without text', ep => { delete shotOf(ep, 's7').hud.tag.text; }, /hud\.tag\.text:/);
+bad('a tag actor out of range', ep => { shotOf(ep, 's7').hud.tag.actor = 3; }, /hud\.tag\.actor:/);
+bad('a tag actor not in the shot', ep => { shotOf(ep, 's7').hud.tag.actor = 'viajante'; }, /hud\.tag\.actor:/);
+bad('a tag on a walker', ep => { const s = shotOf(ep, 's6'); s.hud = { tag: { text: 'x', actor: 0 } }; }, /hud\.tag\.actor:.*walk/);
+
+test('validateEpisode accepts narration-free episodes without sources', () => {
+  const ep = demo(); delete ep.sources; for (const c of ep.chapters) for (const s of c.shots) delete s.narration;
+  assert.equal(validateEpisode(ep).ok, true);
+});
+test('validateEpisode accepts a tag actor by index or by cast id', () => {
+  const ep = demo(); shotOf(ep, 's7').hud.tag.actor = 0; assert.equal(validateEpisode(ep).ok, true);
+});
+test('validateEpisode warns (does not throw) on the same scene and params in consecutive shots', () => {
+  const ep = demo(), a = shotOf(ep, 's1'), b = shotOf(ep, 's2'); b.scene = JSON.parse(JSON.stringify(a.scene));
+  const { ok, warnings } = validateEpisode(ep);
+  assert.equal(ok, true); assert.equal(warnings.length, 1); assert.match(warnings[0], /s1.*s2.*ceu-noturno/);
+});
+test('validateEpisode does not warn when params differ', () => {
+  const ep = demo(), a = shotOf(ep, 's1'), b = shotOf(ep, 's2'); b.scene = { id: a.scene.id, params: { ...a.scene.params, seed: 5 } };
+  assert.deepEqual(validateEpisode(ep).warnings, []);
+});
