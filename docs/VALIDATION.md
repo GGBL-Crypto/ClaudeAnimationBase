@@ -172,3 +172,11 @@ Limites: revisão de imagens estáticas selecionadas e leitura de código, sem r
 - Concorrentes: 3 canais marcados e a rota devolveu as 3 linhas. Nenhum vídeo dos últimos 30 dias (a base é antiga). O comparativo lado a lado não foi conferido canal a canal contra o painel nesta rodada; só no navegador com dados falsos (tasks 9).
 - Nichos: 4 nichos em 91 canais (3 automáticos de 44, 28 e 2 canais, mais "Sem grupo" com 17), vizinhos com palavras em comum (history, sleep, documentary), sem `NaN`, 1,5 s para montar. "Sugerir subnichos" gerou de verdade pelo `claude -p` 8 subnichos com exemplos em molde (`[lugar]`, `[número]`), em 27 s.
 - Não conferido: a tela no navegador com os dados reais (as telas foram verificadas com Playwright e dados falsos); alertas de vídeo novo e outlier com dados reais (a base ainda é linha de base).
+
+## 28/10/2026 — webapp fase 4 (modelar e meus canais)
+
+- `npm test`: 292/292. Aceite com a `data/` real pelo servidor (`startAppServer`) dirigido por script. `git status --porcelain data/ out/` vazio; `git grep AIzaSy` só acha o texto dos planos (sem chave). Kokoro instalado em `out/tmp/kokoro-venv` (fora do git).
+- Modelagem do âncora Timeline - World History Documentaries (34 vídeos) com 2 canais extras do mesmo nicho: job `done` em 43 s, `claude -p` com thumbnails de verdade (`semImagens: false`), 3 conceitos, moldes com lacunas e nenhum igual a título enviado. Views de cada conceito iguais à soma dos vídeos no painel (2.448.257, 1.997.920, 553.039). Medidor de cota 508 antes e depois.
+- Perfil a partir do conceito 1 (idioma `en` herdado do âncora, voz `kokoro:af_heart`). Amostras de voz pelo Kokoro: `pm_alex` 1,0 = 176 palavras por minuto (20,5 s), `af_heart` 1,0 = 153 (22,8 s); WAV servido com status 200 e gravado em `voiceWpm`. O pt ficou acima da faixa de 130 a 170 esperada no plano; a fase 6 usa o valor medido.
+- Concorrentes: 3 canais ligados ao perfil; `?my=<n>` devolve 3 linhas e "Todos" 6. O perfil de teste foi apagado depois; as marcas de concorrente ficaram na base.
+- Não conferido: as telas no navegador com os dados reais (Playwright/Chrome só com dados falsos, nas tasks 7 a 9); ouvir o áudio (só status, tamanho e wpm).
