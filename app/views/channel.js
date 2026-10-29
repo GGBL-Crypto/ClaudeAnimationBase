@@ -40,8 +40,6 @@ function watchBtn(c, field, off, on, msg, changed) {
   return btn;
 }
 
-const soon = label => h('button', { type: 'button', disabled: true }, label + ' ', h('small', { class: 'soon' }, 'em breve'));
-
 function closeBtn(panel) {
   return h('button', { type: 'button', class: 'close', onClick: () => { panel.hidden = true; delete panel.dataset.id; panel.dispatchEvent(new Event('panel-close')); } }, 'Fechar');
 }
@@ -124,7 +122,7 @@ function draw(panel, c, weights, tab = 'o') {
         h('a', { href: 'https://www.youtube.com/channel/' + enc(c.id), rel: 'noopener noreferrer', target: '_blank' }, 'Visitar canal')),
       closeBtn(panel)),
     h('div', { class: 'row' }, refresh, tag, face, h('button', { type: 'button', onClick: saveTag }, 'Salvar etiqueta')),
-    h('div', { class: 'row' }, star, collectButton('channel', c.id), watchBtn(c, 'monitor', 'Seguir', 'Seguindo', msg, changed), watchBtn(c, 'competitor', 'Concorrente', 'É concorrente', msg, changed), soon('Modelar')),
+    h('div', { class: 'row' }, star, collectButton('channel', c.id), watchBtn(c, 'monitor', 'Seguir', 'Seguindo', msg, changed), watchBtn(c, 'competitor', 'Concorrente', 'É concorrente', msg, changed), h('a', { class: 'chip', href: '#/modelar?ancora=' + enc(c.id) }, 'Modelar')),
     msg, tabs, body);
   pick(tab);
 }

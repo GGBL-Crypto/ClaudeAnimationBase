@@ -136,3 +136,13 @@ a.chip { display: inline-block; background: var(--line); color: var(--fg); paddi
 .nb { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 8px; overflow-wrap: anywhere; }
 .niche-h { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
 .tbl { overflow-x: auto; }
+/* Modelar */
+.card.concept { overflow-wrap: anywhere; min-width: 0; }
+.card.concept h3 { margin: 4px 0 0; font-size: 14px; }
+.card.concept p, .card.concept ul { margin: 0; }
+.card.concept .hist li { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+.cards:has(.concept) { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+.sim { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.sim .check { flex-direction: row; align-items: center; color: var(--fg); }
+.job.col { flex-direction: column; align-items: flex-start; }
+.job.col details { width: 100%; max-width: 640px; }
