@@ -4,9 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, catalog } from './render-lib.mjs';
-
-export const TAG_Y = 680; // y do pé da etiqueta: chão ~900 menos 220 (cabeça de um adulto de ~180 px mais folga). Ver globals R2.
-const SCREEN_W = 1920;
+import { canonShot } from './build-episode.mjs';
 
 // Fonte, cor de destaque (RGB) e tamanhos por estilo de vídeo (decisão 11). watercolor usa o mesmo que flat.
 const FACES = {
@@ -34,6 +32,14 @@ export function chunks(words, max = 7) {
 
 // hud.tag.actor: índice em shot.actors ou id de elenco de um ator do plano.
 export const tagActorIndex = (shot, ref) => typeof ref === 'string' ? (shot.actors || []).findIndex(a => a.cast === ref) : ref;
+
+// Posição da etiqueta na tela de 1920x1080: topo da cabeça do ator no quadro 0 do loop, pela câmera real do plano
+// (tela = (mundo - c) * z + centro). Quem a etiqueta aceita não anda, então o quadro 0 vale para o plano todo.
+function tagPos(shot, episode) {
+  const F = kit().kitFrame({ scene: shot.scene.id, params: shot.scene.params, actors: shot.actors, cast: episode.cast }, 0, episode.loopLen ?? 12);
+  const { cx, cy, z } = F.cam, [hx, hy] = F.actors[tagActorIndex(shot, shot.hud.tag.actor)].pose.joints.headTop;
+  return [Math.round(Math.min(1720, Math.max(200, (hx - cx) * z + 960))), Math.round((hy - cy) * z + 540 - 16)];
+}
 
 const cs = t => Math.round(Math.max(0, t) * 100);
 export const assTime = t => { const c = cs(t); return `${Math.floor(c / 360000)}:${String(Math.floor(c / 6000) % 60).padStart(2, '0')}:${String(Math.floor(c / 100) % 60).padStart(2, '0')}.${String(c % 100).padStart(2, '0')}`; };
@@ -71,7 +77,7 @@ export function buildAss({ timing, episode, style }) {
 
   for (const c of timing.chapters || []) {
     const title = c.title ?? episode.chapters?.find(e => e.id === c.id)?.title;
-    if (title) line(c.start, c.start + 3, 'Chapter', `{\\fad(400,400)}${assEscape(title)}`);
+    if (title) line(c.start, Math.min(c.start + 3, c.end ?? Infinity), 'Chapter', `{\\fad(400,400)}${assEscape(title)}`);
   }
 
   const shotsEp = Object.fromEntries((episode.chapters || []).flatMap(c => c.shots || []).map(s => [s.id, s]));
@@ -87,9 +93,9 @@ export function buildAss({ timing, episode, style }) {
     if (hud.year || hud.sub) line(sh.start, sh.end, 'Hud', [hud.year, hud.sub].filter(Boolean).map(assEscape).join(' - ')); // uma linha só: BorderStyle 3 desenha uma caixa por linha
     if (hud.place) line(sh.start, sh.end, 'Place', assEscape(hud.place));
     if (hud.tag) {
-      const x = Math.round((shotsEp[sh.id].actors?.[tagActorIndex(shotsEp[sh.id], hud.tag.actor)]?.at ?? .5) * SCREEN_W);
+      const [x, y] = tagPos(shotsEp[sh.id], episode);
       const sub = hud.tag.sub ? `\\N{\\u0\\fs${Math.round(f.tag * .75)}}${assEscape(hud.tag.sub)}` : '';
-      line(sh.start, sh.end, 'Tag', `{\\pos(${x},${TAG_Y})\\u1}${assEscape(hud.tag.text)}${sub}`);
+      line(sh.start, sh.end, 'Tag', `{\\pos(${x},${y})\\u1}${assEscape(hud.tag.text)}${sub}`);
     }
   }
   return header(f) + ev.join('\n') + '\n';
@@ -107,7 +113,6 @@ function kit() {
 }
 
 const ID = { test: v => typeof v === 'string' && /^[a-z][a-z0-9-]*$/.test(v) }, str = v => typeof v === 'string' && v.trim() !== '';
-const canon = v => Array.isArray(v) ? v.map(canon) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, canon(v[k])])) : v;
 const fail = (field, why) => { throw new Error(`${field}: ${why}`); };
 
 // Devolve { ok: true, warnings } ou lança Error com a mensagem do campo (pt-BR).
@@ -119,8 +124,8 @@ export function validateEpisode(ep) {
   if (!scenes) fail('style', `"${ep.style}" não existe ou não tem episodeScenes (estilos de vídeo: ${Object.keys(styles).filter(k => styles[k].config.episodeScenes).join(', ')})`);
   if (ep.loopLen !== undefined && !(ep.loopLen >= 10 && ep.loopLen <= 20)) fail('loopLen', 'de 10 a 20 s');
   if (ep.lengthScale !== undefined && !(ep.lengthScale > 0)) fail('lengthScale', 'número maior que 0');
-  if (ep.fps !== undefined && !(Number.isInteger(ep.fps) && ep.fps > 0)) fail('fps', 'inteiro maior que 0');
-  for (const k of ['intro', 'outro']) if (ep[k] !== undefined && !(ep[k] >= 0)) fail(k, 'número em segundos, 0 ou mais');
+  if (ep.fps !== undefined && ep.fps !== 24) fail('fps', 'só 24 (segmentos e verificação usam 24); sem o campo vale 24');
+  for (const k of ['intro', 'outro']) if (ep[k] !== undefined && !(typeof ep[k] === 'number' && ep[k] >= 0)) fail(k, 'número em segundos, 0 ou mais; sem o campo vale 0');
   if (ep.voice !== undefined && !str(ep.voice)) fail('voice', 'texto, como kokoro:pm_alex');
   const { kitFrame } = kit(), L = ep.loopLen ?? 12, cast = ep.cast ?? [];
   kitFrame({ scene: 'campo', params: {}, cast }, 0, L);  // só o elenco
@@ -167,7 +172,7 @@ export function validateEpisode(ep) {
   const warnings = [];
   for (let i = 1; i < shots.length; i++) {
     const [a, b] = [shots[i - 1], shots[i]];
-    if (a.scene.id === b.scene.id && JSON.stringify(canon(a.scene.params ?? {})) === JSON.stringify(canon(b.scene.params ?? {})))
+    if (a.scene.id === b.scene.id && JSON.stringify(canonShot(a.scene.params)[0]) === JSON.stringify(canonShot(b.scene.params)[0]))
       warnings.push(`Planos ${a.id} e ${b.id} seguidos repetem a cena ${a.scene.id} com os mesmos params`);
   }
   return { ok: true, warnings };
@@ -176,7 +181,7 @@ export function validateEpisode(ep) {
 // --- Acervo, segmentos e montagem (decisões 9 e 10) ---
 // Chave do loop no acervo: não inclui o id do episódio, então outro episódio com a mesma cena reaproveita o MP4.
 export const acervoKey = ({ style, styleConfig, scene, params, castUsed, actors, L, fps, sourceHash }) =>
-  createHash('sha256').update(JSON.stringify([style, styleConfig, scene, params, castUsed, actors, L, fps, sourceHash])).digest('hex');
+  createHash('sha256').update(JSON.stringify([style, styleConfig, scene, ...canonShot(params, actors, castUsed), L, fps, sourceHash])).digest('hex');
 
 // Segmento do plano: o loop repetido até dur, com fade de entrada e saída (sem fade abaixo de 2 s). O FFmpeg não aceita "d=.75".
 export function segmentArgs(loopFile, dur, out) {

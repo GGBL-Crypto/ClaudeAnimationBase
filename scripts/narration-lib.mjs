@@ -3,8 +3,8 @@ import { createHash } from 'node:crypto';
 export const splitSentences = text => text.trim().split(/(?<=[.!?…])\s+/).filter(Boolean);
 
 export function layoutTimeline(ep, durations) {
-  const fps = ep.fps, q = x => Math.round(x * fps) / fps;
-  let cursor = ep.intro; const chapters = [], shots = [];
+  const fps = ep.fps ?? 24, q = x => Math.round(x * fps) / fps;
+  let cursor = ep.intro ?? 0; const chapters = [], shots = [];
   ep.chapters.forEach((ch, i) => {
     const gap = i ? 1.6 : 0; // a pausa entre capítulos fica no início do primeiro plano (sem lacunas)
     const first = shots.length;
@@ -20,7 +20,7 @@ export function layoutTimeline(ep, durations) {
     }
     chapters.push({ id: ch.id, title: ch.title, start: shots[first].start, end: shots.at(-1).end });
   });
-  const last = shots.at(-1), end = q(cursor + ep.outro);
+  const last = shots.at(-1), end = q(cursor + (ep.outro ?? 0));
   last.end = end; chapters.at(-1).end = end;
   return { id: ep.id, fps, duration: end, chapters, shots };
 }

@@ -16,9 +16,25 @@ test('one caption event per word with the current word highlighted', () => {
   assert.equal((ass.match(/^Dialogue: .*,Caption,/gm) || []).length, 3); assert.match(ass, /Atkinson Hyperlegible/);
 });
 test('hud and tag events come from shot.hud', () => {
-  const episode = { chapters: [{ id: 'c', title: 'C', shots: [{ id: 's', hud: { year: '1811', sub: 'Inverno', place: 'Vilarejo', tag: { text: 'Ana', sub: 'agricultora', actor: 0 } }, actors: [{ cast: 'a', action: 'stand', at: .3 }] }] }] };
+  const episode = { cast: [{ id: 'a', body: 'adult' }], chapters: [{ id: 'c', title: 'C', shots: [{ id: 's', scene: { id: 'campo' }, hud: { year: '1811', sub: 'Inverno', place: 'Vilarejo', tag: { text: 'Ana', sub: 'agricultora', actor: 0 } }, actors: [{ cast: 'a', action: 'stand', at: .3 }] }] }] };
   const ass = buildAss({ style: 'pixel', episode, timing: { chapters: [{ id: 'c', title: 'C', start: 0, end: 6 }], shots: [{ id: 's', start: 0, end: 6, speech: [] }] } });
   for (const s of ['Hud', 'Place', 'Tag']) assert.match(ass, new RegExp(`,${s},`)); assert.match(ass, /1811/);
+});
+test('the tag sits above the head through the real camera (wide and mid framing)', () => {
+  const pos = (framing, at) => {
+    const episode = { cast: [{ id: 'a', body: 'adult' }], chapters: [{ id: 'c', title: 'C', shots: [{ id: 's', scene: { id: 'campo', params: { framing } }, actors: [{ cast: 'a', action: 'stand', at }], hud: { tag: { text: 'Ana', actor: 'a' } } }] }] };
+    const ass = buildAss({ style: 'pixel', episode, timing: { chapters: [], shots: [{ id: 's', start: 0, end: 6, speech: [] }] } });
+    return ass.match(/\\pos\((\d+),(\d+)\)/).slice(1).map(Number);
+  };
+  const [wx, wy] = pos('wide', .3), [mx, my] = pos('mid', .3);
+  // wide: z 1, cx ~960, cabeça de adulto a ~180 px do chão (~885): x perto de .3 * 1920, y perto de 700 - 16
+  assert.ok(Math.abs(wx - 576) < 40, `wide x ${wx}`); assert.ok(wy > 640 && wy < 720, `wide y ${wy}`);
+  // mid: z 1.35, cy 610: (576 - 960) * 1.35 + 960 = 442; a cabeça sobe na tela (o centro da câmera desce)
+  assert.ok(Math.abs(mx - 442) < 40, `mid x ${mx}`); assert.ok(my < wy - 20, `mid y ${my} vs wide ${wy}`);
+});
+test('a chapter title lasts at most the chapter length', () => {
+  const ass = buildAss({ style: 'flat', episode: { chapters: [] }, timing: { chapters: [{ id: 'c', title: 'Curto', start: 10, end: 11 }], shots: [] } });
+  assert.match(ass, /Dialogue: 0,0:00:10\.00,0:00:11\.00,Chapter/);
 });
 
 // --- validateEpisode ---
@@ -39,6 +55,8 @@ bad('loopLen above 20', ep => { ep.loopLen = 21; }, /loopLen:/);
 bad('a non-numeric lengthScale', ep => { ep.lengthScale = 'x'; }, /lengthScale:/);
 bad('a bad intro', ep => { ep.intro = -1; }, /intro:/);
 bad('a bad fps', ep => { ep.fps = 0; }, /fps:/);
+bad('an fps other than 24', ep => { ep.fps = 30; }, /fps: só 24/);
+bad('a non-numeric outro', ep => { ep.outro = '2'; }, /outro:/);
 bad('a bad voice', ep => { ep.voice = 3; }, /voice:/);
 bad('a cast over 6', ep => { ep.cast = Array.from({ length: 7 }, (_, i) => ({ id: `p${i}`, body: 'adult' })); ep.chapters = [{ id: 'c', title: 'C', shots: [{ id: 's', scene: { id: 'campo', params: {} } }] }]; }, /Elenco/);
 bad('a bad body', ep => { ep.cast[0].body = 'giant'; }, /Elenco inválido/);
@@ -72,6 +90,11 @@ test('validateEpisode accepts narration-free episodes without sources', () => {
   const ep = demo(); delete ep.sources; for (const c of ep.chapters) for (const s of c.shots) delete s.narration;
   assert.equal(validateEpisode(ep).ok, true);
 });
+test('validateEpisode accepts missing fps, intro and outro, and the timeline then has no NaN', async () => {
+  const ep = demo(); delete ep.fps; delete ep.intro; delete ep.outro; for (const c of ep.chapters) for (const s of c.shots) delete s.narration; assert.equal(validateEpisode(ep).ok, true);
+  const { layoutTimeline } = await import('../scripts/narration-lib.mjs'), t = layoutTimeline(ep, new Map());
+  assert.equal(t.fps, 24); assert.ok(Number.isFinite(t.duration) && t.shots.every(s => Number.isFinite(s.start) && Number.isFinite(s.end)));
+});
 test('validateEpisode accepts a tag actor by index or by cast id', () => {
   const ep = demo(); shotOf(ep, 's7').hud.tag.actor = 0; assert.equal(validateEpisode(ep).ok, true);
 });
@@ -79,6 +102,11 @@ test('validateEpisode warns (does not throw) on the same scene and params in con
   const ep = demo(), a = shotOf(ep, 's1'), b = shotOf(ep, 's2'); b.scene = JSON.parse(JSON.stringify(a.scene));
   const { ok, warnings } = validateEpisode(ep);
   assert.equal(ok, true); assert.equal(warnings.length, 1); assert.match(warnings[0], /s1.*s2.*ceu-noturno/);
+});
+test('validateEpisode warns when one shot omits the defaults the other spells out', () => {
+  const ep = demo(), a = shotOf(ep, 's1'), b = shotOf(ep, 's2'); a.scene = { id: 'campo', params: {} };
+  b.scene = { id: 'campo', params: { extras: [], framing: 'wide', seed: 0, weather: 'clear', time: 'day' } };
+  assert.equal(validateEpisode(ep).warnings.length, 1);
 });
 test('validateEpisode does not warn when params differ', () => {
   const ep = demo(), a = shotOf(ep, 's1'), b = shotOf(ep, 's2'); b.scene = { id: a.scene.id, params: { ...a.scene.params, seed: 5 } };

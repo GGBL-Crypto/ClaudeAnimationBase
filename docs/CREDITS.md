@@ -33,7 +33,7 @@ SOFTWARE.
 
 ## Fontes (SIL OFL 1.1)
 
-Em `assets/fonts/`, com o `OFL.txt` de cada uma. Usadas só na legenda ASS dos episódios.
+Em `assets/fonts/`, com a licença de cada uma em `OFL-<fonte>.txt`. Usadas só na legenda ASS dos episódios.
 
 - Press Start 2P, de CodeMan38 (Cody Boisclair), SIL Open Font License 1.1: https://github.com/google/fonts/tree/main/ofl/pressstart2p
 - Atkinson Hyperlegible (Regular e Bold), do Braille Institute of America, SIL Open Font License 1.1: https://github.com/google/fonts/tree/main/ofl/atkinsonhyperlegible

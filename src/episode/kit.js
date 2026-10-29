@@ -2,7 +2,7 @@
 // como quadro F da cena K (contrato em src/styles/AGENTS.md). Sem desenho. Cada cena é função da fase do loop
 // (phase = (lt mod L) / L) e tudo que se move tem frequência múltipla inteira de 1/L, então F(t) = F(t + L).
 // Depende de motion.js e de src/nature/ (noise, path, gait, creature, specs, skeleton).
-var { KIT_SCENES, kitFrame, castActor } = (() => {
+var { KIT_SCENES, KIT_DEFAULTS, kitFrame, castActor } = (() => {
   const TIMES = ['dawn', 'day', 'dusk', 'night'], WEATHERS = ['clear', 'rain', 'snow', 'fog'], FRAMINGS = ['wide', 'mid'];
   const ACTIONS = ['stand', 'walk', 'sit', 'read', 'point', 'look-up'], GEAR = ['hat', 'backpack', 'hood', 'helmet'], COLORS = ['skin', 'hair', 'shirt', 'pants'];
   const DEFAULTS = { time: 'day', weather: 'clear', seed: 0, framing: 'wide', extras: [] };
@@ -224,5 +224,5 @@ var { KIT_SCENES, kitFrame, castActor } = (() => {
     kit.layers.sort((a, b) => a.f - b.f);  // estável: dentro do mesmo f, a ordem de montagem
     return { scene: 'K', shot: scene, t: lt, lt, cam, under: null, world: { ground, kit: { mood: scene === 'interior-vela' ? 'interior' : p.time, seed: p.seed, phase, ...kit } }, actors: list, texts: [] };
   }
-  return { KIT_SCENES, kitFrame, castActor };
+  return { KIT_SCENES, KIT_DEFAULTS: DEFAULTS, kitFrame, castActor };
 })();

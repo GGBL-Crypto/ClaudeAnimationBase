@@ -1,11 +1,11 @@
-// Orquestrador do episódio (decisão 12). Uso: node scripts/episode.mjs <pasta> [--steps=narrate,build,loops,segments,mix,assemble,verify] [--workers=2]
+// Orquestrador do episódio (decisão 12). Uso: node scripts/episode.mjs <pasta> [--steps=narrate,build,loops,segments,mix,assemble,verify]
 // Cada etapa é idempotente; uma linha JSON por evento no stdout ({step, done, total, message}); em falha, {step, error} e código 1.
 // Os filhos rodam com cwd na raiz e recebem caminhos relativos com / (o filtro subtitles do FFmpeg não lida com "C:").
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { ROOT, catalog, sourceSnapshot, parseArgs, number, run as spawnRun } from './render-lib.mjs';
+import { ROOT, catalog, sourceSnapshot, parseArgs, run as spawnRun } from './render-lib.mjs';
 import { episodeProject } from './build-episode.mjs';
 import { validateEpisode, acervoKey, segmentArgs, concatList, assembleArgs, buildAss } from './episode-lib.mjs';
 
@@ -13,12 +13,14 @@ export const STEPS = ['narrate', 'build', 'loops', 'segments', 'mix', 'assemble'
 const FPS = 24;
 
 // out: raiz das saídas, só para testes (narrate.mjs e mix-audio.mjs gravam sempre em out/episodes/<id>).
-export async function runEpisode(dir, { steps = STEPS, workers = 2, out = 'out', run = (cmd, args) => spawnRun(cmd, args, { capture: true, cwd: ROOT }), log = line => console.log(line) } = {}) {
+export async function runEpisode(dir, { steps = STEPS, out = 'out', run = (cmd, args) => spawnRun(cmd, args, { capture: true, cwd: ROOT }), log = line => console.log(line) } = {}) {
   const emit = o => log(JSON.stringify(o)), at = p => join(ROOT, p);
   const writeIfChanged = (f, text) => { if (!existsSync(at(f)) || readFileSync(at(f), 'utf8') !== text) writeFileSync(at(f), text); };
   let step = 'validate';
   try {
-    const d = relative(ROOT, resolve(dir)).replace(/\\/g, '/'), read = f => JSON.parse(readFileSync(at(`${d}/${f}`), 'utf8')), ep = read('episode.json');
+    const d = relative(ROOT, resolve(dir)).replace(/\\/g, '/');
+    if (d.startsWith('..') || isAbsolute(d)) throw new Error(`A pasta do episódio precisa ficar dentro do repositório (${ROOT}): ${dir}`);
+    const read = f => JSON.parse(readFileSync(at(`${d}/${f}`), 'utf8')), ep = read('episode.json');
     for (const message of validateEpisode(ep).warnings) emit({ step, message });
     const E = `${out}/episodes/${ep.id}`, A = `${out}/acervo`;
     // Lido depois da narração (timing.json novo). shot.key é o id do loop no projeto (R5); shot.acervo, a chave entre episódios (decisão 9).
@@ -40,7 +42,7 @@ export async function runEpisode(dir, { steps = STEPS, workers = 2, out = 'out',
         for (const [i, s] of todo.entries()) {
           emit({ step, done: i, total: todo.length, message: `${s.scene} (${s.key})` });
           const tmp = `${A}/tmp/${s.acervo}.mp4`, file = `${A}/${s.acervo}.mp4`;
-          await run('node', ['render.mjs', `--project=ep-${ep.id}`, `--loop=${s.key}`, '--clip', `--workers=${workers}`, `--out=${tmp}`]);
+          await run('node', ['render.mjs', `--project=ep-${ep.id}`, `--loop=${s.key}`, '--clip', `--out=${tmp}`]);  // ponytail: --workers não vale com --clip (um processo, um Chrome); se a velocidade do loop da aquarela pesar, renderizar com --frames --workers e depois --encode
           renameSync(at(tmp), at(file)); rmSync(at(tmp + '.review'), { recursive: true, force: true });
           index[s.acervo] = { style: ep.style, scene: s.scene, params: s.params, L: s.loopLen, createdAt: new Date().toISOString(), bytes: statSync(at(file)).size };
           writeFileSync(indexFile, JSON.stringify(index, null, 2) + '\n');
@@ -49,11 +51,11 @@ export async function runEpisode(dir, { steps = STEPS, workers = 2, out = 'out',
       },
       // Um segmento por plano, em quadros inteiros (a soma dá a duração do timing); cache por chave e duração.
       async segments() {
-        const { p, byId } = planOf(), files = [];
+        const { p, byId } = planOf(), files = [], tpl = createHash('sha1').update(segmentArgs('i', 10, 'o').join(' ')).digest('hex').slice(0, 6);  // fade/crf no nome: mudou o modelo, corta de novo
         let made = 0;
         mkdirSync(at(`${E}/seg`), { recursive: true });
         for (const sb of p.storyboard) {
-          const s = byId.get(sb.id), dur = (Math.round(sb.end * FPS) - Math.round(sb.start * FPS)) / FPS, loop = `${A}/${s.acervo}.mp4`, base = `${E}/seg/${s.acervo}-${+dur.toFixed(3)}`;
+          const s = byId.get(sb.id), dur = (Math.round(sb.end * FPS) - Math.round(sb.start * FPS)) / FPS, loop = `${A}/${s.acervo}.mp4`, base = `${E}/seg/${s.acervo}-${+dur.toFixed(3)}-${tpl}`;
           if (!existsSync(at(loop))) throw new Error(`Plano ${sb.id}: loop ausente no acervo; rode a etapa loops`);
           if (!existsSync(at(base + '.mp4'))) { await run('ffmpeg', segmentArgs(loop, dur, base + '.partial.mp4')); renameSync(at(base + '.partial.mp4'), at(base + '.mp4')); made++; }
           files.push(base.slice(E.length + 1) + '.mp4');
@@ -100,11 +102,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const [dir, ...rest] = process.argv.slice(2);
   let opts;
   try {
-    if (!dir || dir.startsWith('--')) throw new Error('Uso: node scripts/episode.mjs <pasta> [--steps=narrate,build,loops,segments,mix,assemble,verify] [--workers=2]');
+    if (!dir || dir.startsWith('--')) throw new Error('Uso: node scripts/episode.mjs <pasta> [--steps=narrate,build,loops,segments,mix,assemble,verify]');
     const a = parseArgs(rest), steps = a.steps ? String(a.steps).split(',') : STEPS;
-    for (const k of Object.keys(a)) if (!['steps', 'workers'].includes(k)) throw new Error(`Opção desconhecida: --${k}`);
+    for (const k of Object.keys(a)) if (!k !== 'steps') throw new Error(`Opção desconhecida: --${k}`);
     for (const s of steps) if (!STEPS.includes(s)) throw new Error(`Etapa desconhecida: ${s} (etapas: ${STEPS.join(', ')})`);
-    opts = { steps, workers: number(a.workers ?? 2, 'workers', { min: 1, max: 8, integer: true }) };
+    opts = { steps };
   } catch (error) { console.log(JSON.stringify({ step: 'args', error: error.message })); process.exitCode = 1; }
   if (opts) await runEpisode(dir, opts).catch(() => { process.exitCode = 1; });
 }

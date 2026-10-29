@@ -4,7 +4,8 @@ import vm from 'node:vm';
 import { readFileSync, readdirSync, existsSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { episodeProject, loopKeyOf, writeEpisodes } from '../scripts/build-episode.mjs';
+import { natureContext } from './nature-helpers.mjs';
+import { episodeProject, loopKeyOf, writeEpisodes, canonParams } from '../scripts/build-episode.mjs';
 
 // Só a plataforma e a config dos estilos (sem src/config.js nem src/episodes.js).
 function vmWithPlatform() {
@@ -44,4 +45,21 @@ test('writeEpisodes replaces the same id and keeps others', () => {
   const f = join(mkdtempSync(join(tmpdir(), 'ep-')), 'episodes.js');
   writeEpisodes([episodeProject(ep, timing)], f); writeEpisodes([{ ...episodeProject(ep, timing), id: 'ep-outro' }], f); writeEpisodes([episodeProject(ep, timing)], f);
   assert.equal((readFileSync(f, 'utf8').match(/registerProject/g) || []).length, 2);
+});
+test('loop key ignores key order, omitted defaults and extras order', () => {
+  const shot = { scene: 'mar', params: { time: 'night', extras: ['ship', 'lighthouse'] }, actors: [{ cast: 'a', action: 'stand', at: .5, dir: 1 }], loopLen: 12 };
+  const same = { ...shot, params: { extras: ['lighthouse', 'ship'], time: 'night', seed: 0, weather: 'clear', framing: 'wide' }, actors: [{ dir: 1, action: 'stand', cast: 'a' }] };
+  assert.equal(loopKeyOf(same, ep.cast), loopKeyOf(shot, ep.cast));
+  assert.equal(loopKeyOf({ ...shot, params: {} }, ep.cast), loopKeyOf({ ...shot, params: canonParams({}) }, ep.cast));
+  assert.notEqual(loopKeyOf({ ...shot, params: { time: 'day' } }, ep.cast), loopKeyOf(shot, ep.cast));
+});
+test('canonParams defaults match the kit DEFAULTS', () => {
+  const NATURE = ['noise', 'path', 'gait', 'creature', 'specs', 'skeleton', 'env', 'crowd', 'actors'].map(f => `src/nature/${f}.js`);
+  const { KIT_DEFAULTS } = natureContext([...NATURE, 'src/episode/kit.js']);
+  assert.deepEqual(JSON.parse(JSON.stringify(KIT_DEFAULTS)), canonParams({}));
+});
+test('writeEpisodes leaves no temp file behind', () => {
+  const d = mkdtempSync(join(tmpdir(), 'ep-')), f = join(d, 'episodes.js');
+  writeEpisodes([episodeProject(ep, timing)], f);
+  assert.deepEqual(readdirSync(d), ['episodes.js']);
 });

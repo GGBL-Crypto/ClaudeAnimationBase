@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { acervoKey, segmentArgs, concatList, assembleArgs } from '../scripts/episode-lib.mjs';
 import { runEpisode } from '../scripts/episode.mjs';
@@ -12,6 +13,9 @@ test('acervo key changes with style, params, L and source; not with episode id',
   const k = acervoKey(base); assert.match(k, /^[0-9a-f]{64}$/);
   for (const patch of [{ style: 'flat' }, { params: { time: 'day' } }, { L: 14 }, { sourceHash: 'h2' }]) assert.notEqual(acervoKey({ ...base, ...patch }), k);
   assert.equal(acervoKey({ ...base, id: 'outro-episodio' }), k);
+  // A mesma cena escrita de outro jeito (params vazios ou com os padrões, chaves em outra ordem) tem a mesma chave.
+  const bare = { ...base, params: {} }, spelled = { ...base, params: { extras: [], framing: 'wide', seed: 0, weather: 'clear', time: 'day' } };
+  assert.equal(acervoKey(bare), acervoKey(spelled));
 });
 test('segment args: fades, loop, no windows paths', () => {
   const a = segmentArgs('out/acervo/k.mp4', 30, 'out/episodes/x/seg/k-30.mp4').join(' ');
@@ -115,5 +119,19 @@ test('runEpisode reports a failing step as JSON and exit code', async () => {
     assert.equal(bad.at(-1).step, 'verify');
     const cli = spawnSync(process.execPath, ['scripts/episode.mjs', `${OUT}/nao-existe`], { cwd: ROOT, encoding: 'utf8' });
     assert.equal(cli.status, 1); assert.ok(JSON.parse(cli.stdout.trim().split('\n').at(-1)).error);
+  } finally { rmSync(join(ROOT, OUT), { recursive: true, force: true }); }
+});
+
+test('runEpisode rejects an episode folder outside the repository', async () => {
+  const lines = [];
+  await assert.rejects(runEpisode(tmpdir(), { steps, log: l => lines.push(JSON.parse(l)) }), /dentro do repositório/);
+  assert.match(lines.at(-1).error, /dentro do repositório/);
+});
+test('segment cache name carries the ffmpeg args template', async () => {
+  setup();
+  try {
+    const a = fakeRun(); await runEpisode(join(ROOT, DIR), { steps: ['loops', 'segments'], out: OUT, run: a.run, log: () => {} });
+    const names = readdirSync(join(ROOT, E, 'seg')).filter(n => !n.includes('partial'));
+    assert.equal(names.length, 3); assert.ok(names.every(n => /-[0-9a-f]{6}\.mp4$/.test(n)), names.join());
   } finally { rmSync(join(ROOT, OUT), { recursive: true, force: true }); }
 });

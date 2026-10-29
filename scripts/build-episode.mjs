@@ -1,7 +1,7 @@
 // Monta o projeto de um episódio (ep-<id>) a partir de episode.json + timing.json e o grava em src/episodes.js,
 // que o catalog() de render-lib.mjs já carrega. Uso: node scripts/build-episode.mjs <pasta>
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -10,10 +10,21 @@ const NATURE = ['noise', 'path', 'gait', 'creature', 'specs', 'skeleton', 'env',
 const HEADER = '// Gerado por scripts/build-episode.mjs (um projeto por linha). Fora do git: não edite.\n';
 const PREFIX = 'AnimationPlatform.registerProject(';
 
+// Forma canônica de params, atores e elenco usado: chaves em ordem e padrões do kit preenchidos, para que a mesma cena escrita
+// de outro jeito ({} ou os padrões explícitos, extras em outra ordem) dê a mesma chave. Usada pela chave do projeto e pela do acervo.
+const DEFAULTS = { time: 'day', weather: 'clear', seed: 0, framing: 'wide', extras: [] };  // espelha DEFAULTS de src/episode/kit.js (teste confere)
+export const canon = v => Array.isArray(v) ? v.map(canon) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, canon(v[k])])) : v;
+export const canonParams = p => canon({ ...DEFAULTS, ...p, extras: [...(p?.extras ?? [])].sort() });
+export const canonShot = (params, actors = [], cast = []) => {
+  const used = actors.map(a => a.cast);
+  return [canonParams(params),
+    actors.map(a => canon({ ...a, at: a.action === 'walk' ? undefined : a.at ?? .5, dir: a.dir ?? 1 })),  // walk ignora at
+    cast.filter(m => used.includes(m.id)).sort((a, b) => a.id < b.id ? -1 : 1).map(m => canon({ ...m, gear: [...(m.gear ?? [])].sort(), colors: m.colors ?? null }))];
+};
+
 // Id estável da cena no projeto: cena + sha1 curto de params, atores, elenco usado e L (mesma cena nas mesmas condições = mesma chave).
 export function loopKeyOf(shot, cast = []) {
-  const used = (shot.actors || []).map(a => a.cast), L = shot.loopLen ?? 12;
-  const sha = createHash('sha1').update(JSON.stringify([shot.params, shot.actors || [], cast.filter(m => used.includes(m.id)), L])).digest('hex').slice(0, 8);
+  const sha = createHash('sha1').update(JSON.stringify([...canonShot(shot.params, shot.actors, cast), shot.loopLen ?? 12])).digest('hex').slice(0, 8);
   return `${shot.scene}-${sha}`;
 }
 
