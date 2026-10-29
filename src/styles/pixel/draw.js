@@ -170,8 +170,8 @@
       const h = hash((gx - ox) * 7.13 + gy * 131.7 + K.seed * 17.3), deep = gy >= b2;
       if (h < .02) { px(gx, gy, deep ? base : dark); if (h < .008) px(gx + 1, gy, deep ? base : dark); }
       else if (h < .028 && l.surface !== 'snow') { const q = deep ? base : dark; px(gx, gy, q); px(gx - 1, gy - 1, q); px(gx + 1, gy - 1, q); }
-      else if (h > .996) rect(gx, gy, 2, 1, peb);
-      else if (h > .992 && lit()) px(gx, gy, P.light);
+      else if (h > .997 && gy < b1) rect(gx, gy, 2, 1, peb);  // pedrinhas e px claros só na faixa de cima: o pontilhado e o escuro ficam calmos
+      else if (h > .994 && gy < b1 && lit()) px(gx, gy, P.light);
     }
     if (l.surface === 'grass') for (let gx = 0; gx < GW; gx++) if (hash((gx - ox) * 3.7 + K.seed) < .22) px(gx, top[gx] - 1, dark);  // tufos da borda
   }
@@ -254,8 +254,10 @@
       for (const k of [.35, .75]) { const ry = y - Math.round(k * h); rect(x0, ry, x1 - x0, 1, wc); rect(x0, ry + 1, x1 - x0, 1, wd); }
       for (let wx = o.x0; wx <= o.x1 + 1e-6; wx += 60) { const p0 = Math.round(V.x(wx)) - 1; rect(p0, y - h, 2, h, wc); rect(p0 + 1, y - h + 1, 1, h - 1, wd); }
     } else if (o.kind === 'bush') {  // tufos em disco com a calota de cima clara, do mais baixo ao mais alto; sombra de 1 px no pé
-      const [base, hi, dk] = lit() ? [P.foliage, P.ground, P.ink] : [col('near'), col('mid'), P.black];
-      const L = [0, 1, 2, 3].map(i => { const r = s * (.3 + .12 * hash(o.seed * 3 + i)); return { x: x + (i - 1.5) * s * .36 + (hash(o.seed * 5 + i) - .5) * 2, r, y: y - r - (i === 1 || i === 2 ? s * .25 : 0) }; });
+      const [base, hi, dk] = lit() ? [P.foliage, P.ground, P.ink] : [col('near'), col('far'), P.black];  // far: a calota não some no morro do meio atrás
+      // 5 tufos de alturas pela semente sobre uma base cheia (sem vão embaixo entre os tufos de fora).
+      const L = [0, 1, 2, 3, 4].map(i => { const r = s * (.26 + .1 * hash(o.seed * 3 + i)); return { x: x + (i - 2) * s * .27 + (hash(o.seed * 5 + i) - .5) * 2, r, y: y - r - (i % 4 ? s * (.12 + .25 * hash(o.seed * 7 + i)) : 0) }; });
+      rect(x - s * .6, y - s * .45, s * 1.2, s * .45, base);
       L.sort((a, b) => b.y - a.y).forEach(l => disc(l.x, l.y, l.r, dy => dy < -l.r * .55 ? hi : base));
       rect(x - s * .7, y - 1, s * 1.4, 1, dk);
     } else if (o.kind === 'post') {  // poste de 2 px e lanterna 4 × 6 com telhado; o vidro acende ao entardecer e à noite
@@ -386,8 +388,9 @@
     for (const [, j0, j1, w] of groups[2]) { const [x0, y0] = g(j0), [x1, y1] = g(j1), n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)))); for (let i = 0; i <= n; i++) rect(Math.round(lerp(x0, x1, i / n) - w / 2) + (side > 0 ? w - 1 : 0), Math.round(lerp(y0, y1, i / n) - w / 2), 1, w, C.shirtDk); }
     // Cabeça em bloco, cabelo em cima e atrás (mais grosso na cabeça grande), olho do lado para onde olha (fecha quando pisca).
     draw(groups[4], true);  // contorno do braço de perto antes da cabeça: braço erguido não corta o rosto
-    // Braço erguido (pulso acima do ombro, como no point) passa atrás da cabeça grande: a mão continua à frente do rosto.
-    const raised = g(groups[4][1][2])[1] < g(groups[4][0][1])[1]; if (raised) draw(groups[4], false);
+    // Braço erguido (pulso acima do ombro, como no point): só o braço de cima passa atrás da cabeça grande; antebraço e mão
+    // vêm depois dela, com contorno próprio, e o braço inteiro continua legível.
+    const raised = g(groups[4][1][2])[1] < g(groups[4][0][1])[1], fore = groups[4].slice(1); if (raised) draw(groups[4].slice(0, 1), false);
     rect(hb.x, hb.y, hb.w, hb.h, C.skin);
     const hood = gear.includes('hood'), helmet = gear.includes('helmet'), hairC = hood ? C.shirt : helmet ? P.stone : C.hair, big = hb.h >= 10, hr = Math.max(2, Math.round(hb.h * .22));
     rect(hb.x, hb.y, hb.w, helmet ? hr + 1 : hr, hairC); rect(fc > 0 ? back : back - (big ? 1 : 0), hb.y, big ? 2 : 1, hood ? hb.h : Math.round(hb.h * .7), hairC);
@@ -395,7 +398,7 @@
     if (helmet) rect(hb.x, hb.y + hr, hb.w, 1, P.stoneDk);
     if (a.pose.face.blink < .5) rect(fc > 0 ? hb.x + hb.w - (big ? 3 : 2) : hb.x + (big ? 2 : 1), Math.max(hb.y + hr, hb.y + Math.round(hb.h * (.5 + .45 * hb.tilt)) - (big ? 1 : 0)), 1, big ? 2 : 1, ink);  // olho sobe quando olha para cima
     if (hat) { const cr = big ? 3 : 2; rect(hb.x - 2, hb.y - 1, hb.w + 4, 1, P.woodDk); rect(hb.x + (big ? 1 : 0), hb.y - 1 - cr, hb.w - (big ? 2 : 0), cr, P.sandDk); }
-    if (!raised) draw(groups[4], false);  // braço de perto por cima, com o contorno próprio (lê sobre o tronco)
+    if (raised) { draw(fore, true); draw(fore, false); } else draw(groups[4], false);  // braço de perto por cima, com o contorno próprio (lê sobre o tronco)
     if (a.holds === 'book') { const [x, y] = [(g('handL')[0] + g('handR')[0]) / 2, (g('handL')[1] + g('handR')[1]) / 2]; rect(x - 3, y - 3, 6, 4, ink); rect(x - 2, y - 2, 4, 2, P.shadow); rect(x - 2, y - 2, 4, 1, P.cloud); }
   }
 
