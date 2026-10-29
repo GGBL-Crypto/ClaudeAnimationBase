@@ -11,6 +11,16 @@ AnimationPlatform.registerStyle({
       skin: '#EDB48E', hair: '#5E3B2A', shirt: '#CFAA5C', pants: '#6E7B5B', hat: '#DCC48E', band: '#7A4A30', pack: '#A9573B', boot: '#5C3C2B', red: '#C8462E',
     },
     texture: { paper: true }, outline: { weight: 1 }, character: { unit: 40, width: 10, height: 8 }, effects: {},
+    // Kit de episódio (cena K): rampa por clima de luz: céu de cima e de baixo, longe, meio, perto, chão, luz, sombra,
+    // brilho. No interior, longe = parede, meio = lambri, perto = madeira, chão = assoalho.
+    moods: {
+      dawn: { skyTop: '#9DB2CC', skyLow: '#F4CBA8', far: '#B7B1C2', mid: '#9EAD93', near: '#7E9963', ground: '#8EA462', light: '#FBE5C2', shade: '#6C6280', glow: '#FFD9A0' },
+      day: { skyTop: '#86AFC6', skyLow: '#F2DDB2', far: '#A3B9B4', mid: '#93AD7C', near: '#6E9A5E', ground: '#86A85C', light: '#FFF6E0', shade: '#55667A', glow: '#FFE7A8' },
+      dusk: { skyTop: '#7D7EA6', skyLow: '#EFB08A', far: '#9B8EA5', mid: '#85866E', near: '#5E6F4F', ground: '#718455', light: '#F6C890', shade: '#4E4566', glow: '#FFC070' },
+      night: { skyTop: '#2E3A5C', skyLow: '#5A6985', far: '#4E5973', mid: '#45556A', near: '#3A4A4E', ground: '#44564A', light: '#C9D3E6', shade: '#232A3E', glow: '#FFD27A' },
+      interior: { skyTop: '#7C8FB0', skyLow: '#C9C2B4', far: '#D8C6A4', mid: '#B39A78', near: '#8A5E3E', ground: '#9C7652', light: '#FBE0A8', shade: '#4A3A33', glow: '#FFC86A' },
+    },
+    episodeScenes: ['campo', 'ceu-noturno', 'mar', 'floresta', 'deserto', 'cidade-antiga', 'interior-vela', 'mapa'],
   },
 });
 

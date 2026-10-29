@@ -74,18 +74,21 @@ window.ExpStyle = (() => {
 
   // ---------- fundos ----------
   // Céu (tela inteira, sem paralaxe): faixas de aguada do cerúleo ao creme, o papel branco perto do horizonte.
-  function paintSky() {
+  function paintSky(M = P, op = 140) {
     const band = (y0, y1, sd) => [...Array.from({ length: 13 }, (_, i) => [-60 + i * 170, y0 + 30 * Math.sin(i * 1.3 + sd)]), ...Array.from({ length: 13 }, (_, i) => [W + 60 - i * 170, y1 + 45 * Math.sin(i * .9 + sd)])];
-    wc(band(-80, 640, 1), P.skyTop, 140, .25, .6);
-    wc(band(-80, 300, 2), dk(P.skyTop, .12), 70, .3, .6);
-    wc(band(700, H + 80, 3), P.skyLow, 120, .25, .5);
+    wc(band(-80, 640, 1), M.skyTop, op, .25, .6);
+    wc(band(-80, 300, 2), dk(M.skyTop, .12), op / 2, .3, .6);
+    wc(band(700, H + 80, 3), M.skyLow, 120, .25, .5);
   }
   // Terreno de uma camada: base chapada clara, mancha que vaza, veladura mais escura abaixo da crista, manchinhas de
   // granulação e a crista em nanquim leve e quebrado (ink = espessura; 0 no distante).
+  // o.dense (cena K): fundo do polígono em pontos a cada 40 px (a borda longa reta vaza em dentes no brush); o.light =
+  // quanto de branco na base chapada.
   const terrain = (prof, col, o = {}) => (x0, x1, yb) => {
     const top = []; for (let x = x0 - 40; x <= x1 + 80; x += 30) top.push([x, prof(x)]);
-    const below = (d, amp = 14) => [...top.map(([x, y]) => [x, y + d + (d ? amp * Math.sin(x * .011 + d) : 0)]), [x1 + 80, yb + 20], [x0 - 40, yb + 20]];
-    flat(below(5), mixCol(col, '#FFFFFF', .45));
+    const floor = o.dense ? Array.from({ length: Math.ceil((x1 - x0 + 120) / 40) + 1 }, (_, i) => [Math.max(x0 - 40, x1 + 80 - 40 * i), yb + 20]) : [[x1 + 80, yb + 20], [x0 - 40, yb + 20]];
+    const below = (d, amp = 14) => [...top.map(([x, y]) => [x, y + d + (d ? amp * Math.sin(x * .011 + d) : 0)]), ...floor];
+    flat(o.dense ? below(-12, 0) : below(5), mixCol(col, '#FFFFFF', o.light ?? .45));  // dense: a base sobe até a máscara (sem fresta branca na crista)
     wc(below(0), col, 180, .12, .55);
     wc(below(o.glaze ?? 50, 20), dk(col, .2), 80, .2, .6);
     const n = Math.round((x1 - x0) / (o.dots ?? 160));
@@ -105,15 +108,22 @@ window.ExpStyle = (() => {
     for (let k = Math.floor(x0 / step); k * step < x1; k++) {
       const x = k * step + step * hash(k * 1.3 + sd); if (x > (o.xmax ?? Infinity)) continue;
       const h = lerp(h0, h1, hash(k * 2.7 + sd)) * (hash(k * .7 + sd) < (o.gap || 0) ? .3 : 1);
-      blade(x, gy(x) + (o.dy || 3), h, .5 * (hash(k * 5.1 + sd) - .5) + (o.wind ?? .12) * noise1(sd + 3, T * .6 + x * .002), k & 1 ? col : (o.col2 || col), rim, (o.a ?? .85) * A);
+      // o.loop = fase do loop (cena K): vento periódico, um balanço por loop.
+      const wind = o.loop === undefined ? noise1(sd + 3, T * .6 + x * .002) : Math.sin(TAU * o.loop + x * .004);
+      blade(x, gy(x) + (o.dy || 3), h, .5 * (hash(k * 5.1 + sd) - .5) + (o.wind ?? .12) * wind, k & 1 ? col : (o.col2 || col), rim, (o.a ?? .85) * A);
     }
     c.globalAlpha = 1;
   }
   // Nuvem: papel reservado (a máscara abre o céu em branco) com a sombra cinza-azulada só por baixo.
   const CLOUD = [[-80, 10, 50], [-25, -15, 62], [40, -5, 55], [85, 15, 40], [0, 22, 70]];
-  function cloud(x, y, s, sd) {
+  // mood (cena K): o corpo ganha uma aguada clara do céu de baixo e a sombra vai para a sombra da rampa.
+  function cloud(x, y, s, sd, mood) {
+    const M = mood && STYLE.moods[mood];
     c.save(); c.translate(x, y);
-    still('cloud' + sd, [-170 * s, -110 * s, 340 * s, 220 * s], 1, () => CLOUD.forEach(([dx, dy, r], i) => wc(ell(dx * s, (dy + 18) * s, .9 * r * s, .5 * r * s, 16, sd * 9 + i), mixCol(P.skyTop, P.far, .5), 90, .25, .5)),
+    still((M ? `Kcloud|${mood}|` : 'cloud') + sd, [-170 * s, -110 * s, 340 * s, 220 * s], 1, () => {
+      if (M) CLOUD.forEach(([dx, dy, r], i) => wc(ell(dx * s, dy * s, r * s, .78 * r * s, 16, sd * 7 + i), mixCol(M.skyLow, '#FFFFFF', .55), 110, .2, .5));
+      CLOUD.forEach(([dx, dy, r], i) => wc(ell(dx * s, (dy + 18) * s, .9 * r * s, .5 * r * s, 16, sd * 9 + i), M ? mixCol(M.skyTop, M.shade, .35) : mixCol(P.skyTop, P.far, .5), 90, .25, .5));
+    },
       () => { for (const [dx, dy, r] of CLOUD) { c.moveTo(dx * s + r * s, dy * s); c.ellipse(dx * s, dy * s, r * s, .8 * r * s, 0, 0, TAU); } });
     c.restore();
   }
@@ -271,7 +281,7 @@ window.ExpStyle = (() => {
   let LATE = [];
   function human(a, Q) {
     const p = a.pose, S = p.size, sd = sid(a.id), f = p.facing, J = p.joints, [ch, pe] = p.spine, L = p.limbs, lw = Math.max(1.1 / cam.z, .004 * S), q = n => Q.find(x => x.name === n);
-    const Wr = WEAR[a.id] || WEAR.human, gear = a.gear || [], gk = (BODY[p.body] || BODY.adult).girth / .11, ta = Math.atan2(ch.y - pe.y, ch.x - pe.x), front = a.front || [];
+    const Wr = { ...(WEAR[a.id] || WEAR.human), ...a.colors }, gear = a.gear || [], gk = (BODY[p.body] || BODY.adult).girth / .11, ta = Math.atan2(ch.y - pe.y, ch.x - pe.x), front = a.front || [];
     const bone = (n, col) => { const x = q(n); limb(x.pts, 2 * (x.r - lw), col, lw, undefined, x.cap); };
     // Membro de uma peça só: primeiro as bordas de todos os ossos, depois as aguadas opacas por cima (sem discos nem emendas
     // nas juntas); a borda some num disco em volta da raiz (ombro, quadril), onde o membro sai do tronco.
@@ -320,6 +330,11 @@ window.ExpStyle = (() => {
     const h = axis(q('head'));
     c.save(); c.translate(...h.m); c.rotate(h.a + Math.PI / 2); c.scale(f, 1); head(p, h.L / 2.1, sd, lw, Wr, gear.includes('hat')); c.restore();
     for (const [n] of nr) if (!n.startsWith('leg')) armOrLate(n.slice(-1), false);
+    if (a.holds === 'book') {  // livro aberto entre as mãos (cena K): capa vermelha e as páginas do papel
+      const bx = (J.handL[0] + J.handR[0]) / 2, by = (J.handL[1] + J.handR[1]) / 2, s = .07 * S;
+      blot([[bx - 1.1 * s, by - .2 * s], [bx, by + .1 * s], [bx + 1.1 * s, by - .2 * s], [bx + 1.1 * s, by + .45 * s], [bx, by + .7 * s], [bx - 1.1 * s, by + .45 * s]], '#8A3A2A', lw, { shade: false });
+      blot([[bx - .95 * s, by - .3 * s], [bx, by], [bx + .95 * s, by - .3 * s], [bx + .95 * s, by + .3 * s], [bx, by + .55 * s], [bx - .95 * s, by + .3 * s]], P.paper, lw, { shade: false, rim: dk(P.paper, .35) });
+    }
     if (p.emote) emote(p, S);
   }
   // Cabelo no quadro da cabeça (R): calota de trás e do alto e o penteado; o careca só tem a franja de trás.
@@ -817,6 +832,261 @@ window.ExpStyle = (() => {
     c.globalAlpha = 1;
   }
 
+  // ---------- cena K (kit de episódio, src/episode/kit.js) ----------
+  // O que não se move (céu, camadas, cômodo, mapa) é pintado uma vez em p5.brush e guardado por cena + parâmetros + mood
+  // (a chave sai só do quadro: cena, mood, semente e o que muda com os extras e o clima). O que se move é pintado por
+  // quadro em Canvas2D: estrelas, astro, nuvens, janelas acesas, ondas, adereços, chama, atores, luzes e clima.
+  const SURF = { grass: P.grass, sand: '#D9B47A', stone: '#B3A898', snow: '#EEF0EE' }, WALL = '#D9C29A', ROOF = '#A65A3C', BARK = mixCol(P.soilDk, P.stone, .35);
+  const tintOf = (M, f) => f < .3 ? M.far : f < .7 ? M.mid : M.near;
+  const kOf = f => .55 + .55 * f;  // px de pincel por px do mundo: o perto mais nítido
+  // Polígono com pontos a cada s px nas bordas (borda longa reta vaza em dentes no brush).
+  const dense = (p, s = 40) => p.flatMap((a, i) => { const b = p[(i + 1) % p.length], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / s)); return Array.from({ length: n }, (_, j) => [lerp(a[0], b[0], j / n), lerp(a[1], b[1], j / n)]); });
+  const skyK = M => () => { flat([[-60, -60], [W + 60, -60], [W + 60, H + 60], [-60, H + 60]], M.skyLow); paintSky(M, 200); };
+  // Faixa de perfil (serra, duna, chão) na tela inteira da camada.
+  function profBand(key, l, paint) {
+    let y0 = 1e9; for (let x = -240; x <= 2160; x += 20) y0 = Math.min(y0, l.prof(x));
+    band(key, l.f, -240, 2160, y0 - 50, 1160, kOf(l.f), paint, l.prof);
+  }
+  // Prédio: corpo e telhado (x = meio da base, y = base); os mesmos polígonos pintam e mascaram.
+  function bpolys(b) {
+    // O pé desce 34 px (some atrás do chão), menos na torre (o farol fica na água).
+    const l = b.x - b.w / 2, r = b.x + b.w / 2, t = b.y - b.h, w = b.w, ft = b.y + (b.roof === 'tower' ? 8 : 34), body = [[l, ft], [l, t], [r, t], [r, ft]];
+    const roof = b.roof === 'gable' ? [[l - .08 * w, t + 2], [b.x, t - .4 * w], [r + .08 * w, t + 2]]
+      : b.roof === 'tower' ? [[l - .1 * w, t + 2], [b.x, t - .8 * w], [r + .1 * w, t + 2]]
+      : b.roof === 'dome' ? Array.from({ length: 13 }, (_, i) => [b.x - .46 * w * Math.cos(i * Math.PI / 12), t + 2 - w / 3 * Math.sin(i * Math.PI / 12)])
+      : b.roof === 'temple' ? [[l - .05 * w, t + 4], [l - .05 * w, t - .06 * w], [b.x, t - .2 * w], [r + .05 * w, t - .06 * w], [r + .05 * w, t + 4]]
+      : [[l - 5, t + 5], [l - 5, t - 10], [r + 5, t - 10], [r + 5, t + 5]];  // flat: parapeito
+    return [body, roof];
+  }
+  function paintBuildings(items, tint, ink, sd) {
+    items.forEach((b, i) => {
+      const [body, roof] = bpolys(b).map(p => dense(p)), wall = mixCol(WALL, tint, .4), l = b.x - b.w / 2, t = b.y - b.h;
+      flat(body, mixCol(wall, '#FFFFFF', .35)); wc(body, wall, 200, .08, .55);
+      wc(dense([[l, b.y + 8], [l, t + .55 * b.h], [l + b.w, t + .7 * b.h], [l + b.w, b.y + 8]]), dk(wall, .15), 70, .15, .6);  // sombra de baixo
+      if (b.roof === 'temple') for (let k = 0; k < 6; k++) { const x = l + b.w * (.12 + .152 * k); wc([[x, t + .14 * b.h], [x + .07 * b.w, t + .14 * b.h], [x + .07 * b.w, b.y], [x, b.y]], dk(wall, .35), 160, .05, .4); }  // vãos entre as colunas
+      flat(roof, mixCol(b.roof === 'temple' || b.roof === 'flat' ? wall : ROOF, tint, .35)); wc(roof, dk(mixCol(b.roof === 'temple' || b.roof === 'flat' ? wall : ROOF, tint, .35), .1), 150, .1, .5);
+      for (const w of b.windows) wc([[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]], dk(wall, .55), 210, .04, .3);
+      if (ink) { nibBroken([...body, body[0]], ink, sd + i * 9, .6, 1, dk(wall, .55)); nibBroken([...roof, roof[0]], ink, sd + i * 9 + 5, .7, 1, dk(wall, .6)); }
+    });
+  }
+  function paintTrees(trees, tint, ink) {
+    const leaf = mixCol(P.tree, tint, .45), pine = mixCol('#4E7458', tint, .45), bark = mixCol(BARK, tint, .4);
+    for (const tr of trees) {
+      const { x, y, h, seed: sd } = tr;
+      if (tr.kind === 'pine') {
+        wc(ribbon([[x, y + 4], [x, y - .35 * h]], .05 * h, .03 * h), bark, 200, .03, .4);
+        for (let i = 0; i < 3; i++) {
+          const yb = y - .2 * h - .25 * h * i, w = h * [.32, .25, .17][i], ap = [x + .04 * h * (hash(sd + i) - .5), yb - .3 * h - (i === 2 ? .05 * h : 0)];
+          const tier = [[x - w, yb], ap, [x + w, yb], [x + .35 * w, yb + .05 * h], [x - .4 * w, yb + .04 * h]];
+          wc(tier, i ? pine : dk(pine, .12), 200, .1, .5);
+          if (ink) nibBroken([[x - w, yb], ap, [x + w, yb]], ink, sd * 3 + i, .6, 1, dk(pine, .45));
+        }
+      } else if (tr.kind === 'palm') {
+        const top = [x + .12 * h, y - h];
+        wc(ribbon(chaikin([[x, y + 4], [x + .06 * h, y - .5 * h], top]), .05 * h, .03 * h), bark, 200, .03, .4);
+        for (let i = 0; i < 6; i++) { const a = Math.PI * (1.05 + .9 * i / 5), e = [top[0] + .38 * h * Math.cos(a), top[1] + .38 * h * Math.sin(a) + .18 * h]; wc(ribbon(chaikin([top, [(top[0] + e[0]) / 2, top[1] - .06 * h], e]), .07 * h, .01 * h), leaf, 200, .08, .5); }
+      } else {
+        wc(ribbon([[x, y + 4], [x + .02 * h, y - .55 * h]], .07 * h, .035 * h), bark, 200, .03, .4);
+        const crown = [[-.2, -.62, .26], [.05, -.8, .3], [.22, -.6, .22], [0, -.5, .24]];
+        for (const [dx, k, r] of crown) wc(ell(x + dx * h, y + k * h, r * h, .82 * r * h, 16, sd + dx), leaf, 190, .15, .55);
+        for (const [dx, k, r] of crown) wc(ell(x + dx * h + 4, y + (k + .1 * r) * h, .8 * r * h, .45 * r * h, 14, sd + k), dk(leaf, .3), 80, .2, .6);
+      }
+    }
+  }
+  function paintSea(l, col) {
+    const R = dense([[-260, l.y], [2180, l.y], [2180, 1180], [-260, 1180]]);
+    flat(R, mixCol(col, '#FFFFFF', .4)); wc(R, col, 190, .1, .55);
+    wc(dense([[-260, l.y + 90], [2180, l.y + 60], [2180, 1180], [-260, 1180]]), dk(col, .15), 90, .2, .6);
+    for (let i = 0; i < 12; i++) { const x = lerp(-200, 2100, hash(i * 3.7 + 1)), y = l.y + 20 + 260 * hash(i * 1.9 + 2) ** 2, r = 80 + 200 * hash(i * 5.3); wc(ell(x, y, 2.5 * r, .12 * r, 14, i), dk(col, .2), 60, .3, .6); }
+  }
+  // Adereço de camada (por quadro): k = movimento próprio, contínuo na emenda.
+  function propK(o, M, tint) {
+    const { x, y, s } = o, lw = Math.max(1.2 / cam.z, .012 * s), sd = sid(o.kind + o.seed + Math.round(x));
+    if (o.kind === 'ship') {
+      const wood = mixCol('#6B4A34', tint, .3), sail = mixCol(P.paper, tint, .2);
+      c.save(); c.translate(x, y); c.rotate(.06 * (o.k - .5));
+      line([[0, -.1 * s], [0, -1.05 * s]], .03 * s, dk(wood, .2));
+      blot([[.04 * s, -.98 * s], [.5 * s, -.3 * s], [.04 * s, -.24 * s]], sail, lw, { shade: false });
+      blot([[-.04 * s, -.85 * s], [-.04 * s, -.26 * s], [-.4 * s, -.3 * s]], dk(sail, .08), lw, { shade: false });
+      blot([[-.62 * s, -.16 * s], [.66 * s, -.16 * s], [.44 * s, .1 * s], [-.46 * s, .1 * s]], wood, lw);
+      c.restore();
+    } else if (o.kind === 'camel') {
+      const col = mixCol('#B98A55', tint, .35), dkc = dk(col, .3), hy = y - (1 + .08 * o.k) * s;
+      for (const [d, far] of [[-.28, 1], [.3, 1], [-.2, 0], [.38, 0]]) line([[x + d * s, y - .62 * s], [x + (d + .03) * s, y]], .055 * s, far ? dkc : dk(col, .12));
+      line([[x + .32 * s, y - .72 * s], [x + .55 * s, hy]], .09 * s, col);
+      blot(oval(x, y - .72 * s, .42 * s, .19 * s, 0, sd), col, lw);
+      blot(oval(x - .04 * s, y - .88 * s, .17 * s, .12 * s, 0, sd + 5, 10), col, lw, { shade: false });
+      blot(oval(x + .62 * s, hy, .1 * s, .06 * s, .2, sd + 9, 9), col, lw, { shade: false });
+    } else if (o.kind === 'column') {
+      const col = mixCol(P.stone, tint, .35), w = 15, top = y - s;
+      blot([[x - w, y], [x - w, top + 6], [x - 5, top - 9 * hash(sd)], [x + 4, top + 7], [x + w, top - 6 * hash(sd + 1)], [x + w, y]], col, lw, { light: false });
+      line([[x + 4, y - 4], [x + 4, top + 12]], 3, dk(col, .25), .6);
+      blot(oval(x, y - 6, w + 9, 8, 0, sd + 3, 10), dk(col, .1), lw, { shade: false });
+    } else if (o.kind === 'fire') {
+      const h = s * (.7 + .3 * o.k), wood = dk(BARK, .2);
+      line([[x - .5 * s, y], [x + .45 * s, y - .12 * s]], .1 * s, wood); line([[x - .45 * s, y - .12 * s], [x + .5 * s, y]], .1 * s, dk(wood, .2));
+      blot([[x, y - h], [x + .32 * h, y - .4 * h], [x + .22 * h, y - .05 * h], [x - .22 * h, y - .05 * h], [x - .3 * h, y - .45 * h]], '#E2783A', lw, { shade: false, a: .9 });
+      blot([[x + .03 * h, y - .66 * h], [x + .16 * h, y - .3 * h], [x, y - .1 * h], [x - .15 * h, y - .3 * h]], '#F6D46A', lw, { shade: false, a: .95, rim: '#E8A040' });
+    } else if (o.kind === 'rock') blot(oval(x, y - .45 * s, 1.15 * s, .55 * s, 0, sd, 14, .1), mixCol(P.stone, tint, .3), lw);
+  }
+  // Céu por quadro na câmera da camada f: astro com o brilho, estrelas que cintilam, nuvens que balançam e o meteoro.
+  function skyItems(S, mood, f) {
+    const M = STYLE.moods[mood]; at(f);
+    const lw = Math.max(1 / cam.z, 1.2), o = S.celestial;
+    for (const s of S.stars) { c.beginPath(); c.arc(s.x, s.y, s.r * (.7 + .5 * s.tw), 0, TAU); c.globalAlpha = .35 + .6 * s.tw; c.fillStyle = '#FFF8E6'; c.fill(); }
+    c.globalAlpha = 1;
+    if (o) {
+      const sun = o.kind === 'sun', R = o.r * (sun ? 2.6 + 2 * o.glow : 3), g = c.createRadialGradient(o.x, o.y, o.r * .8, o.x, o.y, R), gc = sun ? M.glow : '#E8ECF5';
+      g.addColorStop(0, gc); g.addColorStop(1, gc + '00'); c.globalCompositeOperation = 'screen'; c.globalAlpha = (sun ? .55 : .35) * (.5 + .5 * o.glow); c.fillStyle = g; c.fillRect(o.x - R, o.y - R, 2 * R, 2 * R);
+      c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+      const col = sun ? mixCol('#FFE9B0', M.glow, .3) : '#F2EEDF';
+      blot(oval(o.x, o.y, o.r, o.r, 0, 77, 20, .03), col, lw, { shade: false, light: false, rim: dk(col, .2) });
+      if (!sun) for (const [u, v, r] of [[-.3, -.2, .22], [.25, .15, .16], [-.05, .4, .12]]) { c.beginPath(); c.arc(o.x + u * o.r, o.y + v * o.r, r * o.r, 0, TAU); c.globalAlpha = .35; c.fillStyle = dk(col, .2); c.fill(); }
+      c.globalAlpha = 1;
+    }
+    for (const cl of S.clouds) cloud(cl.x, cl.y, cl.w / 320, cl.seed, mood);
+    const m = S.meteor;
+    if (m && m.k > 0 && m.k < 1) {
+      const x = lerp(m.x0, m.x1, m.k), y = lerp(m.y0, m.y1, m.k), dx = m.x1 - m.x0, dy = m.y1 - m.y0;
+      for (let i = 0; i < 4; i++) line([[x - dx * .07 * i, y - dy * .07 * i], [x - dx * .07 * (i + 1), y - dy * .07 * (i + 1)]], 3.2 - .6 * i, '#FFF8E6', .9 - .22 * i);
+    }
+  }
+  // Clima na câmera do chão; win = janela do interior (já recortada por quem chama).
+  function weatherK(Wt, M, win) {
+    at(1);
+    if (Wt.kind === 'rain') { c.beginPath(); for (const d of Wt.drops) { c.moveTo(d.x, d.y); c.lineTo(d.x - 3, d.y - 14 - 22 * d.k); } c.globalAlpha = .45; c.strokeStyle = M.light; c.lineWidth = 1.6; c.lineCap = 'round'; c.stroke(); }
+    else if (Wt.kind === 'snow') { c.fillStyle = '#FFFDF6'; for (const d of Wt.drops) { c.beginPath(); c.arc(d.x, d.y, 1.6 + 2.6 * d.k, 0, TAU); c.globalAlpha = .55 + .4 * d.k; c.fill(); } }
+    c.globalAlpha = 1;
+    if (!Wt.fog) return;
+    const col = mixCol(M.skyLow, '#FFFFFF', .35);
+    if (win) { c.globalAlpha = .55 * Wt.fog; c.fillStyle = col; c.fillRect(win.x, win.y, win.w, win.h); c.globalAlpha = 1; return; }
+    c.resetTransform(); const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, col + '40'); g.addColorStop(.6, col + 'b0'); g.addColorStop(1, col + 'd0');
+    c.globalAlpha = Wt.fog; c.fillStyle = g; c.fillRect(0, 0, W, H); c.globalAlpha = 1;
+  }
+  // Luzes somam (screen): janelas, vela, fogueira, farol e o miolo dos vaga-lumes.
+  function lightsK(list, M) {
+    c.globalCompositeOperation = 'screen';
+    for (const l of list) {
+      if (l.k <= 0) continue;
+      at(l.f ?? 1); const R = l.r < 20 ? 4 * l.r : l.r, g = c.createRadialGradient(l.x, l.y, 0, l.x, l.y, R);
+      g.addColorStop(0, M.glow); g.addColorStop(1, M.glow + '00'); c.globalAlpha = (l.r < 20 ? .7 : .45) * l.k; c.fillStyle = g; c.fillRect(l.x - R, l.y - R, 2 * R, 2 * R);
+      if (l.r < 20) { c.beginPath(); c.arc(l.x, l.y, .3 * l.r, 0, TAU); c.globalAlpha = l.k; c.fillStyle = '#FFF6C0'; c.fill(); }
+    }
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+  }
+  // Cômodo (parado): parede com manchas, lambri, assoalho e os móveis fixos (estante, mesa, vela, livro, rolo).
+  const paintRoom = (I, M) => () => {
+    const fy = I.floorY, rect = (x0, y0, x1, y1) => dense([[x0, y0], [x1, y0], [x1, y1], [x0, y1]]), wall = rect(-260, -160, 2180, fy + 4), wood = M.near;
+    flat(wall, mixCol(M.far, '#FFFFFF', .35)); wc(wall, M.far, 170, .04, .6);
+    for (let i = 0; i < 16; i++) { const x = lerp(-200, 2100, hash(i * 5.1 + 3)), y = lerp(-100, fy - 120, hash(i * 2.3 + 1)), r = 90 + 160 * hash(i * 7.7); wc(ell(x, y, 1.5 * r, r, 16, i), dk(M.far, .12), 45, .35, .7); }
+    wc(rect(-260, fy - 170, 2180, fy + 4), M.mid, 150, .04, .5);
+    const hz = y => Array.from({ length: 25 }, (_, i) => [-260 + i * 100, y + 2 * Math.sin(i * 1.7 + y)]);
+    const floor = rect(-260, fy, 2180, 1300); flat(floor, mixCol(M.ground, '#FFFFFF', .3)); wc(floor, M.ground, 200, .04, .5);
+    for (let j = 1; j < 7; j++) nibBroken(hz(fy + 14 * j * j), .3, j * 7, .6, 2, dk(M.ground, .45));
+    for (const o of I.props) {
+      const { x, y, s } = o;
+      if (o.kind === 'shelf') {
+        wc(rect(x - o.w / 2, y - s, x + o.w / 2, y), wood, 220, .05, .4); nibBroken([[x - o.w / 2, y - s], [x + o.w / 2, y - s]], .35, 3, .8, 1, dk(wood, .5));
+        for (let i = 0, bx = x - o.w / 2 + 14; i < 10 && bx < x + o.w / 2 - 30; i++) { const bw = 18 + 14 * hash(i * 3.1), bh = 60 + 40 * hash(i * 1.7), col = ['#8A3A2A', '#3F5E7A', '#7A6A3A', '#5E7A4A'][i % 4]; wc(rect(bx, y - s - bh, bx + bw, y - s), col, 210, .05, .4); bx += bw + 3; }
+      } else if (o.kind === 'table') {
+        wc(ell(x, y + 16, .6 * o.w, 14, 16, 3), M.shade, 60, .3, .6);
+        for (const d of [-.42, .42]) wc(ribbon([[x + d * o.w, y - s + 10], [x + d * o.w, y]], 16, 12), dk(wood, .15), 220, .04, .4);
+        const top = rect(x - o.w / 2 - 12, y - s - 4, x + o.w / 2 + 12, y - s + 14); wc(top, wood, 230, .05, .5); nibBroken([...top, top[0]], .4, 9, .7, 1, dk(wood, .55));
+      } else if (o.kind === 'candle') {
+        wc(ell(x, y - 3, 24, 7, 12, 5), '#9A8A6A', 220, .05, .4); wc(rect(x - 9, y - s, x + 9, y - 3), '#EFE6CC', 230, .05, .4); nib([[x, y - s], [x + 1, y - s - 7]], .3, P.ink);
+      } else if (o.kind === 'book') {
+        wc(rect(x - s / 2, y - 16, x + s / 2, y), '#8A3A2A', 220, .05, .4); wc(rect(x - s / 2 + 4, y - 12, x + s / 2 - 2, y - 4), '#EFE6CC', 200, .03, .3);
+      } else if (o.kind === 'scroll') {
+        wc(ell(x, y - 9, s / 2, 9, 14, 7), '#E2CFA0', 220, .05, .4); for (const d of [-1, 1]) wc(ell(x + d * s / 2, y - 9, 7, 11, 10, 8 + d), dk('#E2CFA0', .2), 220, .05, .4);
+      }
+    }
+  };
+  function chairK(o, wood, lw) {
+    const { x, y, s, dir } = o, top = y - s;
+    for (const d of [-.5, .5]) limb([[x + d * s, top], [x + d * s, y]], .1 * s, dk(wood, .15), lw);
+    limb([[x - dir * .5 * s, top], [x - dir * .55 * s, top - 1.5 * s]], .12 * s, wood, lw);
+    limb([[x - .62 * s, top], [x + .62 * s, top]], .14 * s, wood, lw);
+  }
+  // Mapa (parado): papel sobre a mesa, mar, terras, costa a nanquim e as cidades; a rota é por quadro.
+  const paintMap = Mp => () => {
+    const { x, y, w, h } = Mp.paper, R = dense([[x, y], [x + w, y], [x + w, y + h], [x, y + h]]);
+    flat(R, '#EFE3C6'); wc(R, '#9FBBB9', 150, .2, .6);
+    for (let i = 0; i < 10; i++) { const u = x + w * hash(i * 4.3 + 1), v = y + h * hash(i * 2.9 + 3), r = 60 + 140 * hash(i * 6.1); wc(ell(u, v, 1.4 * r, r, 16, i), '#C9B98E', 50, .35, .7); }
+    Mp.coasts.forEach((co, i) => {
+      const cx = co.reduce((a, p) => a + p[0], 0) / co.length, cy = co.reduce((a, p) => a + p[1], 0) / co.length;
+      for (let j = 0; j < co.length; j += 2) { const [u, v] = co[j], d = Math.hypot(u - cx, v - cy) || 1, e = 1 + 30 / d, a = Math.atan2(v - cy, u - cx) + Math.PI / 2; nib([[cx + e * (u - cx) - 9 * Math.cos(a), cy + e * (v - cy) - 9 * Math.sin(a)], [cx + e * (u - cx) + 9 * Math.cos(a), cy + e * (v - cy) + 9 * Math.sin(a)]], .35, '#5E7E86'); }
+      flat(co, '#E6D6A8'); wc(co, '#CDB377', 200, .1, .5); wc(co.map(([u, v]) => [cx + .72 * (u - cx), cy + .72 * (v - cy)]), '#9FAE70', 150, .3, .6);
+      nibBroken([...co, co[0]], .55, i * 11, .85, 4, '#5A4632');
+    });
+    for (const [i, m] of Mp.marks.entries()) { wc(ell(m.x, m.y, 9, 9, 10, i), '#8A3A2A', 230, .05, .3); nib([...ell(m.x, m.y, 16, 16, 12, i + 4), ell(m.x, m.y, 16, 16, 12, i + 4)[0]], .35, '#5A2E22'); }
+    nibBroken([...R, R[0]], .6, 4, .8, 1, '#7A5A3A');
+  };
+  function kitScene(F) {
+    const K = F.world.kit, S = K.sky, I = K.interior, M = STYLE.moods[K.mood], base = `K|${F.shot}|${K.mood}|${K.seed}`;
+    if (K.map) {
+      const Pp = K.map.paper, r = K.map.route;
+      c.resetTransform(); still('Kdesk', [0, 0, W, H], .4, () => { const R = dense([[-60, -60], [W + 60, -60], [W + 60, H + 60], [-60, H + 60]], 80); flat(R, '#C9A27A'); wc(R, '#A87A52', 150, .2, .6); for (let j = 0; j < 22; j++) wc(ell(W * hash(j * 3.3), 30 + 48 * j, 500 + 500 * hash(j * 1.7), 9 + 8 * hash(j), 24, j), '#8A6040', 70, .2, .6); });
+      at(1); still(`Kmap|${K.seed}`, [Pp.x - 20, Pp.y - 20, Pp.w + 40, Pp.h + 40], 1, paintMap(K.map), () => c.rect(Pp.x, Pp.y, Pp.w, Pp.h));
+      if (r) {  // trecho da rota até a fração k do comprimento, tracejado em vermelho-terra
+        const d = r.pts.slice(1).map((q, i) => Math.hypot(q[0] - r.pts[i][0], q[1] - r.pts[i][1])); let left = r.k * d.reduce((a, b) => a + b, 0); const pts = [r.pts[0]];
+        for (let i = 0; i < d.length && left > 0; i++) { const u = Math.min(1, left / d[i]); pts.push([lerp(r.pts[i][0], r.pts[i + 1][0], u), lerp(r.pts[i][1], r.pts[i + 1][1], u)]); left -= d[i]; }
+        c.setLineDash([18, 12]); line(pts, 5, '#9A3A2A', .85); c.setLineDash([]);
+        const [hx, hy] = pts.at(-1); c.beginPath(); c.arc(hx, hy, 7, 0, TAU); c.fillStyle = '#9A3A2A'; c.fill();
+      }
+      return;
+    }
+    if (I) {  // no interior, céu e clima pela câmera da janela (f = 1), recortados por ela; a hora sai do astro e da luz da janela
+      const w = I.window, wm = S.celestial ? 'night' : K.lights.some(l => l.x === w.x + w.w / 2 && l.k >= .6) ? 'day' : 'dusk';
+      at(1); c.save(); c.beginPath(); c.rect(w.x, w.y, w.w, w.h); c.clip();
+      still('Kwin|' + wm, [w.x, w.y, w.w, w.h], .5, skyK(STYLE.moods[wm]));
+      skyItems(S, wm, 1); weatherK(K.weather, STYLE.moods[wm], w); c.restore();
+      at(1); still(`Kroom|${K.seed}|` + I.props.filter(o => o.kind !== 'chair').map(o => o.kind + o.x + ',' + o.y).join(';'), [-240, -120, 2400, I.floorY + 360], .6, paintRoom(I, M),
+        () => { c.rect(-240, -120, 2400, I.floorY + 360); c.moveTo(w.x, w.y); c.lineTo(w.x, w.y + w.h); c.lineTo(w.x + w.w, w.y + w.h); c.lineTo(w.x + w.w, w.y); c.closePath(); });
+      const lw = Math.max(1.2 / cam.z, 1.5), fr = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h], [w.x, w.y]];
+      limb([[w.x + w.w / 2, w.y], [w.x + w.w / 2, w.y + w.h]], 9, M.near, lw); limb([[w.x, w.y + .45 * w.h], [w.x + w.w, w.y + .45 * w.h]], 9, M.near, lw);
+      limb(fr, 16, M.near, lw); limb([[w.x - 24, w.y + w.h + 10], [w.x + w.w + 24, w.y + w.h + 10]], 16, dk(M.near, .1), lw);
+      for (const o of I.props) {
+        if (o.kind === 'chair') chairK(o, M.near, lw);
+        if (o.flame) { const h = o.flame.h, x = o.x, y = o.y - o.s - 4; blot([[x, y - h], [x + .3 * h, y - .35 * h], [x, y], [x - .3 * h, y - .35 * h]], '#F2A93B', lw, { shade: false, rim: '#D9782E' }); blot([[x, y - .6 * h], [x + .14 * h, y - .25 * h], [x, y - .05 * h], [x - .14 * h, y - .25 * h]], '#FFF1B0', lw, { shade: false, rim: '#F6C860' }); }
+      }
+    } else {
+      c.resetTransform(); still('Ksky|' + K.mood, [0, 0, W, H], .5, skyK(M));
+      skyItems(S, K.mood, 0);
+    }
+    for (const l of K.layers) {
+      const tint = tintOf(M, l.f), ink = l.f >= .45 ? .2 + .4 * l.f : 0, key = `${base}|${l.kind}|${l.f}`, tk = { dense: true, light: K.mood === 'night' ? .08 : .3 };
+      if (l.kind === 'ridge') profBand(key, l, terrain(l.prof, tint, { ...tk, glaze: 40 + 40 * l.f, ink, dots: 200, deep: 80 }));
+      else if (l.kind === 'dunes') profBand(key, l, terrain(l.prof, mixCol(SURF.sand, tint, .4), { ...tk, glaze: 40, ink, dots: 260, deep: 80 }));
+      else if (l.kind === 'ground') {
+        const col = l.surface === 'grass' ? M.ground : mixCol(SURF[l.surface], M.ground, .4);
+        profBand(key + l.surface, l, terrain(l.prof, col, { ...tk, glaze: 70, ink: .6, dots: 220, deep: 200 }));
+        if (l.surface === 'grass') grass(1, l.prof, 16, 10, 28, dk(col, .25), { seed: K.seed, col2: col, loop: K.phase, a: .75 });
+      } else if (l.kind === 'treeline') {
+        let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (const t of l.trees) { x0 = Math.min(x0, t.x - .45 * t.h); x1 = Math.max(x1, t.x + .45 * t.h); y0 = Math.min(y0, t.y - 1.1 * t.h); y1 = Math.max(y1, t.y + 12); }
+        at(l.f); still(key, [x0, y0, x1 - x0, y1 - y0], kOf(l.f), () => paintTrees(l.trees, tint, ink));
+      } else if (l.kind === 'buildings') {
+        let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (const b of l.items) for (const p of bpolys(b)) for (const [x, y] of p) { x0 = Math.min(x0, x - 20); x1 = Math.max(x1, x + 20); y0 = Math.min(y0, y - 20); y1 = Math.max(y1, y + 20); }
+        at(l.f); still(key + '|' + l.items.map(b => b.x + b.roof).join(), [x0, y0, x1 - x0, y1 - y0], Math.min(kOf(l.f), 3800 / (x1 - x0)), () => paintBuildings(l.items, tint, ink, K.seed),
+          () => { for (const b of l.items) for (const p of bpolys(b)) { c.moveTo(...p[0]); for (const v of p) c.lineTo(...v); c.closePath(); } });
+        c.fillStyle = mixCol(M.glow, '#FFFFFF', .2);
+        for (const b of l.items) for (const w of b.windows) if (w.lit > 0) { c.globalAlpha = .9 * w.lit; c.fillRect(w.x + 2, w.y + 2, w.w - 4, w.h - 4); }
+        c.globalAlpha = 1;
+      } else if (l.kind === 'sea') {
+        const col = mixCol('#6F9DB8', tint, .35);
+        at(l.f); still(key, [-260, l.y - 4, 2440, 1184 - l.y], .7, () => paintSea(l, col), () => c.rect(-260, l.y, 2440, 1180 - l.y));
+        for (const wv of l.waves) line([[wv.x - wv.len / 2, wv.y - 3 * wv.k], [wv.x + wv.len / 2, wv.y - 3 * wv.k]], 2.4, M.light, .2 + .5 * wv.k);
+      } else if (l.kind === 'props') { at(l.f); for (const o of l.items) propK(o, M, tint); }
+    }
+    actors(F, false); actors(F, true);
+    if (I) {  // o cômodo escurece longe da vela (multiply), mais à noite
+      const L0 = K.lights[0], wm = S.celestial ? .6 : .3, g = c.createRadialGradient(L0.x, L0.y, .25 * L0.r, L0.x, L0.y, 1.7 * L0.r);
+      at(1); g.addColorStop(0, '#FFFFFF'); g.addColorStop(1, M.shade); c.globalCompositeOperation = 'multiply'; c.globalAlpha = wm; c.fillStyle = g; c.fillRect(-300, -200, 2520, 1500);
+      c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+    }
+    lightsK(K.lights, M);
+    if (!I) weatherK(K.weather, M, null);
+  }
+
   // ---------- papel e texto ----------
   // Papel: cor, manchas largas, fibras e grão por pixel; uma vez, entra em multiply sobre o quadro pronto.
   let PAPER = null;
@@ -846,8 +1116,11 @@ window.ExpStyle = (() => {
     draw(F) {
       c = X; cam = F.cam; T = F.t; A = 1;
       c.resetTransform(); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; c.fillStyle = '#FFFFFF'; c.fillRect(0, 0, W, H);
-      still('sky', [0, 0, W, H], .5, paintSky);
-      ({ close, wide, name, trail, praca: plaza, encontro: plaza, achado: plaza, banco: plaza, margem: lake, bebe: lake, chao: lake })[F.shot](F);
+      if (F.scene === 'K') kitScene(F);
+      else {
+        still('sky', [0, 0, W, H], .5, paintSky);
+        ({ close, wide, name, trail, praca: plaza, encontro: plaza, achado: plaza, banco: plaza, margem: lake, bebe: lake, chao: lake })[F.shot](F);
+      }
       c.resetTransform(); c.globalAlpha = 1;
       for (const s of F.texts) if (s.k > 0) title(s);
       if (!PAPER) PAPER = makePaper();
