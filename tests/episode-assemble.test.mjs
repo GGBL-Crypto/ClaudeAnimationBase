@@ -27,8 +27,11 @@ test('pruneAcervo removes stale and unindexed files, tolerates empty dir', () =>
   const empty = mkdtempSync(join(tmpdir(), 'acervo-'));
   assert.deepEqual(pruneAcervo(empty, 'novo'), { files: 0, bytes: 0 });
   assert.deepEqual(pruneAcervo(join(empty, 'nao-existe'), 'novo'), { files: 0, bytes: 0 });
-  rmSync(dir, { recursive: true, force: true }); rmSync(empty, { recursive: true, force: true });
-});
+  const noIndex = mkdtempSync(join(tmpdir(), 'acervo-')); writeFileSync(join(noIndex, 'x.mp4'), 'xx');
+  assert.deepEqual(pruneAcervo(noIndex, 'novo'), { files: 0, bytes: 0 }); assert.deepEqual(readdirSync(noIndex), ['x.mp4']);
+  const keepRm = mkdtempSync(join(tmpdir(), 'acervo-')); writeFileSync(join(keepRm, 'b.mp4'), 'bb'); writeFileSync(join(keepRm, 'index.json'), JSON.stringify({ b: { sourceHash: 'velho' } }));
+  assert.deepEqual(pruneAcervo(keepRm, 'novo', { rm: () => {} }), { files: 1, bytes: 2 });  // rm que não apaga: conta uma vez só
+  for (const d of [dir, empty, noIndex, keepRm]) rmSync(d, { recursive: true, force: true });});
 test('segment args: fades, loop, no windows paths', () => {
   const a = segmentArgs('out/acervo/k.mp4', 30, 'out/episodes/x/seg/k-30.mp4').join(' ');
   // O FFmpeg recusa "d=.75" ("Unable to parse option value"); o brief pede .75, a forma aceita é 0.75.

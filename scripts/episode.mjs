@@ -12,12 +12,12 @@ import { validateEpisode, acervoKey, segmentArgs, concatList, assembleArgs, buil
 // Limpeza manual do acervo: apaga entradas de outro sourceHash (ou sem ele) e arquivos fora do índice. Sem pasta ou índice, não faz nada.
 export function pruneAcervo(dir, sourceHash, { rm = rmSync } = {}) {
   const indexFile = join(dir, 'index.json'), res = { files: 0, bytes: 0 };
-  if (!existsSync(dir)) return res;
-  const index = existsSync(indexFile) ? JSON.parse(readFileSync(indexFile, 'utf8')) : {}, keep = {};
-  const drop = f => { const p = join(dir, f); res.bytes += statSync(p).size; res.files++; rm(p, { force: true }); };
+  if (!existsSync(dir) || !existsSync(indexFile)) return res;
+  const index = JSON.parse(readFileSync(indexFile, 'utf8')), keep = {}, gone = new Set();
+  const drop = f => { if (gone.has(f)) return; gone.add(f); const p = join(dir, f); res.bytes += statSync(p).size; res.files++; rm(p, { force: true }); };
   for (const [k, v] of Object.entries(index)) { if (v.sourceHash === sourceHash) keep[k] = v; else if (existsSync(join(dir, `${k}.mp4`))) drop(`${k}.mp4`); }
   for (const e of readdirSync(dir, { withFileTypes: true })) if (e.isFile() && e.name !== 'index.json' && !(e.name.endsWith('.mp4') && e.name.slice(0, -4) in keep)) drop(e.name);
-  if (existsSync(indexFile)) writeFileSync(indexFile, JSON.stringify(keep, null, 2) + '\n');
+  writeFileSync(indexFile, JSON.stringify(keep, null, 2) + '\n');
   return res;
 }
 
