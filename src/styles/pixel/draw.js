@@ -238,7 +238,7 @@
   }
   function iprop(V, o) {
     const x = Math.round(V.x(o.x)), y = Math.round(V.y(o.y)), s = o.s * V.k, w = (o.w || 0) * V.k;
-    if (o.kind === 'table') { rect(x - w / 2, y - s, w, 2, P.wood); rect(x - w / 2, y - s, w, 1, P.sandDk); for (const d of [-.42, .42]) rect(x + d * w - 1, y - s + 2, 2, s - 2, P.woodDk); }
+    if (o.kind === 'table') { rect(x - w / 2, y - s, w, 2, P.wood); rect(x - w / 2, y - s, w, 1, P.sandDk); for (const d of [-.42, .42]) rect(x + d * w - 1, y - s + 2, 2, s - 2, P.wood); }  // perna clara: woodDk some na parede escura
     else if (o.kind === 'shelf') {
       rect(x - w / 2, y, w, 2, P.wood); const books = [P.shadow, P.sea, P.foliage, P.sandDk, P.wingAccent];
       for (let bx = x - w / 2 + 1, i = 0; bx < x + w / 2 - 2; i++) { const bw = 1 + Math.round(hash(i * 3.1) * 2), bh = 4 + Math.round(hash(i * 5.7) * 3); rect(bx, y - bh, bw, bh, books[i % books.length]); bx += bw + (hash(i * 9.3) < .2 ? 2 : 0); }
@@ -248,7 +248,7 @@
       rect(fx, y - s - h, 1, h, P.wing); px(fx, y - s - 1, P.duskLow); px(fx, y - s - h, P.flame); if (h > 3) px(fx, y - s - h + 1, P.flame);
     } else if (o.kind === 'book') { rect(x - s / 2, y - 2, s, 2, P.shadow); rect(x - s / 2 + 1, y - 2, s - 2, 1, P.cloud); }
     else if (o.kind === 'scroll') { rect(x - s / 2, y - 2, s, 2, P.sand); rect(x - s / 2, y - 3, 1, 3, P.sandDk); rect(x + s / 2 - 1, y - 3, 1, 3, P.sandDk); }
-    else if (o.kind === 'chair') { rect(x - .3 * s, y - s, .6 * s, 1, P.wood); for (const d of [-.3, .3]) rect(x + d * s, y - s, 1, s, P.woodDk); rect(x - o.dir * .3 * s, y - 2.4 * s, 1, 1.4 * s, P.woodDk); }
+    else if (o.kind === 'chair') { rect(x - .3 * s, y - s, .6 * s, 1, P.sandDk); for (const d of [-.3, .3]) rect(x + d * s - 1, y - s + 1, 2, s - 1, P.wood); rect(x - o.dir * .3 * s - 1, y - 2.4 * s, 2, 1.4 * s, P.wood); }
   }
   function map(V, M) {
     rect(0, 0, GW, GH, P.woodDk);
@@ -265,15 +265,15 @@
 
   // ---------- bonecos ----------
   // Peças do boneco em ordem de desenho (o lado longe da câmera antes do corpo, o perto depois), w em px da grade.
-  const TORSO = { adult: 4, child: 3, elder: 4, heavy: 5, thin: 3 };
+  const TORSO = { adult: 5, child: 4, elder: 5, heavy: 6, thin: 4 };  // largura em px da grade a z = 1; a silhueta lê na dublagem e no quadro de 30 px do story
   function pieces(a, z) {
-    const P0 = a.pose, far = P0.facing > 0 ? 'R' : 'L', near = far === 'R' ? 'L' : 'R', lw = Math.max(2, Math.round((P0.body === 'heavy' ? 3 : 2) * z)), tw = Math.round(TORSO[P0.body] * z);
+    const P0 = a.pose, far = P0.facing > 0 ? 'R' : 'L', near = far === 'R' ? 'L' : 'R', lw = Math.max(3, Math.round((P0.body === 'heavy' ? 4 : 3) * z)), tw = Math.round(TORSO[P0.body] * z);
     const leg = s => [['thigh' + s, 'hip' + s, 'knee' + s, lw, 'pants'], ['shin' + s, 'knee' + s, 'ankle' + s, lw, 'pants'], ['foot' + s, 'ankle' + s, 'toe' + s, lw, 'shoe']];
     const arm = s => [['upperArm' + s, 'shoulder' + s, 'elbow' + s, lw, 'shirt'], ['forearm' + s, 'elbow' + s, 'wrist' + s, lw, 'shirt'], ['hand' + s, 'wrist' + s, 'hand' + s, lw, 'skin']];
     return [arm(far), leg(far), [['spine', 'pelvis', 'chest', tw, 'shirt'], ['upperSpine', 'chest', 'neck', tw, 'shirt']], leg(near), arm(near)];
   }
   function headBox(a, V) {
-    const J = a.pose.joints, hh = Math.max(4, Math.round(Math.hypot(J.headTop[0] - J.headBase[0], J.headTop[1] - J.headBase[1]) * V.k) + 2), hw = hh - (a.pose.body === 'thin' ? 2 : 1);
+    const J = a.pose.joints, hh = Math.max(4, Math.round(Math.hypot(J.headTop[0] - J.headBase[0], J.headTop[1] - J.headBase[1]) * V.k) + 3), hw = hh - (a.pose.body === 'thin' ? 2 : 1);
     return { x: Math.round(V.x(J.head[0]) - hw / 2), y: Math.round(V.y(J.head[1]) - hh / 2), w: hw, h: hh };
   }
   // Cores do elenco levadas à paleta aqui (o engine.js quantiza de novo, sem mudança) e o tom de sombra de cada uma
@@ -315,7 +315,7 @@
       // Interior: parede e chão; a janela mostra o céu da hora (lua = noite) pela câmera de f = 1, recortado por ela.
       interior(V1, I);
       const x0 = Math.round(V1.x(win.x)), y0 = Math.round(V1.y(win.y)), x1 = Math.round(V1.x(win.x + win.w)), y1 = Math.round(V1.y(win.y + win.h));
-      const room = R; R = STYLE.moods[K.sky.celestial ? 'night' : 'day']; clip = { x0, y0, x1, y1 };
+      const room = R; R = STYLE.moods[K.time]; clip = { x0, y0, x1, y1 };
       drawSky(F, V1, { x0, y0, x1, y1, y0w: win.y - win.h * .2, h0: win.h * 1.2 }); clip = null; R = room;
       windowFrame(V1, win);
       for (const o of I.props) iprop(V1, o);
