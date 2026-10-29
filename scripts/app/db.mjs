@@ -18,10 +18,16 @@ CREATE TABLE IF NOT EXISTS collections(id INTEGER PRIMARY KEY, name TEXT NOT NUL
 CREATE TABLE IF NOT EXISTS collection_items(collection_id INT NOT NULL REFERENCES collections(id) ON DELETE CASCADE, kind TEXT NOT NULL CHECK(kind IN ('channel','video')), item_id TEXT NOT NULL, note TEXT, added_at, PRIMARY KEY(collection_id, kind, item_id));
 CREATE TABLE IF NOT EXISTS watch(channel_id TEXT PRIMARY KEY REFERENCES channels(id), monitor INT NOT NULL DEFAULT 0, competitor INT NOT NULL DEFAULT 0, since TEXT, last_run TEXT);
 CREATE TABLE IF NOT EXISTS alerts(id INTEGER PRIMARY KEY, at TEXT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('newVideo','outlier','subsJump')), ref TEXT NOT NULL, channel_id TEXT NOT NULL REFERENCES channels(id), video_id TEXT, payload TEXT, seen INT NOT NULL DEFAULT 0, UNIQUE(kind, ref));
+CREATE TABLE IF NOT EXISTS models(id INTEGER PRIMARY KEY, anchor_id TEXT NOT NULL REFERENCES channels(id), created_at TEXT, input TEXT, output TEXT);
+CREATE TABLE IF NOT EXISTS my_channels(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE, tag, lang, style, voice, speed REAL, target_min INT, tolerance_min INT, anchor_id TEXT, model_id INT REFERENCES models(id) ON DELETE SET NULL, concept_index INT, title_templates TEXT, description_template TEXT, format TEXT, created_at, updated_at);
+CREATE TABLE IF NOT EXISTS my_competitors(my_id INT NOT NULL REFERENCES my_channels(id) ON DELETE CASCADE, channel_id TEXT NOT NULL REFERENCES channels(id), PRIMARY KEY(my_id, channel_id));
 `;
 export const FAV = 1; // coleção fixa Favoritos
 const n = x => x ?? null; // node:sqlite não aceita undefined
 const j = x => (x == null ? null : JSON.stringify(x));
+const MY_COLS = ['name', 'tag', 'lang', 'style', 'voice', 'speed', 'target_min', 'tolerance_min', 'anchor_id', 'model_id', 'concept_index', 'title_templates', 'description_template', 'format'];
+const myArgs = x => [x.name, n(x.tag), n(x.lang), n(x.style), n(x.voice), n(x.speed), n(x.targetMin), n(x.toleranceMin), n(x.anchorId), n(x.modelId), n(x.conceptIndex), j(x.titleTemplates), n(x.descriptionTemplate), n(x.format)];
+const myRow = r => ({ id: r.id, name: r.name, tag: r.tag, lang: r.lang, style: r.style, voice: r.voice, speed: r.speed, targetMin: r.target_min, toleranceMin: r.tolerance_min, anchorId: r.anchor_id, modelId: r.model_id, conceptIndex: r.concept_index, titleTemplates: p(r.title_templates), descriptionTemplate: r.description_template, format: r.format });
 const p = s => (s == null ? null : JSON.parse(s));
 
 export function openDb(file) {
@@ -80,6 +86,17 @@ export function openDb(file) {
     alertUnseen: q('SELECT COUNT(*) u FROM alerts WHERE seen=0'),
     alertSeen: q('UPDATE alerts SET seen=1 WHERE id=?'),
     histOf: q('SELECT at,kind,payload FROM history WHERE kind=? ORDER BY rowid DESC LIMIT 1'),
+    modelIn: q('INSERT INTO models(anchor_id,created_at,input,output) VALUES(?,?,?,?)'),
+    modelOne: q('SELECT id,anchor_id,created_at,input,output FROM models WHERE id=?'),
+    modelsBy: q('SELECT id,created_at,output FROM models WHERE anchor_id=? ORDER BY id DESC'),
+    myNew: q(`INSERT OR IGNORE INTO my_channels(${MY_COLS},created_at,updated_at) VALUES(${MY_COLS.map(() => '?')},?,?)`),
+    myUp: q(`UPDATE OR IGNORE my_channels SET ${MY_COLS.map(c => c + '=?')},updated_at=? WHERE id=?`),
+    myDel: q('DELETE FROM my_channels WHERE id=?'),
+    myOne: q('SELECT * FROM my_channels WHERE id=?'),
+    myAll: q('SELECT m.*,(SELECT COUNT(*) FROM my_competitors WHERE my_id=m.id) n FROM my_channels m ORDER BY m.name COLLATE NOCASE'),
+    compOf: q('SELECT channel_id FROM my_competitors WHERE my_id=? ORDER BY rowid'),
+    compClr: q('DELETE FROM my_competitors WHERE my_id=?'),
+    compIn: q('INSERT OR IGNORE INTO my_competitors(my_id,channel_id) VALUES(?,?)'),
     job: q('INSERT OR REPLACE INTO jobs(id,kind,status,created_at,finished_at,result,error) VALUES(?,?,?,?,?,?,?)'),
   };
   const watchOf = r => ({ monitor: !!r?.monitor, competitor: !!r?.competitor, since: r?.since ?? null, lastRun: r?.last_run ?? null });
@@ -146,6 +163,19 @@ export function openDb(file) {
     markAlertsSeen(ids) { if (ids === 'all') raw.exec('UPDATE alerts SET seen=1'); else for (const id of ids) s.alertSeen.run(id); },
     // statuses opcional: só entradas cujo payload.status está na lista
     lastHistoryOf(kind, statuses) { const r = statuses ? q(`SELECT at,kind,payload FROM history WHERE kind=? AND json_extract(payload,'$.status') IN (${statuses.map(() => '?')}) ORDER BY rowid DESC LIMIT 1`).get(kind, ...statuses) : s.histOf.get(kind); return r ? { at: r.at, kind: r.kind, payload: p(r.payload) } : null; },
+    addModel: m => Number(s.modelIn.run(m.anchorId, new Date().toISOString(), j(m.input), j(m.output)).lastInsertRowid),
+    model(id) { const r = s.modelOne.get(id); return r ? { id: r.id, anchorId: r.anchor_id, createdAt: r.created_at, input: p(r.input), output: p(r.output) } : null; },
+    modelsOf: anchorId => s.modelsBy.all(anchorId).map(r => ({ id: r.id, createdAt: r.created_at, names: (p(r.output)?.conceitos ?? []).map(c => c.nome) })),
+    createMyChannel(x) { const at = new Date().toISOString(), r = s.myNew.run(...myArgs(x), at, at); return r.changes ? Number(r.lastInsertRowid) : null; },
+    updateMyChannel: (id, x) => s.myUp.run(...myArgs(x), new Date().toISOString(), id).changes > 0, // nome repetido: OR IGNORE, 0 mudanças
+    deleteMyChannel: id => s.myDel.run(id).changes > 0,
+    myChannel(id) { const r = s.myOne.get(id); return r ? { ...myRow(r), competitors: this.myCompetitorIds(id) } : null; },
+    myChannels: () => s.myAll.all().map(r => ({ ...myRow(r), competitorCount: r.n })),
+    myCompetitorIds: id => s.compOf.all(id).map(r => r.channel_id),
+    setMyCompetitors(id, ids) {
+      raw.exec('BEGIN');
+      try { s.compClr.run(id); for (const c of ids) { s.compIn.run(id, c); this.setWatch(c, { competitor: true }); } raw.exec('COMMIT'); } catch (e) { raw.exec('ROLLBACK'); throw e; }
+    },
     close: () => raw.close(),
   };
 }

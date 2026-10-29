@@ -110,3 +110,41 @@ test('lastHistoryOf filters by payload status', () => {
   assert.equal(db.lastHistoryOf('monitor').payload.status, 'error'); assert.equal(db.lastHistoryOf('monitor', ['done', 'skipped']).payload.n, 1);
   assert.equal(db.lastHistoryOf('monitor', ['skipped']), null); assert.equal(db.lastHistoryOf('mine', ['done']), null);
 });
+
+test('models round-trip and list by anchor', () => {
+  const db = openDb(':memory:'); db.upsertChannel({ id: 'UC1', title: 'A' });
+  const id = db.addModel({ anchorId: 'UC1', input: { videoIds: ['v1'] }, output: { conceitos: [{ nome: 'X' }, { nome: 'Y' }, { nome: 'Z' }] } });
+  assert.deepEqual(db.model(id).input, { videoIds: ['v1'] }); assert.deepEqual(db.modelsOf('UC1')[0].names, ['X', 'Y', 'Z']);
+});
+test('models: newest first, missing id is null', () => {
+  const db = openDb(':memory:'); db.upsertChannel({ id: 'UC1', title: 'A' });
+  const a = db.addModel({ anchorId: 'UC1', input: {}, output: { conceitos: [{ nome: 'old' }] } }), b = db.addModel({ anchorId: 'UC1', input: {}, output: { conceitos: [{ nome: 'new' }] } });
+  assert.deepEqual(db.modelsOf('UC1').map(m => m.id), [b, a]); assert.equal(db.model(99), null); assert.deepEqual(db.modelsOf('nope'), []);
+  assert.equal(db.model(a).anchorId, 'UC1'); assert.ok(db.model(a).createdAt);
+});
+test('my channels: unique name, update, competitors mark watch', () => {
+  const db = openDb(':memory:'); db.upsertChannel({ id: 'UC1', title: 'A' });
+  const p = { name: 'Canal', lang: 'pt', style: 'flat', voice: 'kokoro:pm_alex', speed: 1, targetMin: 30, toleranceMin: 3, titleTemplates: ['[x] y'], format: 'long-16:9' };
+  const id = db.createMyChannel(p); assert.equal(db.createMyChannel({ ...p, name: 'canal' }), null);
+  assert.equal(db.updateMyChannel(id, { ...p, targetMin: 45 }), true); assert.equal(db.myChannel(id).targetMin, 45);
+  db.setMyCompetitors(id, ['UC1']); assert.deepEqual(db.myChannel(id).competitors, ['UC1']); assert.equal(db.watch('UC1').competitor, true);
+  assert.equal(db.myChannels()[0].competitorCount, 1); assert.equal(db.deleteMyChannel(id), true); assert.equal(db.myChannel(id), null);
+});
+test('my channels: update conflicts, list order, competitors replace', () => {
+  const db = openDb(':memory:'); db.upsertChannel({ id: 'UC1', title: 'A' }); db.upsertChannel({ id: 'UC2', title: 'B' });
+  const p = { lang: 'pt', style: 'flat', voice: 'kokoro:pm_alex', speed: 1, targetMin: 30, toleranceMin: 3, format: 'long-16:9' };
+  const b = db.createMyChannel({ ...p, name: 'b' }), a = db.createMyChannel({ ...p, name: 'a', titleTemplates: ['[x]'], descriptionTemplate: 'd {fontes}', anchorId: 'UC1', conceptIndex: 0 });
+  assert.deepEqual(db.myChannels().map(c => c.name), ['a', 'b']);
+  assert.equal(db.updateMyChannel(a, { ...p, name: 'B' }), false); assert.equal(db.updateMyChannel(999, { ...p, name: 'z' }), false); assert.equal(db.deleteMyChannel(999), false);
+  const m = db.myChannel(a); assert.deepEqual(m.titleTemplates, ['[x]']); assert.equal(m.descriptionTemplate, 'd {fontes}'); assert.equal(m.anchorId, 'UC1'); assert.equal(m.conceptIndex, 0); assert.equal(m.modelId, null); assert.deepEqual(m.competitors, []);
+  db.setMyCompetitors(a, ['UC1', 'UC2']); db.setMyCompetitors(a, ['UC2']); db.setMyCompetitors(b, ['UC2']);
+  assert.deepEqual(db.myCompetitorIds(a), ['UC2']); assert.equal(db.myChannels()[0].competitorCount, 1); assert.equal(db.watch('UC1').competitor, true);
+  db.deleteMyChannel(a); assert.deepEqual(db.myCompetitorIds(a), []); assert.deepEqual(db.myCompetitorIds(b), ['UC2']);
+});
+test('my channel keeps model link and clears it when the model goes', () => {
+  const db = openDb(':memory:'); db.upsertChannel({ id: 'UC1', title: 'A' });
+  const mid = db.addModel({ anchorId: 'UC1', input: {}, output: { conceitos: [] } });
+  const id = db.createMyChannel({ name: 'c', lang: 'pt', style: 'flat', voice: 'kokoro:pm_alex', speed: 1, targetMin: 30, toleranceMin: 3, format: 'long-16:9', modelId: mid });
+  assert.equal(db.myChannel(id).modelId, mid); db.raw.exec('DELETE FROM models'); assert.equal(db.myChannel(id).modelId, null);
+});
+test('voiceWpm default is empty', () => { assert.deepEqual(DEFAULTS.voiceWpm, {}); });
