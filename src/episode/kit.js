@@ -24,12 +24,14 @@ var { KIT_SCENES, kitFrame, castActor } = (() => {
     return { x, y: prof(x) + 4, h: lerp(h0, h1, rnd(seed, i + 40)), kind: kinds[Math.floor(rnd(seed, i + 80) * kinds.length)], seed: seed * 17 + i };
   });
   // Prédio: x = meio da base, y = base; janelas {x, y, w, h} (canto de cima à esquerda), lit 0..1 (0 = apagada; tremula).
-  function building(p, phase, L, x, y, w, h, roof, i) {
+  // home: casa habitada, com ao menos uma janela acesa (escolhida pela semente) fora do dia.
+  function building(p, phase, L, x, y, w, h, roof, i, home = false) {
     const on = p.time === 'night' || p.time === 'dusk', cols = Math.max(1, Math.floor(w / 46)), rows = Math.max(1, Math.floor((h - 30) / 60)), windows = [];
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
       const k = i * 50 + r * 7 + c;
       windows.push({ x: x - w / 2 + (c + .5) * w / cols - 9, y: y - h + 24 + r * 60, w: 18, h: 26, lit: on && rnd(p.seed, k + 3000) > .45 ? .75 + .25 * cyc(phase, per(L, 6), rnd(p.seed, k + 3100)) : 0 });
     }
+    if (home && p.time !== 'day' && !windows.some(q => q.lit)) { const j = Math.floor(rnd(p.seed, i * 50 + 3200) * windows.length); windows[j].lit = .75 + .25 * cyc(phase, per(L, 6), rnd(p.seed, i * 50 + j + 3100)); }
     return { x, y, w, h, roof, windows };
   }
   const glow = (lights, items, f) => { for (const b of items) for (const w of b.windows) if (w.lit) lights.push({ x: w.x + w.w / 2, y: w.y + w.h / 2, r: 50, k: w.lit, f }); };
@@ -60,7 +62,7 @@ var { KIT_SCENES, kitFrame, castActor } = (() => {
     campo: { extras: ['fireflies', 'farm'], exterior: true, build(p, phase, L) {
       const s = p.seed, g = flat(s + 1, 885, 10), far = hills(s + 2, 700, 150, 700), near = hills(s + 3, 800, 80, 380), lights = [];
       const layers = [{ kind: 'ridge', f: .2, prof: far }, { kind: 'ridge', f: .45, prof: near }, { kind: 'treeline', f: .45, trees: trees(s + 4, 7, -100, 2020, near, 90, 150, ['broad', 'broad', 'pine']) }];
-      if (has(p, 'farm')) { const b = [building(p, phase, L, 1420, near(1420) + 6, 200, 130, 'gable', 0), building(p, phase, L, 1580, near(1580) + 6, 80, 170, 'tower', 1)]; layers.push({ kind: 'buildings', f: .45, items: b }); glow(lights, b, .45); }
+      if (has(p, 'farm')) { const b = [building(p, phase, L, 1420, near(1420) + 6, 200, 130, 'gable', 0, true), building(p, phase, L, 1580, near(1580) + 6, 80, 170, 'tower', 1)]; layers.push({ kind: 'buildings', f: .45, items: b }); glow(lights, b, .45); }
       if (has(p, 'fireflies')) for (let i = 0; i < 14; i++) lights.push({ x: 100 + 1720 * rnd(s, i + 4000) + 40 * cyc(phase, 1, rnd(s, i + 4100)), y: 640 + 200 * rnd(s, i + 4200) + 18 * cyc(phase, 2, rnd(s, i + 4300)), r: 10, k: Math.max(0, cyc(phase, per(L, 2.5), rnd(s, i + 4400))) ** 2, f: 1 });
       layers.push(groundLayer(p, g, 'grass'));
       return outside(p, phase, L, layers, g, lights, [.25, .5, .75]);

@@ -83,9 +83,14 @@
     }
   }
   function cloud(V, o) {
-    const x = V.x(o.x), y = V.y(o.y), w = o.w * V.k, h = o.h * V.k;
-    const lumps = (dy, color) => { rect(x - w / 2, y - h * .1 + dy, w, h * .4, color); for (let i = 0; i < 3; i++) disc(x - w * .28 + w * .28 * i, y - h * .1 + dy - h * (.12 + .18 * hash(o.seed + i)), h * (.26 + .14 * hash(o.seed + i + 7)), color); };
-    lumps(1, col('cloudDk')); lumps(0, col('cloud'));
+    // Base do vão dos três tufos com pontas redondas; borda escura de 1 px só embaixo da base (os tufos ficam dentro dela).
+    // A nuvem desce o que for preciso para caber inteira no quadro (sem barra cortada no topo).
+    const x = V.x(o.x), w = o.w * V.k, h = o.h * V.k, bh = h * .4, xs = x - w * .2, xe = x + w * .2;
+    const lumps = [0, 1, 2].map(i => ({ x: xs + w * .2 * i, r: h * (.3 + .12 * hash(o.seed + i + 7)), up: h * (.1 + .15 * hash(o.seed + i)) }));  // r > metade do vão: tufos se tocam
+    const y = Math.max(V.y(o.y) - h * .1, 2 + Math.max(...lumps.map(l => l.up + l.r)));  // topo da base
+    const base = (dy, color) => { rect(xs, y + dy, xe - xs, bh, color); disc(xs, y + bh / 2 + dy, bh / 2, color); disc(xe, y + bh / 2 + dy, bh / 2, color); };
+    base(1, col('cloudDk')); base(0, col('cloud'));
+    for (const l of lumps) disc(l.x, y - l.up, l.r, col('cloud'));
   }
   function drawSky(F, V, box) {
     const Sk = K.sky; skyFill(V, box.y0w, box.h0, box);
@@ -262,7 +267,7 @@
     return [arm(far), leg(far), [['spine', 'pelvis', 'chest', tw, 'shirt'], ['upperSpine', 'chest', 'neck', tw, 'shirt']], leg(near), arm(near)];
   }
   function headBox(a, V) {
-    const J = a.pose.joints, hh = Math.max(4, Math.round(Math.hypot(J.headTop[0] - J.headBase[0], J.headTop[1] - J.headBase[1]) * V.k) + 1), hw = hh - (a.pose.body === 'thin' ? 2 : 1);
+    const J = a.pose.joints, hh = Math.max(4, Math.round(Math.hypot(J.headTop[0] - J.headBase[0], J.headTop[1] - J.headBase[1]) * V.k) + 2), hw = hh - (a.pose.body === 'thin' ? 2 : 1);
     return { x: Math.round(V.x(J.head[0]) - hw / 2), y: Math.round(V.y(J.head[1]) - hh / 2), w: hw, h: hh };
   }
   // Cores do elenco levadas à paleta aqui (o engine.js quantiza de novo, sem mudança) e o tom de sombra de cada uma
@@ -275,14 +280,14 @@
     const g = n => V.p(J[n]), fc = a.pose.facing, gear = a.gear || [], groups = pieces(a, z), hb = headBox(a, V), back = fc > 0 ? hb.x : hb.x + hb.w - 1;
     const ch = g('chest'), pw = Math.max(2, Math.round(3 * z)), ph = Math.round(7 * z), bx = Math.round(ch[0] - fc * (groups[2][0][3] / 2 + pw / 2 + .5)) - (pw >> 1), hat = gear.includes('hat');
     const draw = (list, out, dk) => { for (const [name, j0, j1, w, part] of list) seg(g(j0), g(j1), w + (out ? 2 : 0), out ? ink : C[part + (dk && part !== 'shoe' ? 'Dk' : '')], name.startsWith('foot') ? -w - (out ? 1 : 0) : undefined); };
-    // Contorno de 1 px da silhueta inteira primeiro; depois o recheio do longe para o perto (sem contorno por dentro).
+    // Contorno de 1 px da silhueta inteira primeiro; depois o recheio do longe para o perto (por dentro, só o braço de perto).
     groups.forEach(list => draw(list, true));
     rect(hb.x - 1, hb.y - 1, hb.w + 2, hb.h + 2, ink);
     if (gear.includes('backpack')) rect(bx - 1, ch[1] - 1, pw + 2, ph + 2, ink);
     if (hat) { rect(hb.x - 3, hb.y - 2, hb.w + 6, 3, ink); rect(hb.x - 1, hb.y - 4, hb.w + 2, 3, ink); }
     draw(groups[0], false, true); draw(groups[1], false, true);
     if (gear.includes('backpack')) { rect(bx, ch[1], pw, ph, P.wood); rect(bx, ch[1] + ph - 1, pw, 1, P.woodDk); }
-    draw(groups[2], false); draw(groups[3], false);
+    draw(groups[3], false); draw(groups[2], false);  // perna de perto antes do tronco: a camisa cobre o alto da coxa
     // Cabeça em bloco, cabelo em cima e atrás, olho de 1 px do lado para onde olha (fecha quando pisca).
     rect(hb.x, hb.y, hb.w, hb.h, C.skin);
     const hood = gear.includes('hood'), helmet = gear.includes('helmet'), hairC = hood ? C.shirt : helmet ? P.stone : C.hair;
@@ -291,7 +296,7 @@
     if (helmet) rect(hb.x, hb.y + 2, hb.w, 1, P.stoneDk);
     if (a.pose.face.blink < .5) px(fc > 0 ? hb.x + hb.w - 2 : hb.x + 1, hb.y + Math.round(hb.h * .5), ink);
     if (hat) { rect(hb.x - 2, hb.y - 1, hb.w + 4, 1, P.woodDk); rect(hb.x, hb.y - 3, hb.w, 2, P.sandDk); }
-    draw(groups[4], false);
+    draw(groups[4], true); draw(groups[4], false);  // braço de perto com contorno próprio, para ler sobre o tronco
     if (a.holds === 'book') { const [x, y] = [(g('handL')[0] + g('handR')[0]) / 2, (g('handL')[1] + g('handR')[1]) / 2]; rect(x - 3, y - 3, 6, 4, ink); rect(x - 2, y - 2, 4, 2, P.shadow); rect(x - 2, y - 2, 4, 1, P.cloud); }
   }
 
@@ -325,7 +330,8 @@
       else if (l.kind === 'props') for (const o of l.items) prop(V, o);
     }
     const A = { night: 2, interior: 1.5, dusk: 1.6, dawn: 1.1, day: .7 }[K.mood];
-    lightPass(K.lights.map(l => { const V = view(F, l.f); return { x: V.x(l.x), y: V.y(l.y), r: l.r * V.k, a: A * l.k }; }));
+    // Raio de luz até 40 px da grade: a poça da fogueira ou da vela não sobe pelas copas nem quebra as silhuetas.
+    lightPass(K.lights.map(l => { const V = view(F, l.f); return { x: V.x(l.x), y: V.y(l.y), r: Math.min(40, l.r * V.k), a: A * l.k }; }));
     for (const l of K.lights) if (l.r <= 12 && l.k > .3) px(view(F, l.f).x(l.x), view(F, l.f).y(l.y), l.k > .7 ? P.flame : P.wing);  // vaga-lumes
     for (const a of F.actors) if (!a.hidden && a.pose.joints) doll(F, a);
     // Clima por cima de tudo (no interior, só na janela, onde a névoa clareia um degrau): chuva em traço, neve em px.

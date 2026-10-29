@@ -67,3 +67,11 @@ test('sitters get a seat; the map has no actors; L outside 10..20 is refused', (
   assert.throws(() => kitFrame({ scene: 'campo', params: P, actors: [{ cast: 'x', action: 'stand' }] }, 0), /Elenco/);
   assert.equal(typeof castActor, 'function');
 });
+test('the farm house keeps a lit window outside the day', () => {
+  for (const time of ['dawn', 'dusk', 'night']) for (let seed = 0; seed < 40; seed++) {
+    const house = KIT_SCENES.campo.build({ ...P, time, seed, extras: ['farm'] }, .3, 12).kit.layers.find(l => l.kind === 'buildings').items[0];
+    assert.ok(house.windows.some(w => w.lit > 0), `${time}/${seed}`);
+  }
+  const day = KIT_SCENES.campo.build({ ...P, time: 'day', extras: ['farm'] }, .3, 12).kit.layers.find(l => l.kind === 'buildings').items[0];
+  assert.ok(day.windows.every(w => !w.lit));
+});
