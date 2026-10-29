@@ -3,16 +3,18 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { launchBrowser, closeBrowser, openPage, frameOf, parseArgs } from './render-lib.mjs';
+import { launchBrowser, closeBrowser, openPage, frameOf, parseArgs, catalog } from './render-lib.mjs';
 import { startStudioServer } from './studio-server.mjs';
 
 const args=parseArgs(process.argv.slice(2)), browser=await launchBrowser(args), studio=await startStudioServer(), out='out/checks';
-const SMOKE=[...['watercolor-classic','cartoon','pixel'].map(style=>['smoke-visit',style]),...['debug','cartoon','stick','watercolor','flat','paper','ink','silhouette'].map(style=>['smoke-2d',style]),['smoke-3d','lowpoly-3d']];
+// smoke-kit: debug e todo estilo com episodeScenes (que desenha o kit de episódio); o pixel leva também paleta e grade.
+const CAT=catalog(),KIT=Object.keys(CAT.styles).filter(id=>id==='debug'||CAT.styles[id].config.episodeScenes);
+const SMOKE=[...['watercolor-classic','cartoon','pixel'].map(style=>['smoke-visit',style]),...['debug','cartoon','stick','watercolor','flat','paper','ink','silhouette'].map(style=>['smoke-2d',style]),['smoke-3d','lowpoly-3d'],...KIT.map(style=>['smoke-kit',style])];
 mkdirSync(out,{recursive:true});const report=[];
 try {
   for(const [project,style] of SMOKE) {
     const name=project+'-'+style,opts={...args,project,style,...(project==='smoke-3d'?{origin:studio.origin}:{})},page=await openPage(browser,opts);
-    assert.equal(await page.evaluate(()=>projectInfo().duration),2,name+': metadados sobrescritos pelo motor');
+    assert.equal(await page.evaluate(()=>projectInfo().duration),CAT.projects[project].duration,name+': metadados sobrescritos pelo motor');
     const a=await frameOf(page,1);await frameOf(page,1.9);const b=await frameOf(page,1);
     assert.ok(a.equals(b),name+': frame depende do histórico');
     assert.ok(!a.equals(await frameOf(page,.5)),name+': o ser não anda');

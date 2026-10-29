@@ -9,6 +9,14 @@ AnimationPlatform.registerProject({
   scripts: [...SMOKE_NATURE, 'fixtures/smoke/walker-2d.js'], reviewTimes: [0, .5, 1, 1.5],
   storyboard: smokeBoard('Um explorador de chapéu e mochila anda da esquerda para a direita.')
 });
+// Kit de episódio: um plano de 1 s por cena de src/episode/kit.js (quadro F da cena K); LOOPS.kit para a emenda do loop.
+const KIT_SCENE_IDS = ['campo', 'ceu-noturno', 'mar', 'floresta', 'deserto', 'cidade-antiga', 'interior-vela', 'mapa'];
+AnimationPlatform.registerProject({
+  id: 'smoke-kit', title: 'Fumaça do kit', story: 'As 8 cenas do kit de episódio, 1 s cada, com quem anda e quem senta ou lê.',
+  duration: 8, fps: 24, bpm: 60, offset: 0, style: 'debug', compatibleStyles: ['debug', 'flat', 'watercolor', 'pixel'],
+  scripts: [...SMOKE_NATURE, 'src/episode/kit.js', 'fixtures/smoke/kit.js'], reviewTimes: KIT_SCENE_IDS.map((_, i) => i + .5),
+  storyboard: KIT_SCENE_IDS.map((id, i) => ({ id, start: i, end: i + 1, event: `Cena ${id} do kit.`, transition: 'corte', reads: [{ start: i, end: i + 1, text: id }] }))
+});
 AnimationPlatform.registerProject({
   id: 'smoke-visit', title: 'Fumaça VisitArt', story: 'Clawd anda no jardim pela porta VisitArt (motores clássicos).',
   duration: 2, fps: 24, bpm: 60, offset: 0, style: 'watercolor-classic', compatibleStyles: ['watercolor-classic', 'cartoon', 'pixel'],
