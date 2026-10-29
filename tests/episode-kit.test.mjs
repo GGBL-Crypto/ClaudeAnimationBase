@@ -83,3 +83,10 @@ test('the farm house keeps a lit window outside the day', () => {
   const day = KIT_SCENES.campo.build({ ...P, time: 'day', extras: ['farm'] }, .3, 12).kit.layers.find(l => l.kind === 'buildings').items[0];
   assert.ok(day.windows.every(w => !w.lit));
 });
+
+test('kit.time carries the time param (interior mood is "interior", the window needs the hour)', () => {
+  for (const scene of ['interior-vela', 'campo']) for (const time of ['dawn', 'day', 'dusk', 'night']) {
+    const k = kitFrame({ scene, params: { time } }, 0, 12).world.kit;
+    assert.equal(k.time, time); assert.equal(k.mood, scene === 'interior-vela' ? 'interior' : time);
+  }
+});

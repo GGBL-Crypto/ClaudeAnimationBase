@@ -39,6 +39,7 @@ world (além de ground: x → y do chão), por cena:
 F = { scene: 'K', shot: <id da cena>, t, lt, cam: {cx, cy, z}, under: null, world: { ground: x => y, kit }, actors, texts: [] }
 kit = {
   mood: 'dawn' | 'day' | 'dusk' | 'night' | 'interior',  // rampa de cores do estilo
+  time: 'dawn' | 'day' | 'dusk' | 'night',                // o param time da cena; no interior (mood 'interior') é a hora da janela: use a rampa STYLE.moods[time] nela, sem adivinhar pelo astro
   seed, phase,                                            // phase = (lt mod L) / L
   sky: { stars: [{x, y, r, tw}], celestial: {kind: 'sun'|'moon', x, y, r, glow} | null, clouds: [{x, y, w, h, seed}], meteor?: {x0, y0, x1, y1, k} | null },
   layers: [ // de trás para a frente; f = paralaxe (0 longe .. 1 chão)

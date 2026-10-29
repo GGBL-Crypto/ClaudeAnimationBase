@@ -786,8 +786,8 @@ window.ExpStyle = (() => {
       for (const m of M.marks) { ell(m.x + 3, m.y + 4, 15, 15, 0, rgba(R.shadow, .3)); ell(m.x, m.y, 15, 15, 0, KC.mark); ell(m.x - 2, m.y - 2, 6, 6, 0, '#FBF6EA'); }
       SHX = sx; c.resetTransform(); return;
     }
-    if (I) {  // parede e piso; a janela mostra o céu e o clima da hora (noite com lua, senão dia)
-      const wn = I.window, WR = STYLE.moods[S.celestial ? 'night' : 'day']; at(1); const [x0, x1] = span(1), yb = ybot();
+    if (I) {  // parede e piso; a janela mostra o céu e o clima da hora (K.time)
+      const wn = I.window, WR = STYLE.moods[K.time]; at(1); const [x0, x1] = span(1), yb = ybot();
       c.fillStyle = vgrad(I.wall.y0, I.wall.y1, [R.skyTop, R.skyLow]); c.fillRect(x0, cam.cy - 700, x1 - x0, I.floorY - cam.cy + 700);
       c.fillStyle = R.far; c.fillRect(x0, I.floorY - 70, x1 - x0, 70); c.fillStyle = mixCol(R.far, R.light, .2); c.fillRect(x0, I.floorY - 70, x1 - x0, 6);
       c.fillStyle = vgrad(I.floorY, I.floorY + 260, [R.ground, mixCol(R.ground, R.shadow, .5)]); c.fillRect(x0, I.floorY, x1 - x0, yb - I.floorY);

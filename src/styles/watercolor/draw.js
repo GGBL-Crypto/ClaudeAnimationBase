@@ -1045,8 +1045,8 @@ window.ExpStyle = (() => {
       }
       return;
     }
-    if (I) {  // no interior, céu e clima pela câmera da janela (f = 1), recortados por ela; a hora sai do astro e da luz da janela
-      const w = I.window, wm = S.celestial ? 'night' : K.lights.some(l => l.x === w.x + w.w / 2 && l.k >= .6) ? 'day' : 'dusk';
+    if (I) {  // no interior, céu e clima pela câmera da janela (f = 1), recortados por ela; a hora é K.time (mood é 'interior')
+      const w = I.window, wm = K.time;
       at(1); c.save(); c.beginPath(); c.rect(w.x, w.y, w.w, w.h); c.clip();
       still('Kwin|' + wm, [w.x, w.y, w.w, w.h], .5, skyK(STYLE.moods[wm]));
       skyItems(S, wm, 1); weatherK(K.weather, STYLE.moods[wm], w); c.restore();
