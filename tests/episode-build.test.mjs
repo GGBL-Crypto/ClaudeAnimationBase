@@ -61,5 +61,7 @@ test('canonParams defaults match the kit DEFAULTS', () => {
 test('writeEpisodes leaves no temp file behind', () => {
   const d = mkdtempSync(join(tmpdir(), 'ep-')), f = join(d, 'episodes.js');
   writeEpisodes([episodeProject(ep, timing)], f);
-  assert.deepEqual(readdirSync(d), ['episodes.js']);
+  assert.deepEqual(readdirSync(d), ['episodes.js']);  // sem .episodes.js.tmp
+  assert.equal((readFileSync(f, 'utf8').match(/registerProject/g) || []).length, 1);
+  assert.ok(readFileSync(f, 'utf8').endsWith(');\n'));
 });

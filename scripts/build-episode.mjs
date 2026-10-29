@@ -50,7 +50,8 @@ export function episodeProject(ep, timing) {
 export function writeEpisodes(projects, file = 'src/episodes.js') {
   const path = resolve(ROOT, file), keep = existsSync(path)
     ? readFileSync(path, 'utf8').split('\n').filter(l => l.startsWith(PREFIX)).map(l => JSON.parse(l.slice(PREFIX.length, -2))).filter(p => !projects.some(n => n.id === p.id)) : [];
-  writeFileSync(path, HEADER + [...keep, ...projects].map(p => `${PREFIX}${JSON.stringify(p)});\n`).join(''));
+  writeFileSync(`${path}.tmp`, HEADER + [...keep, ...projects].map(p => `${PREFIX}${JSON.stringify(p)});\n`).join(''));
+  renameSync(`${path}.tmp`, path);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

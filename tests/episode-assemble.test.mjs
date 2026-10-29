@@ -122,6 +122,15 @@ test('runEpisode reports a failing step as JSON and exit code', async () => {
   } finally { rmSync(join(ROOT, OUT), { recursive: true, force: true }); }
 });
 
+test('CLI accepts --steps and --workers, rejects bad values', () => {
+  const run = (...a) => spawnSync(process.execPath, ['scripts/episode.mjs', `${OUT}/nao-existe`, ...a], { cwd: ROOT, encoding: 'utf8' });
+  const last = r => JSON.parse(r.stdout.trim().split('\n').at(-1));
+  assert.notEqual(last(run('--steps=verify')).step, 'args');
+  assert.notEqual(last(run('--workers=2')).step, 'args');
+  assert.equal(last(run('--workers=0')).step, 'args');
+  assert.match(last(run('--foo=1')).error, /Opção desconhecida/);
+});
+
 test('runEpisode rejects an episode folder outside the repository', async () => {
   const lines = [];
   await assert.rejects(runEpisode(tmpdir(), { steps, log: l => lines.push(JSON.parse(l)) }), /dentro do repositório/);

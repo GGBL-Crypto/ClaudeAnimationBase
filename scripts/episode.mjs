@@ -104,8 +104,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     if (!dir || dir.startsWith('--')) throw new Error('Uso: node scripts/episode.mjs <pasta> [--steps=narrate,build,loops,segments,mix,assemble,verify]');
     const a = parseArgs(rest), steps = a.steps ? String(a.steps).split(',') : STEPS;
-    for (const k of Object.keys(a)) if (!k !== 'steps') throw new Error(`Opção desconhecida: --${k}`);
+    for (const k of Object.keys(a)) if (k !== 'steps' && k !== 'workers') throw new Error(`Opção desconhecida: --${k}`);
     for (const s of steps) if (!STEPS.includes(s)) throw new Error(`Etapa desconhecida: ${s} (etapas: ${STEPS.join(', ')})`);
+    // ponytail: --workers aceito e sem uso; loops renderizam com --clip numa página só. Só importa se os loops migrarem para --frames --workers + --encode.
+    if (a.workers !== undefined && !/^[1-9]\d*$/.test(String(a.workers))) throw new Error('--workers precisa ser inteiro positivo');
     opts = { steps };
   } catch (error) { console.log(JSON.stringify({ step: 'args', error: error.message })); process.exitCode = 1; }
   if (opts) await runEpisode(dir, opts).catch(() => { process.exitCode = 1; });

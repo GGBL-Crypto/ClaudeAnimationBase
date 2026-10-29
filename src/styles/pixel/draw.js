@@ -312,7 +312,7 @@
     const V0 = view(F, 0), V1 = view(F, 1), I = K.interior, win = I && I.window;
     if (K.map) map(V1, K.map);
     else if (I) {
-      // Interior: parede e chão; a janela mostra o céu da hora (lua = noite) pela câmera de f = 1, recortado por ela.
+      // Interior: parede e chão; a janela mostra o céu da hora (K.time) pela câmera de f = 1, recortado por ela.
       interior(V1, I);
       const x0 = Math.round(V1.x(win.x)), y0 = Math.round(V1.y(win.y)), x1 = Math.round(V1.x(win.x + win.w)), y1 = Math.round(V1.y(win.y + win.h));
       const room = R; R = STYLE.moods[K.time]; clip = { x0, y0, x1, y1 };
