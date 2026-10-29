@@ -1,0 +1,52 @@
+{
+  "id": "demo",
+  "title": "Faróis: luz sobre o mar",
+  "style": "pixel",
+  "voice": "kokoro:pm_alex",
+  "lengthScale": 1,
+  "fps": 24,
+  "intro": 1.5,
+  "outro": 2,
+  "sources": [
+    { "url": "https://pt.wikipedia.org/wiki/Farol", "title": "Farol (Wikipédia)", "accessed": "2026-10-29" },
+    { "url": "https://pt.wikipedia.org/wiki/Farol_de_Alexandria", "title": "Farol de Alexandria (Wikipédia)", "accessed": "2026-10-29" }
+  ],
+  "cast": [
+    { "id": "viajante", "body": "adult", "colors": { "skin": "#c68a62", "hair": "#3a2a1e", "shirt": "#3f6e9a", "pants": "#4a4036" }, "gear": ["backpack"] },
+    { "id": "leitor", "body": "elder", "colors": { "skin": "#e0b48e", "hair": "#d8d4cc", "shirt": "#8a4a3a", "pants": "#3a3a44" }, "gear": ["hat"] }
+  ],
+  "chapters": [
+    { "id": "c1", "title": "O que é um farol", "shots": [
+      { "id": "s1", "narration": "Um farol é uma estrutura elevada, habitualmente uma torre. O objetivo dele é orientar os navios durante a noite.",
+        "scene": { "id": "ceu-noturno", "params": { "time": "night", "weather": "clear", "seed": 101, "framing": "wide", "extras": ["moon"] } },
+        "actors": [{ "cast": "leitor", "action": "look-up", "at": 0.35, "dir": 1 }] },
+      { "id": "s2", "narration": "Ele é equipado com um potente aparelho ótico, com fontes de luz e espelhos refletores.",
+        "scene": { "id": "mar", "params": { "time": "dusk", "weather": "clear", "seed": 102, "framing": "wide", "extras": ["lighthouse", "ship"] } },
+        "actors": [{ "cast": "viajante", "action": "stand", "at": 0.3, "dir": 1 }],
+        "hud": { "place": "Um farol" } },
+      { "id": "s3", "hold": 3,
+        "scene": { "id": "floresta", "params": { "time": "night", "weather": "clear", "seed": 103, "framing": "mid", "extras": ["campfire"] } },
+        "actors": [{ "cast": "leitor", "action": "sit", "at": 0.6, "dir": -1 }] }
+    ] },
+    { "id": "c2", "title": "Luzes na Antiguidade", "shots": [
+      { "id": "s4", "narration": "Os faróis são usados desde a Antiguidade. Naquela época, eram acesas fogueiras ou grandes luzes de azeite.",
+        "scene": { "id": "campo", "params": { "time": "dawn", "weather": "clear", "seed": 104, "framing": "wide", "extras": ["farm"] } },
+        "actors": [{ "cast": "viajante", "action": "walk", "dir": 1 }] },
+      { "id": "s5", "narration": "O primeiro farol de que se tem registro é o farol de Alexandria. Ele foi construído em 280 a.C.",
+        "scene": { "id": "deserto", "params": { "time": "day", "weather": "clear", "seed": 105, "framing": "wide", "extras": ["ruins"] } },
+        "actors": [{ "cast": "leitor", "action": "point", "at": 0.7, "dir": -1 }],
+        "hud": { "year": "280 a.C.", "sub": "Alexandria" } },
+      { "id": "s6", "narration": "Ele ficava na ilha de Faros, na margem ocidental do Delta do Nilo.",
+        "scene": { "id": "cidade-antiga", "params": { "time": "day", "weather": "clear", "seed": 106, "framing": "wide", "extras": ["temple"] } },
+        "actors": [{ "cast": "viajante", "action": "walk", "dir": -1 }] }
+    ] },
+    { "id": "c3", "title": "O fim do farol antigo", "shots": [
+      { "id": "s7", "narration": "Em 956, um terremoto danificou gravemente a estrutura. Outros terremotos vieram em 1303 e 1323.",
+        "scene": { "id": "interior-vela", "params": { "time": "night", "weather": "clear", "seed": 107, "framing": "wide", "extras": ["scroll"] } },
+        "actors": [{ "cast": "leitor", "action": "read", "at": 0.45, "dir": 1 }],
+        "hud": { "year": "956", "sub": "Terremoto", "tag": { "text": "Leitor", "sub": "relê os registros", "actor": "leitor" } } },
+      { "id": "s8", "narration": "O que restava dele desapareceu em 1480. Ele serviu como protótipo para todos os faróis posteriores.",
+        "scene": { "id": "mapa", "params": { "time": "day", "weather": "clear", "seed": 108, "framing": "wide", "extras": ["route"] } } }
+    ] }
+  ]
+}
