@@ -1,13 +1,16 @@
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { request } from 'node:http';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 import { startAppServer, errorStatus } from '../scripts/app-server.mjs';
 import { saveConfig, DEFAULTS } from '../scripts/app/config.mjs';
 import { openDb } from '../scripts/app/db.mjs';
+import { writeWav } from '../scripts/narration-lib.mjs';
 
 // Fixtures do YouTube com UCfixture1 trocado por um id válido (22 caracteres) para alcançar as rotas /api/channels/:id.
 const C1 = 'UCfixture' + '0'.repeat(14) + '1';
@@ -23,7 +26,25 @@ const fakeFetch = async (url, init) => {
   return res(200, { items: fx('videos').items.filter(v => p('id').split(',').includes(v.id)) });
 };
 
-let s, temp, dataDir, ok, subFail = false;
+// Fase 4: thumbnail, Claude com imagens e Kokoro falsos.
+const thumbCalls = [];
+const fakeThumb = async url => { thumbCalls.push(url); return { ok: true, headers: new Headers({ 'content-type': 'image/jpeg', 'content-length': '3' }), arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer }; };
+const modelImages = [];
+// Modelo válido com os ids do prompt (linhas "id | views | ...").
+const fakeModeler = async (prompt, images) => {
+  modelImages.push(images.length);
+  const ids = [...prompt.matchAll(/^([\w-]{11}) \| /gm)].map(m => m[1]);
+  const c = i => ({ nome: 'Conceito ' + i, subtema: 's', videoIds: ids.slice(0, 2), moldesTitulo: ['O fim de [x]', 'A queda de [y]', 'Por que [z]'], estiloThumbnail: 'e', promptsImagem: ['a', 'b', 'c'], estiloVisual: 'flat', plano30: Array.from({ length: 8 }, (_, k) => ({ dia: k + 1, tema: 't' })) });
+  return { resumo: 'r', conceitos: [0, 1, 2].map(c) };
+};
+// Filho falso do Kokoro: stdin.end(json) grava 20 s de WAV no `out` pedido.
+const fakeVoiceSpawn = () => {
+  const c = new EventEmitter(); c.stderr = new PassThrough();
+  c.stdin = { end(s) { setImmediate(() => { writeFileSync(JSON.parse(s)[0].out, writeWav({ sampleRate: 24000, samples: new Float32Array(24000 * 20) })); c.emit('close', 0); }); } };
+  return c;
+};
+
+let s, temp, dataDir, ok, opts, subFail = false;
 before(async () => {
   temp = await mkdtemp(join(tmpdir(), 'app-server-')); dataDir = join(temp, 'data');
   const appDir = join(temp, 'app'); await mkdir(join(appDir, 'views'), { recursive: true });
@@ -32,7 +53,12 @@ before(async () => {
   await writeFile(join(appDir, 'app.css'), 'body{}'); await writeFile(join(appDir, 'views', 'x.js'), 'export const x = 1;');
   await writeFile(join(temp, 'secret.js'), 'private');
   saveConfig(dataDir, { apiKey: 'AIzaTESTKEY1234' });
-  s = await startAppServer({ dataDir, appDir, fetch: fakeFetch, now: () => Date.parse('2026-10-27T12:00:00Z'), claude: async () => ({ resumo: 'r', pontos: ['p'] }), subniches: async () => { if (subFail) throw new Error('claude terminou com código 1'); return { subnichos: [{ nome: 'n', porque: 'p', exemplos: [] }] }; } });
+  opts = {
+    dataDir, appDir, outDir: join(temp, 'out'), fetch: fakeFetch, now: () => Date.parse('2026-10-27T12:00:00Z'), claude: async () => ({ resumo: 'r', pontos: ['p'] }),
+    subniches: async () => { if (subFail) throw new Error('claude terminou com código 1'); return { subnichos: [{ nome: 'n', porque: 'p', exemplos: [] }] }; },
+    thumbFetch: fakeThumb, modeler: fakeModeler, voiceSpawn: fakeVoiceSpawn, voiceExists: () => true,
+  };
+  s = await startAppServer(opts);
   ok = { token: s.token, origin: s.origin };
 });
 after(async () => { await s.close(); await rm(temp, { recursive: true, force: true }); });
@@ -339,6 +365,78 @@ test('config accepts new fields and rejects bad ones', async () => {
   const r = JSON.parse((await post('/api/config', { subsJumpPct: 15, nicheMin: 30, monitorAuto: false }, ok)).body); assert.deepEqual([r.subsJumpPct, r.nicheMin, r.monitorAuto], [15, 30, false]);
   for (const b of [{ monitorAuto: 'yes' }, { monitorAuto: null }, { subsJumpPct: 0.5 }, { subsJumpPct: 1001 }, { subsJumpPct: '10' }, { nicheMin: 2.5 }, { nicheMin: 0 }, { nicheMin: 101 }]) assert.equal((await post('/api/config', b, ok)).status, 400, JSON.stringify(b));
   await post('/api/config', { subsJumpPct: 10, nicheMin: 25, monitorAuto: true }, ok);
+});
+// Fase 4: modelagem, meus canais e vozes (antes do config corrompido).
+const CH = C1;
+test('model prepare: anchor, groups, similar and saved models', async () => {
+  const p = JSON.parse((await get('/api/model/prepare?anchor=' + CH)).body);
+  assert.equal(p.anchor.id, CH); assert.ok(!('snapshots' in p.anchor)); assert.ok(p.groups.length >= 1); assert.ok(Array.isArray(p.similar) && p.similar.length <= 8); assert.ok(Array.isArray(p.models));
+  assert.equal((await get('/api/model/prepare?anchor=UCbad')).status, 400); assert.equal((await get('/api/model/prepare')).status, 400);
+  assert.equal((await get('/api/model/prepare?anchor=UCnope000000000000000000')).status, 404);
+});
+test('model job: thumbs, claude, validation, saved with app views', async () => {
+  const { jobId } = JSON.parse((await post('/api/model', { anchor: CH }, ok)).body);
+  const ev = await readSse(`/api/jobs/${jobId}/events`), end = ev.at(-1).data; assert.equal(end.status, 'done');
+  assert.ok(ev.some(e => e.event === 'progress' && e.data.message === 'Gravando')); // o SSE dá o progresso atual e os seguintes
+  assert.ok(thumbCalls.length >= 1 && thumbCalls.every(u => /^https:\/\/i\.ytimg\.com\/vi\/[\w-]{11}\/mqdefault\.jpg$/.test(u))); assert.ok(modelImages.at(-1) >= 1);
+  const m = JSON.parse((await get('/api/models/' + end.result.modelId)).body);
+  assert.equal(m.output.conceitos.length, 3); assert.equal(m.views.length, 3); assert.ok(m.views.every(Number.isFinite));
+  assert.equal(m.anchor.id, CH); assert.equal(m.input.semImagens, false); assert.ok(m.input.prompt.includes('DADOS')); assert.equal(typeof m.videos[m.output.conceitos[0].videoIds[0]].views, 'number');
+  assert.equal(JSON.parse((await get(`/api/models/${end.result.modelId}/profile/1`)).body).modelId, end.result.modelId);
+  assert.equal((await get(`/api/models/${end.result.modelId}/profile/3`)).status, 400); assert.equal((await get('/api/models/abc')).status, 400); assert.equal((await get('/api/models/999999')).status, 404);
+  assert.deepEqual(JSON.parse((await get('/api/model/prepare?anchor=' + CH)).body).models.map(x => x.id), [end.result.modelId]);
+});
+test('model errors are readable and prompt is copyable', async () => {
+  const seen = [], s3 = await startAppServer({ ...opts, outDir: join(temp, 'secret.js'), modeler: async (p, images) => { seen.push(images.length); return { resumo: 'r', conceitos: [] }; } }); // outDir num arquivo: thumbs falham
+  try {
+    const { jobId } = JSON.parse((await post('/api/model', { anchor: CH }, { token: s3.token, origin: s3.origin, server: s3 })).body);
+    assert.deepEqual((await readSse(`/api/jobs/${jobId}/events`, s3)).at(-1).data, { status: 'error', error: 'Resposta do Claude fora do formato' });
+    assert.deepEqual(seen, [0]); // sem imagens, o job segue até o Claude
+  } finally { await s3.close(); }
+  assert.equal((await post('/api/model', { anchor: 'UCnope000000000000000000' }, ok)).status, 404);
+  assert.equal((await post('/api/model', { anchor: 'UCbad' }, ok)).status, 400);
+  assert.equal((await post('/api/model', { anchor: CH, extras: Array(5).fill(CH) }, ok)).status, 400);
+  assert.equal((await post('/api/model', { anchor: CH, extras: ['x'] }, ok)).status, 400);
+  const A = 'UC' + 'a'.repeat(22), db = openDb(join(dataDir, 'app.db')); db.upsertChannel({ id: A, title: 'Sem vídeos' }); db.close();
+  const empty = await post('/api/model', { anchor: A }, ok); assert.equal(empty.status, 400); assert.deepEqual(JSON.parse(empty.body), { error: 'Âncora sem vídeos' });
+  assert.match((await get('/api/model/prompt?anchor=' + CH)).body, /DADOS/);
+  assert.match((await get(`/api/model/prompt?anchor=${CH}&extras=${A}`)).body, /Sem vídeos/);
+});
+test('my channels CRUD with validation and competitors filter', async () => {
+  const p = { name: 'Roma à Noite', lang: 'pt', style: 'flat', voice: 'kokoro:pm_alex' };
+  const c = JSON.parse((await post('/api/mychannels', p, ok)).body); assert.equal(c.targetMin, 30); assert.deepEqual(c.titleTemplates, []); assert.deepEqual(c.competitors, []);
+  assert.equal((await post('/api/mychannels', { ...p, name: 'roma à noite' }, ok)).status, 409);
+  assert.equal((await post('/api/mychannels', { ...p, style: 'pixel' }, ok)).status, 400);
+  for (const b of [{ ...p, name: 'x', lang: 'es' }, { ...p, name: 'x', voice: 'kokoro:af_heart' }, { ...p, name: 'x', targetMin: 5 }, { ...p, name: 'x', modelId: 999999 }, { lang: 'pt' }]) assert.equal((await post('/api/mychannels', b, ok)).status, 400, JSON.stringify(b));
+  assert.equal((await post(`/api/mychannels/${c.id}/competitors`, { ids: [CH] }, ok)).status, 200);
+  assert.deepEqual(JSON.parse((await get('/api/competitors?my=' + c.id)).body).rows.map(r => r.id), [CH]);
+  assert.deepEqual(JSON.parse((await get(`/api/mychannels/${c.id}`)).body).competitors.map(r => r.id), [CH]);
+  const bad = await post(`/api/mychannels/${c.id}/competitors`, { ids: ['UCnope000000000000000000'] }, ok); assert.equal(bad.status, 400); assert.deepEqual(JSON.parse(bad.body), { error: 'Canal fora da base: UCnope000000000000000000' });
+  for (const b of [{ ids: 'x' }, { ids: ['UCbad'] }, { ids: Array(51).fill(CH) }]) assert.equal((await post(`/api/mychannels/${c.id}/competitors`, b, ok)).status, 400, JSON.stringify(b));
+  const d = JSON.parse((await post('/api/mychannels', { ...p, name: 'Grécia' }, ok)).body);
+  assert.equal((await post(`/api/mychannels/${d.id}`, { ...p, name: 'ROMA à NOITE' }, ok)).status, 409);
+  const up = JSON.parse((await post(`/api/mychannels/${c.id}`, { ...p, targetMin: 45, titleTemplates: ['O fim de [x]'] }, ok)).body); assert.equal(up.targetMin, 45); assert.deepEqual(up.titleTemplates, ['O fim de [x]']);
+  assert.deepEqual(JSON.parse((await get('/api/mychannels')).body).map(x => x.name), ['Grécia', 'Roma à Noite']);
+  assert.equal((await post(`/api/mychannels/${d.id}/delete`, {}, ok)).status, 200); assert.equal((await get(`/api/mychannels/${d.id}`)).status, 404);
+  assert.equal((await get('/api/mychannels/abc')).status, 400); assert.equal((await post('/api/mychannels/999999', p, ok)).status, 404);
+  assert.equal((await get('/api/competitors?my=999999')).status, 404); assert.equal((await get('/api/competitors?my=x')).status, 400);
+  assert.deepEqual(JSON.parse((await get('/api/competitors')).body).rows.map(r => r.id), [CH]); // sem my: todos
+});
+test('voice sample saves wpm and serves wav', async () => {
+  const r = JSON.parse((await post('/api/voices/sample', { voice: 'kokoro:pm_alex', speed: 1, lang: 'pt' }, ok)).body);
+  assert.ok(r.wpm > 0); assert.equal(r.seconds, 20); assert.match(r.url, /^\/api\/samples\/[0-9a-f]{40}\.wav$/);
+  const v = JSON.parse((await get('/api/voices')).body); assert.equal(v.wpm['kokoro:pm_alex|1'], r.wpm); assert.deepEqual(v.voices.pt, ['pm_alex', 'pf_dora', 'pm_santa']);
+  const w = await get(r.url); assert.equal(w.status, 200); assert.match(w.headers['content-type'], /audio\/wav/); assert.equal(w.headers['x-content-type-options'], 'nosniff'); assert.equal(w.headers['cache-control'], 'no-store');
+  assert.equal((await get('/api/samples/../../data/config.json')).status, 403); assert.equal((await get('/api/samples/abc.wav')).status, 400);
+  assert.equal((await get('/api/samples/' + '0'.repeat(40) + '.wav')).status, 404);
+  assert.equal((await post('/api/voices/sample', { voice: 'kokoro:af_heart', speed: 1, lang: 'pt' }, ok)).status, 400);
+  for (const b of [{ voice: 'pm_alex', speed: 1, lang: 'pt' }, { voice: 'kokoro:pm_alex', speed: 2, lang: 'pt' }, { voice: 'kokoro:pm_alex', speed: '1', lang: 'pt' }, { voice: 'kokoro:pm_alex', speed: 1, lang: 'es' }]) assert.equal((await post('/api/voices/sample', b, ok)).status, 400, JSON.stringify(b));
+  assert.ok(!(await get('/api/voices')).body.includes('AIza'));
+  const s4 = await startAppServer({ ...opts, voiceExists: () => false });
+  try {
+    const m = await post('/api/voices/sample', { voice: 'kokoro:pm_alex', speed: 1.1, lang: 'pt' }, { token: s4.token, origin: s4.origin, server: s4 });
+    assert.equal(m.status, 200); assert.deepEqual(JSON.parse(m.body), { error: 'Kokoro não instalado: veja docs/VOICE.md' });
+  } finally { await s4.close(); }
 });
 test('corrupted config.json falls back to defaults', async () => {
   await writeFile(join(dataDir, 'config.json'), '{oops');

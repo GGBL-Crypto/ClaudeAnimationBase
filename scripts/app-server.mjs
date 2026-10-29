@@ -12,9 +12,13 @@ import { mineKeyword, mineVideos, importChannels, refreshChannel } from './app/m
 import { createJobs, sseWrite } from './app/jobs.mjs';
 import { overviewKpis } from './app/metrics.mjs';
 import { analyzeChannel, similarChannels } from './app/analysis.mjs';
-import { runClaude, validateSummary, summaryPrompt, validateSubniches, subnichePrompt } from './app/llm.mjs';
+import { runClaude, runClaudeImages, validateSummary, summaryPrompt, validateSubniches, subnichePrompt } from './app/llm.mjs';
 import { estimateMonitor, autoRunDecision, runMonitor } from './app/monitor.mjs';
 import { buildNiches } from './app/niches.mjs';
+import { subtopics, modelPrompt, validateModel, modelViews } from './app/modeling.mjs';
+import { EPISODE_STYLES, VOICES, validateProfile, profileFromConcept } from './app/profiles.mjs';
+import { fetchThumbs } from './app/thumbs.mjs';
+import { sampleVoice } from './app/voice.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const LIMIT = 64 * 1024, ID = /^UC[A-Za-z0-9_-]{22}$/;
@@ -69,15 +73,20 @@ const colName = x => text(x, 60) ? x.trim() : no('Nome inválido (1 a 60 caracte
 const item = (kind, id) => Object.hasOwn(ITEM, kind) && typeof id === 'string' && ITEM[kind].test(id) ? { kind, id } : no('Item inválido');
 // Id de nicho por query ou corpo: solo, c:<canal> ou tag:<etiqueta>.
 const NICHE = /^(solo|c:UC[A-Za-z0-9_-]{22}|tag:[^]{1,60})$/, DAY = 864e5, RAN = ['done', 'skipped']; // monitor que conta para a regra de 24 h; erro não conta
+const num = (s, msg) => /^\d{1,9}$/.test(s) ? Number(s) : no(msg);
+const myOut = r => ({ ...r, titleTemplates: r.titleTemplates ?? [] });
 
-export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app', fetch, now = Date.now, claude = prompt => runClaude(prompt).then(validateSummary), subniches = prompt => runClaude(prompt).then(validateSubniches), monitorEveryMs = 3600e3 } = {}) {
+export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app', outDir = 'out/app', fetch, now = Date.now, claude = prompt => runClaude(prompt).then(validateSummary), subniches = prompt => runClaude(prompt).then(validateSubniches), monitorEveryMs = 3600e3,
+  modeler = (prompt, images) => runClaudeImages(prompt, images), thumbFetch = globalThis.fetch, voiceSpawn, voiceExists } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Porta inválida');
-  dataDir = resolve(ROOT, dataDir); appDir = resolve(ROOT, appDir);
+  dataDir = resolve(ROOT, dataDir); appDir = resolve(ROOT, appDir); outDir = resolve(ROOT, outDir);
+  const thumbsDir = join(outDir, 'thumbs'), samplesDir = join(outDir, 'samples');
   const token = randomBytes(24).toString('hex'), tokenBuf = Buffer.from(token);
   const db = openDb(join(dataDir, 'app.db')), jobs = createJobs(db);
   const cfg = () => loadConfig(dataDir);
   const at = () => new Date(now()).toISOString();
   const template = await readFile(join(ROOT, 'prompts', 'analise-canal.md'), 'utf8'), subTemplate = await readFile(join(ROOT, 'prompts', 'subnichos.md'), 'utf8');
+  const modelTemplate = await readFile(join(ROOT, 'prompts', 'modelagem.md'), 'utf8');
   // Chave lida a cada job: uma chave nova vale sem reiniciar. Com log, grava o histórico com as unidades gastas, também em erro.
   const job = (kind, fn, { fresh = false, log = null } = {}) => jobs.start(kind, async report => {
     const c = cfg(), day = quotaDay(now()), before = log && db.quotaUsed(day); let result, status = 'error';
@@ -108,6 +117,24 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
     const outliers = videos.filter(v => ids.has(v.channelId) && v.multiple >= c.outlierMin && t - Date.parse(v.publishedAt) <= 30 * DAY).sort((a, b) => b.multiple - a.multiple).slice(0, 50);
     return { niche: n, rows: n.channelIds.map(i => chRow(i, t, c)), outliers };
   };
+  // Fase 4. Vídeos do app com views/duração numéricas (o prompt e as somas não veem null).
+  const vidsOf = (id, t) => db.videoRows(id, t).map(v => ({ ...v, views: v.views ?? 0, durationS: v.durationS ?? 0 }));
+  const anchorOf = id => channel(typeof id === 'string' && ID.test(id) ? id : no('Canal inválido'));
+  // Entrada da modelagem, conferida antes do job; a rota de copiar monta o mesmo prompt.
+  const modelInput = (anchorId, extras = []) => {
+    const a = anchorOf(anchorId), t = now(), vids = vidsOf(a.id, t);
+    if (!Array.isArray(extras) || extras.length > 4 || !extras.every(x => typeof x === 'string' && ID.test(x))) no('Até 4 canais extras válidos');
+    if (!vids.length) no('Âncora sem vídeos');
+    const ids = [...new Set(extras)], ex = ids.map(id => ({ title: channel(id).title, titles: vidsOf(id, t).sort((x, y) => y.views - x.views).slice(0, 10).map(v => v.title) }));
+    return { a, vids, ids, ex };
+  };
+  const promptOf = ({ a, vids, ex }) => modelPrompt(modelTemplate, { anchor: a, groups: subtopics(vids), extras: ex, styles: EPISODE_STYLES });
+  const model = n => db.model(n) ?? nf('Modelagem não encontrada');
+  const my = n => db.myChannel(n) ?? nf('Canal próprio não encontrado');
+  const myFull = n => { const t = now(), c = cfg(), r = my(n); return { ...myOut(r), competitors: r.competitors.map(id => chRow(id, t, c)) }; };
+  // Perfil validado; modelId precisa existir (o banco lançaria em FK).
+  const profile = b => { const p = validateProfile(b); if (p.modelId != null && !db.model(p.modelId)) no('Modelagem não encontrada'); return p; };
+  const fail409 = () => { throw fail(409, 'Já existe um canal com esse nome'); };
 
   const ROUTES = [
     ['GET', /^\/api\/config$/, () => publicConfig(cfg())],
@@ -227,8 +254,9 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
       else no('Informe os alertas');
       return { unseen: db.unseenAlerts() };
     }],
-    ['GET', /^\/api\/competitors$/, () => {
-      const t = now(), c = cfg(), ids = new Set(db.watchList().filter(w => w.competitor).map(w => w.channelId));
+    ['GET', /^\/api\/competitors$/, (m, req, res, u) => {
+      const t = now(), c = cfg(), mine = u.searchParams.get('my');
+      const ids = new Set(mine != null ? my(num(mine, 'Canal próprio inválido')).competitors : db.watchList().filter(w => w.competitor).map(w => w.channelId)); // com my: só os ligados a ele
       const videos = db.videoRowsAll(t).filter(v => ids.has(v.channelId) && t - Date.parse(v.publishedAt) <= 30 * DAY).sort((a, b) => (a.publishedAt < b.publishedAt) - (a.publishedAt > b.publishedAt)).slice(0, 200);
       return { rows: [...ids].map(id => chRow(id, t, c)), videos };
     }],
@@ -245,6 +273,70 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
       if (!outliers.length) no('Nicho sem outliers recentes');
       const prompt = subnichePrompt(subTemplate, n, outliers);
       try { return await subniches(prompt); } catch (e) { return { error: e?.message ?? 'Falha do Claude', prompt }; } // o prompt volta para copiar
+    }],
+    // Fase 4: modelagem, meus canais e vozes.
+    ['GET', /^\/api\/model\/prepare$/, (m, req, res, u) => {
+      const a = anchorOf(u.searchParams.get('anchor')), t = now(), texts = db.channelTexts(), { snapshots, ...anchor } = a;
+      return { anchor, groups: subtopics(vidsOf(a.id, t)), similar: similarChannels(texts.find(x => x.id === a.id), texts).slice(0, 8), models: db.modelsOf(a.id) };
+    }],
+    ['GET', /^\/api\/model\/prompt$/, (m, req, res, u) => {
+      const sp = u.searchParams; return { prompt: promptOf(modelInput(sp.get('anchor'), sp.get('extras') ? sp.get('extras').split(',') : [])).prompt };
+    }],
+    ['POST', /^\/api\/model$/, async (m, req) => {
+      const b = await readJson(req), input = modelInput(b.anchor, b.extras ?? []);
+      // Sem cota e sem histórico. Falha de thumbnail não derruba: segue só com texto (semImagens).
+      return { jobId: jobs.start('model', async report => {
+        report('Baixando thumbnails', 0, 4);
+        const top = [...input.vids].sort((x, y) => y.views - x.views).slice(0, 6).map(v => v.id);
+        const images = await fetchThumbs(top, thumbsDir, { fetch: thumbFetch }).catch(() => []);
+        report('Montando prompt', 1, 4); const { prompt, videoIds } = promptOf(input);
+        report('Gerando com o Claude', 2, 4);
+        const output = validateModel(await modeler(prompt, images), { videoIds, titles: [...input.vids.map(v => v.title), ...input.ex.flatMap(e => e.titles)], styles: EPISODE_STYLES });
+        report('Gravando', 3, 4);
+        return { modelId: db.addModel({ anchorId: input.a.id, input: { extras: input.ids, videoIds, semImagens: images.length === 0, prompt }, output }) };
+      }) };
+    }],
+    ['GET', /^\/api\/models\/([^/]+)$/, m => {
+      const md = model(num(m[1], 'Modelagem inválida')), t = now(), vids = vidsOf(md.anchorId, t), byId = new Map(vids.map(v => [v.id, v]));
+      const videos = Object.fromEntries(md.output.conceitos.flatMap(c => c.videoIds).filter(id => byId.has(id)).map(id => { const v = byId.get(id); return [id, { title: v.title, views: v.views, thumb: v.thumb }]; }));
+      return { ...md, anchor: chRow(md.anchorId, t, cfg()), views: modelViews(md.output, vids), videos };
+    }],
+    ['GET', /^\/api\/models\/([^/]+)\/profile\/([^/]+)$/, m => {
+      const md = model(num(m[1], 'Modelagem inválida')); if (!/^[012]$/.test(m[2])) no('Conceito inválido (0, 1 ou 2)');
+      return profileFromConcept(md, Number(m[2]), chRow(md.anchorId, now(), cfg()));
+    }],
+    ['GET', /^\/api\/mychannels$/, () => db.myChannels().map(myOut)],
+    ['POST', /^\/api\/mychannels$/, async (m, req) => myFull(db.createMyChannel(profile(await readJson(req))) ?? fail409())],
+    ['GET', /^\/api\/mychannels\/([^/]+)$/, m => myFull(num(m[1], 'Canal próprio inválido'))],
+    ['POST', /^\/api\/mychannels\/([^/]+)$/, async (m, req) => {
+      const n = my(num(m[1], 'Canal próprio inválido')).id;
+      if (!db.updateMyChannel(n, profile(await readJson(req)))) fail409(); // existe: 0 mudanças = nome repetido
+      return myFull(n);
+    }],
+    ['POST', /^\/api\/mychannels\/([^/]+)\/delete$/, m => { db.deleteMyChannel(my(num(m[1], 'Canal próprio inválido')).id); return { ok: true }; }],
+    ['POST', /^\/api\/mychannels\/([^/]+)\/competitors$/, async (m, req) => {
+      const n = my(num(m[1], 'Canal próprio inválido')).id, { ids } = await readJson(req), t = now(), c = cfg();
+      if (!Array.isArray(ids) || ids.length > 50 || !ids.every(x => typeof x === 'string' && ID.test(x))) no('Até 50 canais válidos');
+      const uniq = [...new Set(ids)], rows = uniq.map(id => chRow(id, t, c) ?? no('Canal fora da base: ' + id)); // antes de gravar: o banco lançaria em FK
+      db.setMyCompetitors(n, uniq); return { competitors: rows };
+    }],
+    ['GET', /^\/api\/voices$/, () => ({ voices: VOICES, wpm: cfg().voiceWpm })],
+    ['POST', /^\/api\/voices\/sample$/, async (m, req) => {
+      const { voice, speed, lang } = await readJson(req);
+      if (!Object.hasOwn(VOICES, lang)) no('Idioma deve ser pt ou en');
+      if (!VOICES[lang].some(v => `kokoro:${v}` === voice)) no('Voz não é do idioma escolhido');
+      if (!fin(speed) || speed < 0.8 || speed > 1.3) no('Velocidade entre 0,8 e 1,3');
+      let r; // curto: fora da fila de jobs
+      try { r = await sampleVoice({ voice, speed, lang }, samplesDir, { spawn: voiceSpawn, exists: voiceExists, root: ROOT }); }
+      catch (e) { if (/^Kokoro não instalado/.test(e?.message)) return { error: e.message }; throw fail(502, 'Kokoro falhou ao gerar a amostra'); } // outras mensagens podem ter caminhos
+      saveConfig(dataDir, { voiceWpm: { ...cfg().voiceWpm, [`${voice}|${speed}`]: r.wpm } });
+      return { url: '/api/samples/' + r.name, seconds: r.seconds, wpm: r.wpm };
+    }],
+    // Única rota de /api/ que não responde JSON: nome estrito, sem caminho vindo de fora.
+    ['GET', /^\/api\/samples\/([^/]+)$/, async (m, req, res) => {
+      if (!/^[0-9a-f]{40}\.wav$/.test(m[1])) no('Amostra inválida');
+      const bytes = await readFile(join(samplesDir, m[1])).catch(e => { throw e.code === 'ENOENT' ? fail(404, 'Amostra não encontrada') : e; });
+      res.writeHead(200, { ...BASE, 'Content-Type': 'audio/wav', 'Content-Length': bytes.length }); res.end(bytes);
     }],
   ];
 
