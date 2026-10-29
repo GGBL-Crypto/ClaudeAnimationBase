@@ -115,9 +115,9 @@ var { KIT_SCENES, kitFrame, castActor } = (() => {
     } },
     // Interior: parede, janela (o céu e o clima valem só nela), chão e móveis; props {kind, x (meio), y (base), s (altura), w?}.
     'interior-vela': { extras: ['book', 'scroll'], exterior: false, build(p, phase, L) {
-      const s = p.seed, floorY = 860, g = () => floorY, win = { x: 1260, y: 200, w: 300, h: 360 }, top = floorY - 150;
+      const s = p.seed, floorY = 860, g = () => floorY, win = { x: 1260, y: 200, w: 300, h: 360 }, top = floorY - 85;  // tampo da mesa a .47 BL do adulto (altura de cotovelo de quem senta)
       const fl = .5 + .3 * cyc(phase, per(L, .45)) + .2 * cyc(phase, per(L, .27), .4);  // tremor da vela 0..1
-      const props = [{ kind: 'shelf', x: 420, y: 430, s: 24, w: 380 }, { kind: 'table', x: 1050, y: floorY, s: 150, w: 400 }, { kind: 'candle', x: 1150, y: top, s: 46, flame: { h: 22 + 8 * fl, flick: fl } }];
+      const props = [{ kind: 'shelf', x: 420, y: 430, s: 24, w: 380 }, { kind: 'table', x: 1050, y: floorY, s: 85, w: 400 }, { kind: 'candle', x: 1150, y: top, s: 46, flame: { h: 22 + 8 * fl, flick: fl } }];
       if (has(p, 'book')) props.push({ kind: 'book', x: 990, y: top, s: 70 });
       if (has(p, 'scroll')) props.push({ kind: 'scroll', x: 900, y: top, s: 90 });
       const lights = [{ x: 1150, y: top - 60, r: 460, k: .7 + .3 * fl, f: 1 }];

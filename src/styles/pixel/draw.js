@@ -82,15 +82,20 @@
       dither(gy, box.x0, box.x1, col(lo ? 'skyTop' : 'skyMid'), col(lo ? 'skyMid' : 'skyLow'), k);
     }
   }
-  function cloud(V, o) {
-    // Base do vão dos três tufos com pontas redondas; borda escura de 1 px só embaixo da base (os tufos ficam dentro dela).
-    // A nuvem desce o que for preciso para caber inteira no quadro (sem barra cortada no topo).
+  // Nuvem: base do vão dos três tufos com pontas redondas e borda escura de 1 px só embaixo dela (os tufos ficam dentro).
+  // top = topo da base; need = o topo mínimo para os tufos caberem no quadro.
+  function cloudShape(V, o) {
     const x = V.x(o.x), w = o.w * V.k, h = o.h * V.k, bh = h * .4, xs = x - w * .2, xe = x + w * .2;
     const lumps = [0, 1, 2].map(i => ({ x: xs + w * .2 * i, r: h * (.3 + .12 * hash(o.seed + i + 7)), up: h * (.1 + .15 * hash(o.seed + i)) }));  // r > metade do vão: tufos se tocam
-    const y = Math.max(V.y(o.y) - h * .1, 2 + Math.max(...lumps.map(l => l.up + l.r)));  // topo da base
-    const base = (dy, color) => { rect(xs, y + dy, xe - xs, bh, color); disc(xs, y + bh / 2 + dy, bh / 2, color); disc(xe, y + bh / 2 + dy, bh / 2, color); };
-    base(1, col('cloudDk')); base(0, col('cloud'));
-    for (const l of lumps) disc(l.x, y - l.up, l.r, col('cloud'));
+    return { xs, xe, bh, lumps, top: V.y(o.y) - h * .1, need: 2 + Math.max(...lumps.map(l => l.up + l.r)) };
+  }
+  const cloudBase = (q, y, color) => { rect(q.xs, y, q.xe - q.xs, q.bh, color); disc(q.xs, y + q.bh / 2, q.bh / 2, color); disc(q.xe, y + q.bh / 2, q.bh / 2, color); };
+  // Todas as bordas antes de todos os recheios (a borda de uma nuvem não corta a outra). As nuvens descem juntas o
+  // necessário para nenhuma sair pelo topo: a disposição do kit se mantém, sem empilhar as altas numa faixa.
+  function clouds(V, list) {
+    const qs = list.map(o => cloudShape(V, o)), dy = Math.max(0, ...qs.map(q => q.need - q.top));
+    for (const q of qs) cloudBase(q, q.top + dy + 1, col('cloudDk'));
+    for (const q of qs) { cloudBase(q, q.top + dy, col('cloud')); for (const l of q.lumps) disc(l.x, q.top + dy - l.up, l.r, col('cloud')); }
   }
   function drawSky(F, V, box) {
     const Sk = K.sky; skyFill(V, box.y0w, box.h0, box);
@@ -112,7 +117,7 @@
       const hx = V.x(lerp(m.x0, m.x1, m.k)), hy = V.y(lerp(m.y0, m.y1, m.k)), L = Math.hypot(m.x1 - m.x0, m.y1 - m.y0), ux = (m.x1 - m.x0) / L, uy = (m.y1 - m.y0) / L;
       for (let i = 0; i < 14; i++) if (i < 8 || i % 2 === 0) px(hx - ux * i, hy - uy * i, i < 3 ? P.flame : i < 7 ? P.cloud : P.snowShade);
     }
-    for (const cl of Sk.clouds) cloud(V, cl);
+    clouds(V, Sk.clouds);
   }
 
   // ---------- camadas ----------
@@ -179,7 +184,8 @@
     }
     else { rect(x0 - 1, yt - 1, w + 2, 2, wd); cap(yt - 1, x0 - 1, x1 + 1); }
     for (const q of b.windows) {
-      const wx = Math.round(V.x(q.x)), wy = Math.round(V.y(q.y)), ww = Math.max(1, Math.round(q.w * V.k)), wh = Math.max(2, Math.round(q.h * V.k));
+      let wx = Math.round(V.x(q.x)), wy = Math.round(V.y(q.y)), ww = Math.max(1, Math.round(q.w * V.k)), wh = Math.max(2, Math.round(q.h * V.k));
+      if (q.lit && farm) { wx -= 1; ww += 2; wh += 1; }  // janela da casa da fazenda maior, quente como a do story
       if (q.lit) { rect(wx - 1, wy - 1, ww + 2, wh + 2, P.light); rect(wx, wy, ww, wh, q.lit > .9 ? P.flame : P.wing); if (ww >= 3 && wh >= 4) { rect(wx + (ww >> 1), wy, 1, wh, P.woodDk); rect(wx, wy + (wh >> 1), ww, 1, P.woodDk); } }
       else rect(wx, wy, ww, wh, col('shadow'));
     }
@@ -289,6 +295,7 @@
     if (gear.includes('backpack')) { rect(bx, ch[1], pw, ph, P.wood); rect(bx, ch[1] + ph - 1, pw, 1, P.woodDk); }
     draw(groups[3], false); draw(groups[2], false);  // perna de perto antes do tronco: a camisa cobre o alto da coxa
     // Cabeça em bloco, cabelo em cima e atrás, olho de 1 px do lado para onde olha (fecha quando pisca).
+    draw(groups[4], true);  // contorno do braço de perto antes da cabeça: braço erguido não corta o rosto
     rect(hb.x, hb.y, hb.w, hb.h, C.skin);
     const hood = gear.includes('hood'), helmet = gear.includes('helmet'), hairC = hood ? C.shirt : helmet ? P.stone : C.hair;
     rect(hb.x, hb.y, hb.w, helmet ? 3 : 2, hairC); rect(back, hb.y, 1, hood ? hb.h : Math.round(hb.h * .7), hairC);
@@ -296,7 +303,7 @@
     if (helmet) rect(hb.x, hb.y + 2, hb.w, 1, P.stoneDk);
     if (a.pose.face.blink < .5) px(fc > 0 ? hb.x + hb.w - 2 : hb.x + 1, hb.y + Math.round(hb.h * .5), ink);
     if (hat) { rect(hb.x - 2, hb.y - 1, hb.w + 4, 1, P.woodDk); rect(hb.x, hb.y - 3, hb.w, 2, P.sandDk); }
-    draw(groups[4], true); draw(groups[4], false);  // braço de perto com contorno próprio, para ler sobre o tronco
+    draw(groups[4], false);  // braço de perto por cima, com o contorno próprio (lê sobre o tronco)
     if (a.holds === 'book') { const [x, y] = [(g('handL')[0] + g('handR')[0]) / 2, (g('handL')[1] + g('handR')[1]) / 2]; rect(x - 3, y - 3, 6, 4, ink); rect(x - 2, y - 2, 4, 2, P.shadow); rect(x - 2, y - 2, 4, 1, P.cloud); }
   }
 
