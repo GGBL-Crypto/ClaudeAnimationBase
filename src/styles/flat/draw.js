@@ -2,7 +2,8 @@
 // formas geométricas sem contorno (crescente de sombra embaixo à direita, realce em cima à esquerda), sombras longas
 // chapadas do sol (alto à esquerda, atrás dos seres: a sombra vem para a frente e para a direita) e brilho aditivo nas luzes.
 window.ExpStyle = (() => {
-  const P = STYLE.palette, MAIN = animationEngine.context, SHX = STYLE.effects.longShadow;
+  const P = STYLE.palette, MAIN = animationEngine.context;
+  let SHX = STYLE.effects.longShadow;  // a cena K vira a sombra para o lado oposto ao sol e a alonga no sol baixo
   let c = MAIN, cam = { cx: 960, cy: 540, z: 1 };
   // Câmera da camada de paralaxe f; faixa x visível e fundo da tela nessa camada.
   const at = f => { const { cx, cy, z } = cam; c.setTransform(z, 0, 0, z, 960 - lerp(960, cx, f) * z, 540 - cy * z); };
@@ -50,9 +51,9 @@ window.ExpStyle = (() => {
     const sx = 330 - (cam.cx - 960) * .02 * z, sy = hy - 560;  // sol no alto à esquerda, quase parado
     glow(sx, sy, 1100, '#FFD27A', .22); glow(sx, sy, 420, P.sun, .6); ell(sx, sy, 62, 62, 0, '#FFF6DC');
   }
-  function cloud(x, y, s) {
+  function cloud(x, y, s, K = P) {
     const parts = (dx, dy, col) => { c.fillStyle = col; c.beginPath(); c.roundRect(x - 160 * s + dx, y - 30 * s + dy, 320 * s, 60 * s, 30 * s); c.fill(); for (const [u, v, r] of [[-70, -32, 52], [10, -58, 72], [92, -28, 48]]) ell(x + u * s + dx, y + v * s + dy, r * s, r * s, 0, col); };
-    parts(8 * s, 12 * s, P.cloudDk); parts(0, 0, P.cloud);
+    parts(8 * s, 12 * s, K.cloudDk); parts(0, 0, K.cloud);
   }
   const DECO = [[150, 240, .9], [820, 150, .65], [1500, 270, .8], [2200, 170, .6], [-500, 200, .7]];
   function clouds(F) {
@@ -70,23 +71,24 @@ window.ExpStyle = (() => {
   }
   const TREE = { trunk: '#6E4A36', dk: P.grassDk, base: P.grass, lt: P.grassLt };
   const hazed = (K, k, to = P.haze) => Object.fromEntries(Object.entries(K).map(([n, v]) => [n, mixCol(v, to, k)]));
-  // Tufos de capim no perfil (camada f): três folhas que balançam devagar.
-  function tufts(f, prof, step, hgt, col, t, seed) {
+  // Tufos de capim no perfil (camada f): três folhas que balançam devagar (ph = fase do loop da cena K: balanço periódico).
+  function tufts(f, prof, step, hgt, col, t, seed, ph) {
     at(f); const [x0, x1] = span(f);
     for (let x = Math.floor(x0 / step) * step; x < x1; x += step) {
       const i = Math.round(x / step), q = hash(seed + i); if (q < .35) continue;
-      const bx = x + step * hash(seed + i * 7), by = prof(bx), hh = hgt * (.6 + .6 * hash(seed + i * 3)), sw = .18 * noise1(seed + i, t * .5 + i * .1);
+      const bx = x + step * hash(seed + i * 7), by = prof(bx), hh = hgt * (.6 + .6 * hash(seed + i * 3)), sw = .18 * (ph === undefined ? noise1(seed + i, t * .5 + i * .1) : Math.sin(TAU * (2 * ph + hash(seed + i * 5))));
       c.beginPath();
       for (const a of [-.35, 0, .3]) { const tx = bx + hh * Math.sin(a + sw), ty = by - hh * Math.cos(a + sw) * (a ? .75 : 1); c.moveTo(bx - hh * .07, by); c.quadraticCurveTo(bx + (tx - bx) * .3, by - (by - ty) * .6, tx, ty); c.quadraticCurveTo(bx + (tx - bx) * .5, by - (by - ty) * .4, bx + hh * .07, by); }
       c.fillStyle = col; c.fill();
     }
   }
   // Pedra: polígono baixo com faceta clara virada para o sol.
-  function rock([x, y, r]) {
+  function rock([x, y, r], K = ROCKK) {
     const pts = [...Array(7)].map((_, i) => { const a = Math.PI + i / 6 * Math.PI, k = .8 + .3 * hash(11 + i); return [x + Math.cos(a) * r * 1.3 * k, y + Math.sin(a) * r * .9 * k]; });
-    c.beginPath(); pts.forEach(([u, v], i) => i ? c.lineTo(u, v) : c.moveTo(u, v)); c.closePath(); c.fillStyle = '#6F7D86'; c.fill();
-    c.beginPath(); c.moveTo(...pts[0]); for (let i = 1; i < 4; i++) c.lineTo(...pts[i]); c.lineTo(x + .1 * r, y - .2 * r); c.closePath(); c.fillStyle = '#A9B6BC'; c.fill();
+    c.beginPath(); pts.forEach(([u, v], i) => i ? c.lineTo(u, v) : c.moveTo(u, v)); c.closePath(); c.fillStyle = K.base; c.fill();
+    c.beginPath(); c.moveTo(...pts[0]); for (let i = 1; i < 4; i++) c.lineTo(...pts[i]); c.lineTo(x + .1 * r, y - .2 * r); c.closePath(); c.fillStyle = K.lt; c.fill();
   }
+  const ROCKK = { base: '#6F7D86', lt: '#A9B6BC' };
 
   // Solo em corte (plano aberto): turfa, estratos, seixos, raízes, túneis, câmaras com fungo e o monte do ninho.
   const ROOTS = new Map();
@@ -386,11 +388,22 @@ window.ExpStyle = (() => {
     avo: { shirt: '#8C9DA6', shirtDk: '#677A84', pants: '#5A4A3E', pantsDk: '#45382E', boot: '#3A2A22', skin: '#F0B48A', skinDk: '#D08A64', hair: '#E8E4DC' },
   };
   const OK = new Map(), outfit = id => { if (!OK.has(id)) OK.set(id, { ...P, ...OUTFIT[id] }); return OK.get(id); };
+  // Cena K: as cores do elenco (actor.colors, parciais) no lugar da roupa padrão, com os tons escuros derivados, e tudo
+  // escurecido para a sombra da rampa do clima de luz (dim).
+  const CP = new Map();
+  function castPal(a, mood) {
+    const o = a.colors || {}, key = mood + JSON.stringify(o);
+    if (!CP.has(key)) {
+      const R = STYLE.moods[mood], dk = n => o[n] && { [n + 'Dk']: mixCol(o[n], P.ink, .24) };
+      CP.set(key, hazed({ ...P, ...o, ...dk('skin'), ...dk('shirt'), ...dk('pants') }, R.dim, R.shadow));
+    }
+    return CP.get(key);
+  }
   // Pessoa em cápsulas: perna e braço de lá, mochila, perna de cá, quadril, tronco, pescoço, cabeça com rosto e cabelo (ou
   // chapéu), braço de cá. mode: 'all' (sombra), 'body' (sem os membros de actor.front) ou 'front' (só eles, por cima do outro).
   function human(a, K, mode = 'all') {
     const p = a.pose, S = p.size, dir = p.facing, J = p.joints, Q = byName(a), R = Q.head.r, [hx, hy] = mid(Q.head.pts), mono = K === MONO, Ls = Object.entries(p.limbs);
-    const ch = { x: J.chest[0], y: J.chest[1] }, pv = { x: J.pelvis[0], y: J.pelvis[1] }, gear = a.gear || [], T = Q.torso, g = T.r, hat = gear.includes('hat');
+    const ch = { x: J.chest[0], y: J.chest[1] }, pv = { x: J.pelvis[0], y: J.pelvis[1] }, gear = a.gear || [], T = Q.torso, g = T.r, hat = gear.includes('hat'), hood = gear.includes('hood'), helm = gear.includes('helmet');
     // Perna: pé, canela e, por cima, a coxa com contorno mais escuro: o fim redondo dela sobre a canela marca o joelho.
     const leg = (s, far) => {
       const pc = far ? K.pantsDk : K.pants, th = Q['thigh' + s];
@@ -425,12 +438,20 @@ window.ExpStyle = (() => {
     if (p.appendages.hair) line(p.appendages.hair, K.hair, .05 * S);
     local(hx, hy, p.head.angle, dir, () => {
       ell(0, 0, R, R, 0, K.skinDk); ell(-.05 * R, -.06 * R, R * .93, R * .93, 0, K.skin);
-      if (!hat) {  // cabelo: calota atrás e em cima, com franja curta
+      if (hood) {  // capuz: calota larga atrás e em cima, aberta no rosto
+        c.beginPath(); c.arc(0, 0, R * 1.22, Math.PI * .42, Math.PI * 1.8); c.quadraticCurveTo(.2 * R, -.7 * R, -.05 * R, -.2 * R); c.quadraticCurveTo(-.15 * R, .45 * R, .1 * R, 1.1 * R); c.closePath();
+        c.fillStyle = K.shirtDk; c.fill();
+      } else if (!hat && !helm) {  // cabelo: calota atrás e em cima, com franja curta
         c.beginPath(); c.arc(0, 0, R * 1.04, Math.PI * .62, Math.PI * 1.72); c.quadraticCurveTo(.2 * R, -.55 * R, -.25 * R, -.35 * R); c.quadraticCurveTo(-.45 * R, .1 * R, -.42 * R, .7 * R); c.closePath();
         c.fillStyle = K.hair; c.fill();
       }
-      ell(-.2 * R, .08 * R, .15 * R, .2 * R, 0, K.skinDk);  // orelha
+      if (!hood) ell(-.2 * R, .08 * R, .15 * R, .2 * R, 0, K.skinDk);  // orelha
       if (!mono) face(p, R, K);
+      if (helm) {  // capacete: cúpula com aba curta e realce em cima à esquerda
+        c.beginPath(); c.ellipse(-.06 * R, -.1 * R, 1.1 * R, 1.02 * R, 0, Math.PI, TAU); c.fillStyle = mono ? K.hat : '#7E8A96'; c.fill();
+        ell(0, -.1 * R, 1.22 * R, .14 * R, 0, mono ? K.hat : '#5E6874');
+        if (!mono) ell(-.45 * R, -.75 * R, .3 * R, .14 * R, -.4, '#C2CCD4');
+      }
       if (!hat) return;
       // chapéu de explorador: copa, faixa e aba
       const jolt = p.face.expression === 'surprised' ? clamp(p.emote ? p.emote.k : 1, 0, 1.3) : 0;  // susto: o chapéu salta e inclina para trás
@@ -496,7 +517,7 @@ window.ExpStyle = (() => {
     if (mono) skew(a.gy);
     if (a.flip) { const m = (p.spine[0].x + p.spine.at(-1).x) / 2; c.translate(m, 0); c.scale(a.flip, 1); c.translate(-m, 0); }
     c.globalAlpha = a.alpha ?? 1;
-    if (a.kind === 'human') human(a, mono ? MONO : OUTFIT[a.id] ? outfit(a.id) : P, front ? 'front' : mono ? 'all' : 'body');
+    if (a.kind === 'human') human(a, mono ? MONO : F.scene === 'K' ? castPal(a, F.world.kit.mood) : OUTFIT[a.id] ? outfit(a.id) : P, front ? 'front' : mono ? 'all' : 'body');
     else if (a.kind === 'fly') fly(a, mono ? MONO : a.layer < 1 ? hazed(FLYK, .3) : FLYK);
     else if (BEAST[a.kind]) BEAST[a.kind][0](a, mono ? MONO : BEAST[a.kind][1]);
     else {
@@ -519,13 +540,15 @@ window.ExpStyle = (() => {
   }
   // Partículas (1/3 da densidade antiga): pólen só junto do capim da superfície; esporos só dentro e em volta das
   // câmaras. Posição pura de t e da câmera.
+  // Na cena K, deriva, sobe e desce e cintila pela fase do loop (frequências inteiras), sem sair do lugar.
   function motes(F) {
-    const { cx, cy, z } = cam, g = F.world.ground, wide = F.shot === 'wide';
+    const { cx, cy, z } = cam, g = F.world.ground, k = F.world.kit, wide = F.shot === 'wide' || !!k, cyc = (m, h) => Math.sin(TAU * (m * k.phase + h));
     c.resetTransform();
     for (let i = 0; i < 16; i++) {
-      const pf = .8 + .4 * hash(i + 400), X = ((hash(i) * 2300 + 16 * F.t * (1 + hash(i + 7)) + 70 * noise1(i, F.t * .22) - cx * z * pf * .5) % 2300 + 2300) % 2300 - 190;
-      const hgt = wide ? 8 + 80 * hash(i + 3) : -150 + 280 * hash(i + 3), Y = (g((X - 960) / z + cx) - hgt - cy) * z + 540 + 18 * noise1(i + 50, F.t * .27) * z;
-      const r = (1.4 + 2.2 * hash(i + 9)) * Math.min(1.4, Math.sqrt(z)), tw = .55 + .45 * Math.sin(F.t * 1.6 + i * 2.3);
+      const pf = .8 + .4 * hash(i + 400), X = k ? ((hash(i) * 2300 + 60 * cyc(1, hash(i + 7)) - cx * z * pf * .5) % 2300 + 2300) % 2300 - 190
+        : ((hash(i) * 2300 + 16 * F.t * (1 + hash(i + 7)) + 70 * noise1(i, F.t * .22) - cx * z * pf * .5) % 2300 + 2300) % 2300 - 190;
+      const hgt = wide ? 8 + 80 * hash(i + 3) : -150 + 280 * hash(i + 3), Y = (g((X - 960) / z + cx) - hgt - cy) * z + 540 + 18 * (k ? cyc(2, hash(i + 50)) : noise1(i + 50, F.t * .27)) * z;
+      const r = (1.4 + 2.2 * hash(i + 9)) * Math.min(1.4, Math.sqrt(z)), tw = .55 + .45 * (k ? cyc(3 + i % 3, hash(i + 60)) : Math.sin(F.t * 1.6 + i * 2.3));
       glow(X, Y, r * 6, '#FFF2C0', .26 * tw); ell(X, Y, r, r, 0, rgba('#FFFBEA', .7 * tw));
     }
     if (!F.world.chambers) return;
@@ -716,10 +739,193 @@ window.ExpStyle = (() => {
   // Perfis do plano H (o mundo dele só traz o chão).
   const farH = x => 600 + 55 * Math.sin(x * .0021 + .3) + 18 * Math.sin(x * .007), midH = x => 770 + 28 * Math.sin(x * .0042 + 1.7) + 9 * Math.sin(x * .013);
 
+  // ---------- K (kit de episódio, src/episode/kit.js) ----------
+  // Cores pela rampa do mood (STYLE.moods): cada camada f tem o tom de far → mid → near; adereços e prédios levam a cor
+  // própria escurecida por dim e misturada ao tom da camada, mais quanto mais longe. Tudo é função de kit.phase.
+  const SURF = { sand: '#E4C48C', stone: '#B8B0A2', snow: '#EEF3F8' };
+  const KC = { trunk: '#6E4A36', leaf: '#4E9A5E', wall: '#DCCAA6', roof: '#B0583E', dome: '#5E8C8A', sea: '#3A86A0', wood: '#7A4A32', sail: '#F2E8D4', camel: '#C49A64', stone: '#D8CDB4', paper: '#EDE0BE', land: '#D2B77E', mark: '#B5452E' };
+  function drawK(F) {
+    const K = F.world.kit, R = STYLE.moods[K.mood], S = K.sky, I = K.interior, M = K.map, sx = SHX;
+    const lc = f => f <= .5 ? mixCol(R.far, R.mid, f / .5) : mixCol(R.mid, R.near, (f - .5) / .5);
+    const tint = (col, f) => mixCol(mixCol(col, R.shadow, R.dim), lc(f), .25 + .4 * (1 - f));
+    const poly = (pts, col) => { c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); c.fillStyle = col; c.fill(); };
+    const gl = .35 + 1.2 * R.dim;  // força do brilho: fraco de dia, forte à noite
+    // Céu (f = 0 fora; dentro, pela câmera f = 1 e só na janela), com a rampa da janela no interior.
+    const skyK = (Rs, x, y, w, h) => {
+      c.fillStyle = vgrad(y, y + h, [Rs.skyTop, mixCol(Rs.skyTop, Rs.skyLow, .55), Rs.skyLow]); c.fillRect(x, y, w, h);
+      for (const s of S.stars) { ell(s.x, s.y, s.r, s.r, 0, rgba('#FFFFFF', .35 + .6 * s.tw)); if (s.r > 1.8) glow(s.x, s.y, 8 * s.r, '#CFE0FF', .25 * s.tw); }
+      const o = S.celestial;
+      if (o && o.kind === 'sun') { glow(o.x, o.y, 9 * o.r, Rs.glow, .2 + .25 * o.glow); glow(o.x, o.y, 3.5 * o.r, '#FFF6DC', .55); ell(o.x, o.y, o.r, o.r, 0, '#FFF6DC'); }
+      else if (o) { glow(o.x, o.y, 6 * o.r, '#CFE0FF', .3 * o.glow); ell(o.x, o.y, o.r, o.r, 0, '#F2EEDC'); for (const [u, v, q] of [[-.3, -.2, .22], [.25, .2, .16], [.1, -.45, .1]]) ell(o.x + u * o.r, o.y + v * o.r, q * o.r, q * o.r, 0, '#D8D2BE'); }
+      const wet = K.weather.kind === 'rain' || K.weather.kind === 'snow', cl = mixCol(mixCol(mixCol(P.cloud, Rs.light, .25), '#8C96A0', wet ? .4 : 0), Rs.shadow, Rs.dim * 1.1);
+      const CK = { cloud: cl, cloudDk: mixCol(cl, Rs.skyTop, .35) };
+      for (const o of S.clouds) cloud(o.x, o.y, o.w / 320, CK);
+      const m = S.meteor;
+      if (m && m.k > 0 && m.k < 1) { const x = lerp(m.x0, m.x1, m.k), y = lerp(m.y0, m.y1, m.k), a = Math.sin(Math.PI * m.k); line([[x - .22 * (m.x1 - m.x0), y - .22 * (m.y1 - m.y0)], [x, y]], rgba('#FFF6DC', .7 * a), 3); glow(x, y, 40, '#FFF6DC', .6 * a); }
+    };
+    const weather = () => {
+      at(1);
+      for (const d of K.weather.drops) if (K.weather.kind === 'rain') line([[d.x, d.y], [d.x, d.y - 28 * d.k]], rgba(R.light, .28 + .3 * d.k), 2); else ell(d.x, d.y, 2 + 2.5 * d.k, 2 + 2.5 * d.k, 0, rgba('#FFFFFF', .55 + .35 * d.k));
+    };
+    const fog = (k, x, y, w, h, col) => { if (k > 0) { c.fillStyle = vgrad(y, y + h, [rgba(col, .2 * k), rgba(col, .85 * k)]); c.fillRect(x, y, w, h); } };
+    // Sombras longas para o lado oposto à luz principal (sol, lua ou a vela), mais longas no sol baixo.
+    const src = I ? K.lights[0] : S.celestial;
+    SHX = (src && src.x > 960 ? -1 : 1) * (src && src.kind === 'sun' && src.y > 400 ? 1.7 : STYLE.effects.longShadow); SHY = .2;
+    c.resetTransform();
+    if (M) {  // mapa sobre a mesa: papel com sombra, terras com borda escura deslocada, cidades e a rota até a fração k
+      c.fillStyle = vgrad(0, H, ['#6A4E3A', '#4A3428']); c.fillRect(0, 0, W, H); at(1);
+      const pp = M.paper; c.fillStyle = rgba(R.shadow, .35); c.fillRect(pp.x + 14, pp.y + 18, pp.w, pp.h);
+      c.fillStyle = vgrad(pp.y, pp.y + pp.h, [KC.paper, mixCol(KC.paper, '#C8B48A', .6)]); c.fillRect(pp.x, pp.y, pp.w, pp.h);
+      c.fillStyle = rgba('#7FAFB4', .35); c.fillRect(pp.x + 30, pp.y + 30, pp.w - 60, pp.h - 60);
+      for (const co of M.coasts) { c.save(); c.translate(5, 7); poly(co, mixCol(KC.land, '#6A4E3A', .45)); c.restore(); poly(co, KC.land); }
+      if (M.route) {
+        const Pt = M.route.pts, d = Pt.slice(1).map((q, i) => d2(Pt[i], q)); let left = M.route.k * d.reduce((u, v) => u + v, 0); const pts = [Pt[0]];
+        for (let i = 0; i < d.length && left > 0; i++) { const u = Math.min(1, left / d[i]); pts.push(lerp2(Pt[i], Pt[i + 1], u)); left -= d[i]; }
+        c.setLineDash([22, 14]); line(pts, KC.mark, 7); c.setLineDash([]); const e = pts.at(-1); ell(e[0], e[1], 9, 9, 0, KC.mark);
+      }
+      for (const m of M.marks) { ell(m.x + 3, m.y + 4, 15, 15, 0, rgba(R.shadow, .3)); ell(m.x, m.y, 15, 15, 0, KC.mark); ell(m.x - 2, m.y - 2, 6, 6, 0, '#FBF6EA'); }
+      SHX = sx; c.resetTransform(); return;
+    }
+    if (I) {  // parede e piso; a janela mostra o céu e o clima da hora (noite com lua, senão dia)
+      const wn = I.window, WR = STYLE.moods[S.celestial ? 'night' : 'day']; at(1); const [x0, x1] = span(1), yb = ybot();
+      c.fillStyle = vgrad(I.wall.y0, I.wall.y1, [R.skyTop, R.skyLow]); c.fillRect(x0, cam.cy - 700, x1 - x0, I.floorY - cam.cy + 700);
+      c.fillStyle = R.far; c.fillRect(x0, I.floorY - 70, x1 - x0, 70); c.fillStyle = mixCol(R.far, R.light, .2); c.fillRect(x0, I.floorY - 70, x1 - x0, 6);
+      c.fillStyle = vgrad(I.floorY, I.floorY + 260, [R.ground, mixCol(R.ground, R.shadow, .5)]); c.fillRect(x0, I.floorY, x1 - x0, yb - I.floorY);
+      for (const d of [16, 48, 100, 180]) line([[x0, I.floorY + d], [x1, I.floorY + d]], rgba(R.shadow, .25), 3);
+      c.save(); c.beginPath(); c.rect(wn.x, wn.y, wn.w, wn.h); c.clip();
+      skyK(WR, wn.x, wn.y, wn.w, wn.h); weather(); fog(K.weather.fog, wn.x, wn.y, wn.w, wn.h, WR.skyLow);
+      c.restore(); at(1);
+      const fr = R.near, fl = mixCol(R.near, R.light, .25);
+      c.fillStyle = fr; for (const [x, y, w, h] of [[wn.x - 16, wn.y - 16, wn.w + 32, 16], [wn.x - 16, wn.y + wn.h, wn.w + 32, 16], [wn.x - 16, wn.y, 16, wn.h], [wn.x + wn.w, wn.y, 16, wn.h], [wn.x + wn.w / 2 - 6, wn.y, 12, wn.h], [wn.x, wn.y + wn.h * .45 - 6, wn.w, 12]]) c.fillRect(x, y, w, h);
+      c.fillStyle = fl; c.fillRect(wn.x - 30, wn.y + wn.h + 10, wn.w + 60, 14);
+      for (const o of I.props) {
+        const { x, y, s } = o, wd = R.mid, wk = R.near, wl = mixCol(R.mid, R.light, .3);
+        if (o.kind === 'shelf') {
+          c.fillStyle = wk; c.fillRect(x - o.w / 2, y - s, o.w, s); c.fillStyle = wl; c.fillRect(x - o.w / 2, y - s, o.w, 5);
+          for (const u of [-.38, .38]) poly([[x + u * o.w - 10, y], [x + u * o.w + 10, y], [x + u * o.w, y + 40]], wk);
+          for (let i = 0, bx = x - o.w / 2 + 16; bx < x + o.w / 2 - 30; i++) { const bw = 18 + 14 * hash(i + K.seed), bh = 50 + 40 * hash(i * 3 + K.seed); c.fillStyle = tint(['#8A3A2A', '#3D5A73', '#5E9C84', '#C9A040'][i % 4], .8); c.fillRect(bx, y - s - bh, bw, bh); bx += bw + 4; }
+        } else if (o.kind === 'table') {
+          for (const u of [-.42, .42]) { c.fillStyle = wk; c.fillRect(x + u * o.w - 9, y - s, 18, s); }
+          c.fillStyle = wk; c.fillRect(x - o.w / 2, y - s, o.w, 20); c.fillStyle = wd; c.fillRect(x - o.w / 2, y - s, o.w, 14); c.fillStyle = wl; c.fillRect(x - o.w / 2, y - s, o.w, 4);
+        } else if (o.kind === 'candle') {
+          c.fillStyle = '#E8DCC0'; c.fillRect(x - 8, y - s, 16, s); c.fillStyle = '#F8F0DC'; c.fillRect(x - 8, y - s, 6, s); ell(x, y, 22, 6, 0, wk);
+          const fh = o.flame.h, sw = (o.flame.flick - .5) * .25 * fh, fy = y - s - 2;
+          poly([[x - .3 * fh, fy], [x + sw, fy - fh], [x + .3 * fh, fy]], '#FF9E3A'); ell(x, fy - .1 * fh, .3 * fh, .3 * fh, 0, '#FF9E3A');
+          poly([[x - .16 * fh, fy - .05 * fh], [x + .7 * sw, fy - .7 * fh], [x + .16 * fh, fy - .05 * fh]], '#FFE7A8'); ell(x, fy - .15 * fh, .16 * fh, .16 * fh, 0, '#FFE7A8');
+        } else if (o.kind === 'book') { c.fillStyle = '#6A2A20'; c.fillRect(x - s / 2, y - 14, s, 14); c.fillStyle = '#F2E8D0'; c.fillRect(x - s / 2 + 4, y - 11, s - 8, 6); }
+        else if (o.kind === 'scroll') { c.fillStyle = '#E8D8B0'; c.fillRect(x - s / 2, y - 16, s, 16); for (const u of [-.5, .5]) ell(x + u * s, y - 8, 7, 9, 0, '#B89A62'); }
+        else if (o.kind === 'chair') {
+          const b = x - o.dir * .32 * s; c.fillStyle = wk;
+          c.fillRect(b - 6, y - 2.4 * s, 12, 2.4 * s); c.fillRect(x + o.dir * .3 * s - 6, y - s, 12, s);
+          c.fillStyle = wd; c.fillRect(x - .38 * s, y - s, .76 * s, 12); c.fillStyle = wl; c.fillRect(x - .38 * s, y - s, .76 * s, 4);
+        }
+      }
+    } else {
+      at(0); const [x0, x1] = span(0); skyK(R, x0, cam.cy - 600 / cam.z - 60, x1 - x0, 1300 / cam.z);
+    }
+    // Luzes de uma faixa de camadas (f0, f1]: as de fundo logo depois da camada delas, as do chão por cima dos atores.
+    const lights = (f0, f1) => { for (const l of K.lights) if (l.f > f0 && l.f <= f1) {
+      at(l.f);
+      if (l.r <= 12) { glow(l.x, l.y, 6 * l.r, R.glow, .9 * l.k); ell(l.x, l.y, 2.6, 2.6, 0, rgba('#FFF6C0', l.k)); }
+      else { glow(l.x, l.y, l.r, R.glow, gl * l.k); glow(l.x, l.y, .3 * l.r, '#FFF2C8', .5 * gl * l.k); }
+    } };
+    let stage = 0, lf = -1;
+    K.layers.forEach((l, li) => {
+      const f = l.f, col = lc(f);
+      // Névoa em dois véus: antes das camadas do meio e antes do chão; o que está perto fica mais nítido.
+      while (!I && K.weather.fog && stage < 2 && f >= (stage ? 1 : .5)) { c.resetTransform(); fog(K.weather.fog * (stage ? .45 : .6), 0, 0, W, H, R.skyLow); stage++; }
+      if (l.kind === 'ridge') band(f, l.prof, vgrad(l.prof(960) - 160, l.prof(960) + 260, [mixCol(col, R.skyLow, .22), col]));
+      else if (l.kind === 'dunes') { const d = tint(SURF.sand, f); band(f, l.prof, vgrad(l.prof(960) - 100, l.prof(960) + 200, [mixCol(d, R.light, .3), d])); }
+      else if (l.kind === 'ground') {
+        const gc = SURF[l.surface] ? tint(SURF[l.surface], 1) : R.ground, gy = l.prof(cam.cx);
+        band(1, l.prof, vgrad(gy, gy + 260, [gc, mixCol(gc, R.shadow, .35)])); edge(1, l.prof, mixCol(gc, R.light, .3), 5);
+        if (l.surface === 'grass') tufts(1, l.prof, 40, 18, mixCol(gc, R.shadow, .3), 0, K.seed, K.phase);
+        if (l.surface === 'stone') { at(1); const [a, b] = span(1); for (const d of [24, 64, 130]) line([[a, gy + d], [b, gy + d]], rgba(R.shadow, .18), 3); }
+      } else if (l.kind === 'sea') {
+        const sc = tint(KC.sea, f); band(f, () => l.y, vgrad(l.y, l.y + 260, [mixCol(sc, R.skyLow, .35), sc]));
+        at(f); const [a, b] = span(f); line([[a, l.y], [b, l.y]], rgba(R.light, .5), 3);
+        for (const w of l.waves) line([[w.x - w.len / 2, w.y], [w.x, w.y - 2 - 4 * w.k], [w.x + w.len / 2, w.y]], rgba(R.light, .2 + .35 * w.k), 3);
+        const o = S.celestial; if (o) for (let i = 0; i < 6; i++) line([[o.x - 40 + 8 * i, l.y + 14 + 22 * i], [o.x + 40 - 6 * i, l.y + 14 + 22 * i]], rgba(R.glow, .35 - .05 * i), 4);
+      } else if (l.kind === 'treeline') {
+        at(f); const TK = { trunk: tint(KC.trunk, f), base: tint(KC.leaf, f) }; TK.dk = mixCol(TK.base, R.shadow, .3); TK.lt = mixCol(TK.base, R.light, .3);
+        for (const tr of l.trees) {
+          const { x, y, h } = tr;
+          if (tr.kind === 'broad') tree(x, y, h, TK, tr.seed);
+          else if (tr.kind === 'palm') {
+            line([[x, y], [x + .1 * h, y - .5 * h], [x + .05 * h, y - h]], TK.trunk, .05 * h);
+            for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + (i - 2) * .6; ell(x + .05 * h + Math.cos(a) * .2 * h, y - h + Math.sin(a) * .08 * h + .06 * h, .22 * h, .05 * h, a + Math.PI / 2 * Math.sign(i - 2) * .4, i % 2 ? TK.dk : TK.base); }
+          } else {  // pinheiro: três andares em triângulo, face clara à esquerda (sol)
+            c.fillStyle = TK.trunk; c.fillRect(x - .03 * h, y - .2 * h, .06 * h, .2 * h);
+            for (let i = 0; i < 3; i++) {
+              const y0 = y - .14 * h - i * .26 * h, w = .3 * h * (1 - .2 * i), top = y0 - .42 * h;
+              poly([[x - w + .02 * h, y0 + .02 * h], [x + .02 * h, top + .02 * h], [x + w + .02 * h, y0 + .02 * h]], TK.dk);
+              poly([[x - w, y0], [x, top], [x + w, y0]], TK.base); poly([[x - w, y0], [x, top], [x - .3 * w, y0]], TK.lt);
+            }
+          }
+        }
+      } else if (l.kind === 'buildings') {
+        at(f); const wc = tint(KC.wall, f), ws = mixCol(wc, R.shadow, .25), rc = tint(KC.roof, f), dc = tint(KC.dome, f), wo = mixCol(wc, R.shadow, .5);
+        for (const bd of l.items) {
+          const { x, y, w, h } = bd, l0 = x - w / 2, top = y - h;
+          c.fillStyle = wc; c.fillRect(l0, top, w, h + 4); c.fillStyle = ws; if (w < 600) c.fillRect(x + .28 * w, top, .22 * w, h + 4);  // face da sombra à direita (a muralha não)
+          if (bd.roof === 'gable') poly([[l0 - 10, top], [x, top - .4 * w], [x + w / 2 + 10, top]], rc);
+          else if (bd.roof === 'tower') poly([[l0 - 6, top], [x, top - .8 * w], [x + w / 2 + 6, top]], rc);
+          else if (bd.roof === 'dome') { c.beginPath(); c.ellipse(x, top, w / 2, w / 3, 0, Math.PI, TAU); c.fillStyle = dc; c.fill(); ell(x - .18 * w, top - .17 * w, .1 * w, .05 * w, -.4, mixCol(dc, R.light, .35)); }
+          else if (bd.roof === 'temple') {
+            c.fillStyle = wo; c.fillRect(l0 + .06 * w, top + 30, .88 * w, h - 30);
+            c.fillStyle = wc; for (let i = 0; i < 6; i++) c.fillRect(x - .42 * w + i * .168 * w, top + 30, .07 * w, h - 30);
+            c.fillRect(l0 - 10, top, w + 20, 30); poly([[l0 - 14, top], [x, top - .18 * w], [x + w / 2 + 14, top]], mixCol(wc, R.light, .2));
+          } else { c.fillStyle = ws; c.fillRect(l0 - 6, top - 12, w + 12, 12); if (w > 600) for (let u = l0; u < x + w / 2; u += 64) c.fillRect(u, top - 34, 32, 22); }
+          for (const wi of bd.windows) { c.fillStyle = wi.lit ? mixCol(wo, R.glow, wi.lit) : wo; c.fillRect(wi.x, wi.y, wi.w, wi.h); }
+        }
+      } else if (l.kind === 'props') {
+        at(f);
+        for (const o of l.items) {
+          const { x, y, s } = o;
+          if (o.kind === 'rock') { const b = tint('#6F7D86', f); rock([x, y, s / .95], { base: b, lt: mixCol(b, R.light, .35) }); }
+          else if (o.kind === 'ship') {
+            c.save(); c.translate(x, y); c.rotate((o.k - .5) * .08);
+            const hc = tint(KC.wood, f), sl = tint(KC.sail, f);
+            poly([[-.65 * s, -.1 * s], [.7 * s, -.1 * s], [.45 * s, .18 * s], [-.45 * s, .18 * s]], hc); c.fillStyle = mixCol(hc, R.light, .3); c.fillRect(-.65 * s, -.1 * s, 1.35 * s, .04 * s);
+            c.fillStyle = hc; c.fillRect(-.02 * s, -1.05 * s, .04 * s, .95 * s);
+            poly([[.04 * s, -s], [.5 * s, -.2 * s], [.04 * s, -.2 * s]], sl); poly([[-.04 * s, -.9 * s], [-.45 * s, -.22 * s], [-.04 * s, -.22 * s]], mixCol(sl, R.shadow, .15));
+            c.restore();
+          } else if (o.kind === 'camel') {
+            const cc = tint(KC.camel, f), cd = mixCol(cc, R.shadow, .3), hy = y - s * (1.05 + .08 * o.k);
+            for (const [u, col] of [[-.3, cd], [.22, cd], [-.2, cc], [.32, cc]]) line([[x + u * s, y - .6 * s], [x + u * s, y]], col, .08 * s);
+            ell(x, y - .72 * s, .45 * s, .2 * s, 0, cc); ell(x - .05 * s, y - .9 * s, .2 * s, .16 * s, 0, cc);
+            line([[x + .38 * s, y - .75 * s], [x + .55 * s, hy]], cc, .1 * s); ell(x + .62 * s, hy, .1 * s, .06 * s, 0, cc);
+          } else if (o.kind === 'column') {
+            const cc = tint(KC.stone, f), cs = mixCol(cc, R.shadow, .25), top = y - s, cut = hash(o.seed * 7) > .5;
+            c.fillStyle = cc; c.fillRect(x - 15, top, 30, s); c.fillStyle = cs; c.fillRect(x + 5, top, 10, s); c.fillRect(x - 22, y - 12, 44, 12);
+            if (cut) poly([[x - 15, top], [x - 4, top - 14], [x + 6, top - 4], [x + 15, top - 10], [x + 15, top + 1], [x - 15, top + 1]], cc);
+            else { c.fillStyle = cc; c.fillRect(x - 24, top - 12, 48, 12); }
+          } else if (o.kind === 'fire') {
+            const fh = s * (.75 + .3 * o.k), sw = (o.k - .5) * .2 * fh;
+            line([[x - .5 * s, y], [x + .4 * s, y - .14 * s]], '#4A3226', .12 * s); line([[x + .5 * s, y], [x - .4 * s, y - .14 * s]], '#5A3A2A', .12 * s);
+            poly([[x - .32 * fh, y - .08 * s], [x + sw, y - fh], [x + .32 * fh, y - .08 * s]], '#FF7A2A'); ell(x, y - .2 * fh, .32 * fh, .2 * fh, 0, '#FF7A2A');
+            poly([[x - .17 * fh, y - .08 * s], [x + .7 * sw, y - .65 * fh], [x + .17 * fh, y - .08 * s]], '#FFD27A');
+          }
+        }
+      }
+      if (f < 1 && K.layers[li + 1]?.f !== f) { lights(lf, f); lf = f; }  // no fim das camadas de mesmo f
+    });
+    group(F, F.actors);
+    for (const a of F.actors) if (a.holds === 'book' && !a.hidden) {  // livro aberto entre as mãos
+      const J = a.pose.joints, [x, y] = mid([J.handL, J.handR]), s = .1 * a.pose.size; at(a.layer);
+      c.fillStyle = tint('#6A2A20', 1); c.fillRect(x - s, y - .5 * s, 2 * s, .7 * s);
+      c.fillStyle = tint('#F4ECD8', 1); c.fillRect(x - .94 * s, y - .62 * s, .9 * s, .64 * s); c.fillStyle = tint('#FFF8E8', 1); c.fillRect(x + .04 * s, y - .62 * s, .9 * s, .64 * s);
+    }
+    lights(lf, 1);
+    if (!I) { weather(); if (K.mood !== 'night' && K.weather.kind === 'clear') motes(F); }
+    SHX = sx; c.resetTransform();
+  }
+
   return {
     parts: a => partsOf(a),
     draw(F) {
       cam = F.cam;
+      if (F.scene === 'K') return drawK(F);
       if (F.scene === 'P' || F.scene === 'N') { (F.scene === 'P' ? drawP : drawN)(F); motes(F); c.resetTransform(); return; }
       const w = F.world, sh = F.shot, back = F.actors.filter(a => a.layer < 1), fore = F.actors.filter(a => a.layer >= 1);
       SHY = sh === 'wide' ? .05 : .2;
