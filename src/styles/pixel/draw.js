@@ -26,10 +26,10 @@
     if (x1 > x0 && y1 > y0 && w > 0 && h > 0) { c.fillStyle = color; c.fillRect(x0, y0, x1 - x0, y1 - y0); }
   }
   const px = (x, y, color) => rect(x, y, 1, 1, color);
-  // Linha de pontilhado: a ou b por px conforme o limiar Bayer (k = fração de b), em trechos contínuos.
-  function dither(y, x0, x1, a, b, k) {
+  // Linha de pontilhado: a ou b por px conforme o limiar Bayer (k = fração de b), em trechos contínuos; ox prende o padrão ao mundo.
+  function dither(y, x0, x1, a, b, k, ox = 0) {
     let run = x0, cur = null;
-    for (let x = x0; x <= x1; x++) { const q = x < x1 ? (bay(x, y) < k ? b : a) : null; if (q !== cur) { if (cur) rect(run, y, x - run, 1, cur); cur = q; run = x; } }
+    for (let x = x0; x <= x1; x++) { const q = x < x1 ? (bay(x - ox, y) < k ? b : a) : null; if (q !== cur) { if (cur) rect(run, y, x - run, 1, cur); cur = q; run = x; } }
   }
   function disc(cx, cy, r, color) { cx = Math.round(cx); cy = Math.round(cy); for (let dy = -Math.round(r); dy <= Math.round(r); dy++) { const hw = Math.round(Math.sqrt(Math.max(0, r * r - dy * dy))), q = typeof color === 'function' ? color(dy) : color; if (q) rect(cx - hw, cy + dy, 2 * hw + 1, 1, q); } }
   // Traço em blocos w×w do centro a até b (w inteiro); dy = deslocamento do bloco (pé assentado no chão).
@@ -82,20 +82,36 @@
       dither(gy, box.x0, box.x1, col(lo ? 'skyTop' : 'skyMid'), col(lo ? 'skyMid' : 'skyLow'), k);
     }
   }
-  // Nuvem: base do vão dos três tufos com pontas redondas e borda escura de 1 px só embaixo dela (os tufos ficam dentro).
-  // top = topo da base; need = o topo mínimo para os tufos caberem no quadro.
+  // Nuvem: base do vão dos três tufos com pontas redondas (os tufos ficam dentro). top = topo da base; need = o topo
+  // mínimo para os tufos caberem no quadro.
   function cloudShape(V, o) {
     const x = V.x(o.x), w = o.w * V.k, h = o.h * V.k, bh = h * .4, xs = x - w * .2, xe = x + w * .2;
     const lumps = [0, 1, 2].map(i => ({ x: xs + w * .2 * i, r: h * (.3 + .12 * hash(o.seed + i + 7)), up: h * (.1 + .15 * hash(o.seed + i)) }));  // r > metade do vão: tufos se tocam
-    return { xs, xe, bh, lumps, top: V.y(o.y) - h * .1, need: 2 + Math.max(...lumps.map(l => l.up + l.r)) };
+    return { xs, xe, bh, lumps, seed: o.seed, top: V.y(o.y) - h * .1, need: 2 + Math.max(...lumps.map(l => l.up + l.r)) };
   }
-  const cloudBase = (q, y, color) => { rect(q.xs, y, q.xe - q.xs, q.bh, color); disc(q.xs, y + q.bh / 2, q.bh / 2, color); disc(q.xe, y + q.bh / 2, q.bh / 2, color); };
-  // Todas as bordas antes de todos os recheios (a borda de uma nuvem não corta a outra). As nuvens descem juntas o
-  // necessário para nenhuma sair pelo topo: a disposição do kit se mantém, sem empilhar as altas numa faixa.
+  // Por linha, o vão da base e dos tufos com as pontas em degraus de 2 px e serrilhadas ±1 px por hash estável (sem disco
+  // perfeito); 1 px de luz no topo de cada coluna, 1 de sombra (cloudDk) no pé dela e 1 de pontilhado acima. A luz é a cor de cima da rampa.
+  function cloud(q, top) {
+    const by = top + q.bh / 2, yb = Math.round(top + q.bh), ya = Math.round(Math.min(...q.lumps.map(l => top - l.up - l.r))), rows = {};
+    for (let y = ya; y < yb; y++) {
+      const yc = y + .5, hw = (cy, r) => Math.abs(yc - cy) < r ? Math.sqrt(r * r - (yc - cy) ** 2) : -1;
+      let l = Infinity, r = -Infinity; const b = hw(by, q.bh / 2);
+      if (b >= 0) { l = q.xs - b; r = q.xe + b; }
+      for (const u of q.lumps) { const d = hw(top - u.up, u.r); if (d >= 0) { l = Math.min(l, u.x - d); r = Math.max(r, u.x + d); } }
+      if (l > r) continue;
+      const j = hash(q.seed * 13.1 + y * .71), x0 = Math.round(q.xs);  // degraus presos à nuvem: a forma não muda quando ela balança
+      rows[y] = [x0 + 2 * Math.round((l - q.xs) / 2) - (j < .3 ? 1 : 0), x0 + 2 * Math.round((r - q.xs) / 2) + (j > .7 ? 1 : 0)];
+    }
+    const base = col('cloud'), dk = col('cloudDk'), hi = P[UP[R.cloud]] || base, inside = (x, y) => rows[y] && x >= rows[y][0] && x < rows[y][1];
+    for (const y in rows) {
+      const gy = +y, [l, r] = rows[y]; let run = l, cur = null;
+      for (let x = l; x <= r; x++) { const q = x < r ? (!inside(x, gy + 1) ? dk : !inside(x, gy - 1) ? hi : !inside(x, gy + 2) && bay(x - l, gy) < .5 ? dk : base) : null; if (q !== cur) { if (cur) rect(run, gy, x - run, 1, cur); cur = q; run = x; } }
+    }
+  }
+  // As nuvens descem juntas o necessário para nenhuma sair pelo topo: a disposição do kit se mantém, sem empilhar as altas numa faixa.
   function clouds(V, list) {
     const qs = list.map(o => cloudShape(V, o)), dy = Math.max(0, ...qs.map(q => q.need - q.top));
-    for (const q of qs) cloudBase(q, q.top + dy + 1, col('cloudDk'));
-    for (const q of qs) { cloudBase(q, q.top + dy, col('cloud')); for (const l of q.lumps) disc(l.x, q.top + dy - l.up, l.r, col('cloud')); }
+    for (const q of qs) cloud(q, q.top + dy);
   }
   function drawSky(F, V, box) {
     const Sk = K.sky; skyFill(V, box.y0w, box.h0, box);
@@ -142,11 +158,22 @@
       }
       return;
     }
-    for (let gx = 0; gx < GW; gx++) for (let gy = top[gx] + 2; gy < GH; gy++) {
-      const h = hash((gx - ox) * 7.13 + gy * 131.7);
-      if (h < .03) { px(gx, gy, dark); if (h < .012) px(gx + 1, gy, dark); } else if (h > .993 && lit()) px(gx, gy, P.light);
+    // Faixas de tom: a cor do chão em cima, pontilhado de 25 e 50% e o escuro embaixo (padrão preso ao mundo).
+    const y0 = Math.min(...top), b1 = Math.max(Math.max(...top) + 2, y0 + Math.round((GH - y0) * .4)), b2 = y0 + Math.round((GH - y0) * .75);
+    for (let gy = b1; gy < GH; gy++) dither(gy, 0, GW, base, dark, gy < b1 + 2 ? .25 : gy < b2 ? .5 : gy < b2 + 2 ? .75 : 1, ox);
+    // Caminho de terra quando alguém anda: 3 a 4 linhas sob a linha dos pés, borda de baixo serrilhada.
+    const path = l.surface === 'grass' && F0.actors.some(a => a.role === 'walk') && (lit() ? [P.sandDk, P.wood] : K.mood === 'dusk' ? [P.woodDk, P.duskNear] : [P.nightFar, P.nightMid]);
+    if (path) for (let gx = 0; gx < GW; gx++) { const d = 3 + (hash((gx - ox) * 5.3 + K.seed) < .35 ? 1 : 0); rect(gx, top[gx] + 1, 1, d, path[0]); if (hash((gx - ox) * 9.1 + K.seed) < .12) px(gx, top[gx] + 1 + (gx & 1) + 1, path[1]); }
+    // Pontilhado estático: pares de px escuros, pedrinhas de 2 px, tufos em v (claros na faixa escura) e alguns px claros.
+    const peb = lit() ? P.stone : col('far');
+    for (let gx = 0; gx < GW; gx++) for (let gy = top[gx] + (path ? 6 : 2); gy < GH; gy++) {
+      const h = hash((gx - ox) * 7.13 + gy * 131.7 + K.seed * 17.3), deep = gy >= b2;
+      if (h < .02) { px(gx, gy, deep ? base : dark); if (h < .008) px(gx + 1, gy, deep ? base : dark); }
+      else if (h < .028 && l.surface !== 'snow') { const q = deep ? base : dark; px(gx, gy, q); px(gx - 1, gy - 1, q); px(gx + 1, gy - 1, q); }
+      else if (h > .996) rect(gx, gy, 2, 1, peb);
+      else if (h > .992 && lit()) px(gx, gy, P.light);
     }
-    if (l.surface === 'grass') for (let gx = 0; gx < GW; gx++) if (hash((gx - ox) * 3.7) < .22) px(gx, top[gx] - 1, dark);  // tufos
+    if (l.surface === 'grass') for (let gx = 0; gx < GW; gx++) if (hash((gx - ox) * 3.7 + K.seed) < .22) px(gx, top[gx] - 1, dark);  // tufos da borda
   }
   // Pinheiro serrilhado (camadas que crescem e recuam), árvore larga em bolha, palmeira.
   function tree(V, t, color) {
@@ -160,6 +187,7 @@
       for (const a of [-2.6, -2, -1.1, -.5]) seg([x + h * .15, y - h], [x + h * .15 + Math.cos(a) * h * .35, y - h - Math.sin(-a) * h * .12 + h * .1], 1, color, 0);
     } else { rect(x, y - h * .4, 1, h * .4, color); disc(x, y - h * .62, h * .3, color); disc(x - h * .18, y - h * .5, h * .2, color); disc(x + h * .18, y - h * .52, h * .22, color); }
   }
+  const woods = () => K.mood === 'night' ? [P.woodDk, P.black] : [P.wood, P.woodDk];  // madeira do primeiro plano
   const WALL = { dawn: ['sand', 'sandDk'], day: ['sand', 'sandDk'], dusk: ['sandDk', 'wood'], night: ['stoneDk', 'ink'] };
   function building(V, b) {
     const x0 = Math.round(V.x(b.x - b.w / 2)), x1 = Math.round(V.x(b.x + b.w / 2)), yb = Math.round(V.y(b.y)), yt = Math.round(V.y(b.y - b.h)), w = x1 - x0, snow = K.weather.kind === 'snow';
@@ -221,6 +249,35 @@
     } else if (o.kind === 'rock') {
       const [rc, rh] = lit() ? [P.stoneDk, P.stone] : [P.ink, col('far')];
       disc(x, y, s * 1.1, dy => dy <= 0 ? (dy < -s * .55 ? rh : rc) : null); rect(x - s * 1.1, y - 1, 2 * s * 1.1, 1, dk);
+    } else if (o.kind === 'fence') {  // mourões de 2 px a cada 60 px do mundo, duas travessas com sombra embaixo
+      const [wc, wd] = woods(), x0 = Math.round(V.x(o.x0)), x1 = Math.round(V.x(o.x1)), h = Math.max(4, Math.round(o.h * V.k));
+      for (const k of [.35, .75]) { const ry = y - Math.round(k * h); rect(x0, ry, x1 - x0, 1, wc); rect(x0, ry + 1, x1 - x0, 1, wd); }
+      for (let wx = o.x0; wx <= o.x1 + 1e-6; wx += 60) { const p0 = Math.round(V.x(wx)) - 1; rect(p0, y - h, 2, h, wc); rect(p0 + 1, y - h + 1, 1, h - 1, wd); }
+    } else if (o.kind === 'bush') {  // tufos em disco com a calota de cima clara, do mais baixo ao mais alto; sombra de 1 px no pé
+      const [base, hi, dk] = lit() ? [P.foliage, P.ground, P.ink] : [col('near'), col('mid'), P.black];
+      const L = [0, 1, 2, 3].map(i => { const r = s * (.3 + .12 * hash(o.seed * 3 + i)); return { x: x + (i - 1.5) * s * .36 + (hash(o.seed * 5 + i) - .5) * 2, r, y: y - r - (i === 1 || i === 2 ? s * .25 : 0) }; });
+      L.sort((a, b) => b.y - a.y).forEach(l => disc(l.x, l.y, l.r, dy => dy < -l.r * .55 ? hi : base));
+      rect(x - s * .7, y - 1, s * 1.4, 1, dk);
+    } else if (o.kind === 'post') {  // poste de 2 px e lanterna 4 × 6 com telhado; o vidro acende ao entardecer e à noite
+      const h = Math.round(o.h * V.k), pc = lit() ? P.ink : P.black, on = K.time === 'dusk' || K.time === 'night', yl = y - h;
+      rect(x - 1, yl, 2, h, pc); rect(x - 2, y - 1, 4, 1, pc);
+      rect(x - 2, yl - 5, 4, 5, pc); rect(x - 1, yl - 4, 2, 3, on ? P.flame : P.snowShade); if (on) rect(x - 1, yl - 2, 2, 1, P.wing);
+      rect(x - 3, yl - 6, 6, 1, pc); rect(x - 1, yl - 7, 2, 1, pc);
+    } else if (o.kind === 'cart') {  // caixa de tábuas, varal e duas rodas com raios
+      const [wc, wd] = woods(), rim = lit() ? P.sandDk : P.wood, bx = Math.round(x - s), bw = Math.round(1.5 * s), by = Math.round(y - .95 * s), bh = Math.round(.45 * s);
+      seg([x + .5 * s, y - .8 * s], [x + s, y - .5 * s], 1, wd, 0);
+      rect(bx, by, bw, bh, wc); rect(bx, by, bw, 1, rim); for (let r = 2; r < bh - 1; r += 2) rect(bx, by + r, bw, 1, wd); rect(bx, by + bh - 1, bw, 1, wd);
+      for (const d of [-.6, .1]) { const cx = Math.round(x + d * s), cy = Math.round(y - .3 * s), r = .3 * s; disc(cx, cy, r, wd); disc(cx, cy, r - 1.2, wc); rect(cx - r + 1, cy, 2 * r - 1, 1, wd); rect(cx, cy - r + 1, 1, 2 * r - 1, wd); }
+    } else if (o.kind === 'boat') {  // casco em linhas (borda clara, tábuas a cada 3) e sombra na areia
+      const L = o.s * V.k, hh = Math.max(3, Math.round(.3 * L)), [wc, wd] = woods(), rim = lit() ? P.sandDk : P.wood;
+      for (let r = 0; r < hh; r++) { const hw = Math.round(lerp(L / 2, .35 * L, r / hh)); rect(x - hw, y - hh + r, 2 * hw, 1, r === 0 ? rim : r % 3 === 2 ? wd : wc); }
+      rect(x - .4 * L, y, .8 * L, 1, lit() ? P.sandDk : col('near'));
+    } else if (o.kind === 'tuft') {  // três folhas de alturas diferentes; flor de 1 px em parte deles no capim
+      const h = Math.max(1, Math.round(o.s * V.k)), surf = (K.layers.find(l => l.kind === 'ground') || {}).surface, fl = hash(o.seed * 7.7) > .7 && surf === 'grass' && K.mood !== 'night';
+      const c0 = surf === 'sand' ? (lit() ? P.wood : P.woodDk) : surf === 'snow' ? P.snowShade : lit() ? P.foliage : K.mood === 'night' ? P.dawnGround : col('near'), sd = hash(o.seed * 3.3) < .5 ? 1 : -1;
+      rect(x, y - h, 1, h, c0); if (h > 1) rect(x - sd, y - h + 1, 1, h - 1, c0); if (h > 2) rect(x + sd, y - h + 2, 1, h - 2, c0);
+      if (surf === 'snow') px(x, y - h, P.snow);
+      if (fl) px(x, y - h - 1, [P.wingAccent, P.wing, P.cloud][Math.floor(hash(o.seed * 9.1) * 3)]);
     }
   }
 
@@ -251,11 +308,36 @@
     else if (o.kind === 'chair') { rect(x - .3 * s, y - s, .6 * s, 1, P.sandDk); for (const d of [-.3, .3]) rect(x + d * s - 1, y - s + 1, 2, s - 1, P.wood); rect(x - o.dir * .3 * s - 1, y - 2.4 * s, 2, 1.4 * s, P.wood); }
   }
   function map(V, M) {
-    rect(0, 0, GW, GH, P.woodDk);
+    // Mesa de tábuas; pergaminho creme com borda gasta (pontilhado de areia nas 2 px de fora) e moldura dupla; mar azul
+    // claro pontilhado dentro dela, espuma de 1 px em volta das terras.
+    rect(0, 0, GW, GH, P.woodDk); for (let gy = 8; gy < GH; gy += 9) rect(0, gy, GW, 1, P.black);
     const x = Math.round(V.x(M.paper.x)), y = Math.round(V.y(M.paper.y)), w = Math.round(M.paper.w * V.k), h = Math.round(M.paper.h * V.k);
-    rect(x + 2, y + 2, w, h, P.black); rect(x - 1, y - 1, w + 2, h + 2, P.sandDk);
-    for (let gy = y; gy < y + h; gy++) dither(gy, x, x + w, P.cloud, P.snowShade, .22);  // mar no papel
+    rect(x + 2, y + 2, w, h, P.black); rect(x - 1, y - 1, w + 2, h + 2, P.sandDk); rect(x, y, w, h, P.cloud);
+    for (let gy = y; gy < y + h; gy++) { const e = gy - y < 2 || y + h - gy <= 2; dither(gy, x, x + w, P.cloud, P.sand, e ? .5 : 0); if (!e) { dither(gy, x, x + 2, P.cloud, P.sand, .5); dither(gy, x + w - 2, x + w, P.cloud, P.sand, .5); } }
+    const frame = (i, color) => { rect(x + i, y + i, w - 2 * i, 1, color); rect(x + i, y + h - 1 - i, w - 2 * i, 1, color); rect(x + i, y + i, 1, h - 2 * i, color); rect(x + w - 1 - i, y + i, 1, h - 2 * i, color); };
+    if (M.border) { frame(3, P.wood); frame(5, P.wood); }
+    const m = M.border ? 6 : 2;
+    for (let gy = y + m; gy < y + h - m; gy++) dither(gy, x + m, x + w - m, P.sky, P.cloud, .25);  // mar no papel
+    for (const co of M.coasts) { const pts = co.map(V.p); pts.forEach((a, i) => seg(a, pts[(i + 1) % pts.length], 3, P.cloud)); }
     for (const co of M.coasts) { const pts = co.map(V.p); poly(pts, P.sand); pts.forEach((a, i) => seg(a, pts[(i + 1) % pts.length], 1, P.wood, 0)); }
+    for (const o of M.waves || []) { const wx = Math.round(V.x(o.x)), wy = Math.round(V.y(o.y)); [[-2, 0], [-1, -1], [0, 0], [1, -1], [2, 0]].forEach(([dx, dy]) => px(wx + dx, wy + dy, P.dayTop)); }
+    for (const o of M.peaks || []) {  // monte: face clara à esquerda, escura à direita, neve no topo, contorno
+      const ax = V.x(o.x), ay = V.y(o.y), s = o.s * V.k, top = [ax, ay - s];
+      poly([[ax - .6 * s, ay], top, [ax, ay]], P.sandDk); poly([top, [ax + .6 * s, ay], [ax, ay]], P.wood); poly([[ax - .2 * s, ay - .67 * s], top, [ax + .2 * s, ay - .67 * s]], P.cloud);
+      seg([ax - .6 * s, ay], top, 1, P.woodDk, 0); seg(top, [ax + .6 * s, ay], 1, P.woodDk, 0);
+    }
+    for (const o of M.woods || []) {  // árvore: copa redonda com luz em cima à esquerda, tronco de 1 px
+      const ax = Math.round(V.x(o.x)), ay = Math.round(V.y(o.y)), s = o.s * V.k, r = Math.max(2, .35 * s);
+      rect(ax, ay - Math.round(.3 * s), 1, Math.round(.3 * s), P.woodDk); disc(ax, ay - .6 * s, r + 1, P.ink); disc(ax, ay - .6 * s, r, P.foliage); disc(ax - r * .35, ay - .6 * s - r * .35, r * .4, P.ground);
+    }
+    if (M.compass) {  // rosa dos ventos: anel, pontas leste/oeste em madeira, norte vermelho (metade clara), sul em tinta, N em cima
+      const cx = Math.round(V.x(M.compass.x)), cy = Math.round(V.y(M.compass.y)), r = Math.max(5, Math.round(M.compass.r * V.k));
+      disc(cx, cy, r, P.wood); disc(cx, cy, r - 1, P.cloud);
+      poly([[cx - r + 1, cy + .5], [cx + .5, cy - 1], [cx + .5, cy + 2]], P.wood); poly([[cx + r, cy + .5], [cx + .5, cy - 1], [cx + .5, cy + 2]], P.woodDk);
+      poly([[cx + .5, cy - r - 1], [cx - 1.5, cy + .5], [cx + .5, cy + .5]], P.wingAccent); poly([[cx + .5, cy - r - 1], [cx + .5, cy + .5], [cx + 2.5, cy + .5]], P.shadow);
+      poly([[cx + .5, cy + r + 2], [cx - 1.5, cy + .5], [cx + .5, cy + .5]], P.stoneDk); poly([[cx + .5, cy + r + 2], [cx + .5, cy + .5], [cx + 2.5, cy + .5]], P.ink);
+      ['X..X', 'XX.X', 'X.XX', 'X..X'].forEach((row, j) => [...row].forEach((ch, i) => ch === 'X' && px(cx - 1 + i, cy - r - 7 + j, P.ink)));
+    }
     if (M.route) {
       const pts = M.route.pts.map(V.p), d = pts.slice(1).map((q, i) => Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1])); let left = M.route.k * d.reduce((a, b) => a + b, 0), s = 0;
       for (let i = 0; i < d.length && left > 0; left -= d[i], i++) for (let u = 0; u <= Math.min(d[i], left); u++, s++) if (s % 3 < 2) rect(Math.round(lerp(pts[i][0], pts[i + 1][0], u / d[i])) - 1, Math.round(lerp(pts[i][1], pts[i + 1][1], u / d[i])) - 1, 2, 2, P.wingAccent);
@@ -265,16 +347,21 @@
 
   // ---------- bonecos ----------
   // Peças do boneco em ordem de desenho (o lado longe da câmera antes do corpo, o perto depois), w em px da grade.
-  const TORSO = { adult: 5, child: 4, elder: 5, heavy: 6, thin: 4 };  // largura em px da grade a z = 1; a silhueta lê na dublagem e no quadro de 30 px do story
+  const TORSO = { adult: 7, child: 6, elder: 7, heavy: 8, thin: 6 };  // largura em px da grade a z = 1 (1 px a mais de cada lado que na fase 5: tronco largo como o do story)
+  const HS = STYLE.character.headScale || 1;
   function pieces(a, z) {
     const P0 = a.pose, far = P0.facing > 0 ? 'R' : 'L', near = far === 'R' ? 'L' : 'R', lw = Math.max(3, Math.round((P0.body === 'heavy' ? 4 : 3) * z)), tw = Math.round(TORSO[P0.body] * z);
     const leg = s => [['thigh' + s, 'hip' + s, 'knee' + s, lw, 'pants'], ['shin' + s, 'knee' + s, 'ankle' + s, lw, 'pants'], ['foot' + s, 'ankle' + s, 'toe' + s, lw, 'shoe']];
     const arm = s => [['upperArm' + s, 'shoulder' + s, 'elbow' + s, lw, 'shirt'], ['forearm' + s, 'elbow' + s, 'wrist' + s, lw, 'shirt'], ['hand' + s, 'wrist' + s, 'hand' + s, lw, 'skin']];
     return [arm(far), leg(far), [['spine', 'pelvis', 'chest', tw, 'shirt'], ['upperSpine', 'chest', 'neck', tw, 'shirt']], leg(near), arm(near)];
   }
+  // Cabeça em bloco escalada por headScale e crescendo para cima pelo eixo headBase → headTop: o pé dela fica 1,5 px abaixo
+  // de headBase como na escala 1, e o pescoço continua ligado. top = o alto da cabeça em px do mundo (para o check-motion).
   function headBox(a, V) {
-    const J = a.pose.joints, hh = Math.max(4, Math.round(Math.hypot(J.headTop[0] - J.headBase[0], J.headTop[1] - J.headBase[1]) * V.k) + 3), hw = hh - (a.pose.body === 'thin' ? 2 : 1);
-    return { x: Math.round(V.x(J.head[0]) - hw / 2), y: Math.round(V.y(J.head[1]) - hh / 2), w: hw, h: hh };
+    const J = a.pose.joints, b = V.p(J.headBase), t = V.p(J.headTop), L = Math.hypot(t[0] - b[0], t[1] - b[1]) || 1, u = [(t[0] - b[0]) / L, (t[1] - b[1]) / L];
+    const hh = Math.max(4, Math.round(L * HS + 3)), hw = hh - (a.pose.body === 'thin' ? 2 : 1), k = hh / 2 - 1.5, f = (hh - 1.5) / L;
+    // A inclinação desloca só 40% em x (a cabeça grande não sai de cima do pescoço); tilt (+ para baixo, − para cima) vai para o olho.
+    return { x: Math.round(b[0] + u[0] * k * .4 - hw / 2), y: Math.round(b[1] + u[1] * k - hh / 2), w: hw, h: hh, tilt: u[0] * a.pose.facing, top: J.headBase.map((v, i) => v + (J.headTop[i] - v) * f) };
   }
   // Cores do elenco levadas à paleta aqui (o engine.js quantiza de novo, sem mudança) e o tom de sombra de cada uma
   // (a cor mais próxima da versão escura, mais escura que ela), para o braço e a perna do lado de longe.
@@ -288,22 +375,27 @@
     const draw = (list, out, dk) => { for (const [name, j0, j1, w, part] of list) seg(g(j0), g(j1), w + (out ? 2 : 0), out ? ink : C[part + (dk && part !== 'shoe' ? 'Dk' : '')], name.startsWith('foot') ? -w - (out ? 1 : 0) : undefined); };
     // Contorno de 1 px da silhueta inteira primeiro; depois o recheio do longe para o perto (por dentro, só o braço de perto).
     groups.forEach(list => draw(list, true));
-    rect(hb.x - 1, hb.y - 1, hb.w + 2, hb.h + 2, ink);
+    rect(hb.x - 1, hb.y, hb.w + 2, hb.h, ink); rect(hb.x, hb.y - 1, hb.w, hb.h + 2, ink);  // contorno sem os cantos: cabeça menos quadrada
     if (gear.includes('backpack')) rect(bx - 1, ch[1] - 1, pw + 2, ph + 2, ink);
-    if (hat) { rect(hb.x - 3, hb.y - 2, hb.w + 6, 3, ink); rect(hb.x - 1, hb.y - 4, hb.w + 2, 3, ink); }
+    if (hat) { const cr = hb.h >= 10 ? 3 : 2, d = hb.h >= 10 ? 1 : 0; rect(hb.x - 3, hb.y - 2, hb.w + 6, 3, ink); rect(hb.x - 1 + d, hb.y - 2 - cr, hb.w + 2 - 2 * d, cr + 1, ink); }
     draw(groups[0], false, true); draw(groups[1], false, true);
     if (gear.includes('backpack')) { rect(bx, ch[1], pw, ph, P.wood); rect(bx, ch[1] + ph - 1, pw, 1, P.woodDk); }
     draw(groups[3], false); draw(groups[2], false);  // perna de perto antes do tronco: a camisa cobre o alto da coxa
-    // Cabeça em bloco, cabelo em cima e atrás, olho de 1 px do lado para onde olha (fecha quando pisca).
+    // Sombra de 1 px no lado do tronco longe da luz (o astro; no interior, ou sem astro, a primeira luz; sem nenhuma, luz à esquerda).
+    const src = (!K.interior && K.sky.celestial) || K.lights[0], side = src ? (ch[0] >= view(F, src.f || 0).x(src.x) ? 1 : -1) : 1;
+    for (const [, j0, j1, w] of groups[2]) { const [x0, y0] = g(j0), [x1, y1] = g(j1), n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)))); for (let i = 0; i <= n; i++) rect(Math.round(lerp(x0, x1, i / n) - w / 2) + (side > 0 ? w - 1 : 0), Math.round(lerp(y0, y1, i / n) - w / 2), 1, w, C.shirtDk); }
+    // Cabeça em bloco, cabelo em cima e atrás (mais grosso na cabeça grande), olho do lado para onde olha (fecha quando pisca).
     draw(groups[4], true);  // contorno do braço de perto antes da cabeça: braço erguido não corta o rosto
+    // Braço erguido (pulso acima do ombro, como no point) passa atrás da cabeça grande: a mão continua à frente do rosto.
+    const raised = g(groups[4][1][2])[1] < g(groups[4][0][1])[1]; if (raised) draw(groups[4], false);
     rect(hb.x, hb.y, hb.w, hb.h, C.skin);
-    const hood = gear.includes('hood'), helmet = gear.includes('helmet'), hairC = hood ? C.shirt : helmet ? P.stone : C.hair;
-    rect(hb.x, hb.y, hb.w, helmet ? 3 : 2, hairC); rect(back, hb.y, 1, hood ? hb.h : Math.round(hb.h * .7), hairC);
+    const hood = gear.includes('hood'), helmet = gear.includes('helmet'), hairC = hood ? C.shirt : helmet ? P.stone : C.hair, big = hb.h >= 10, hr = Math.max(2, Math.round(hb.h * .22));
+    rect(hb.x, hb.y, hb.w, helmet ? hr + 1 : hr, hairC); rect(fc > 0 ? back : back - (big ? 1 : 0), hb.y, big ? 2 : 1, hood ? hb.h : Math.round(hb.h * .7), hairC);
     if (hood) rect(hb.x - 1, hb.y - 1, hb.w + 2, 1, C.shirt);
-    if (helmet) rect(hb.x, hb.y + 2, hb.w, 1, P.stoneDk);
-    if (a.pose.face.blink < .5) px(fc > 0 ? hb.x + hb.w - 2 : hb.x + 1, hb.y + Math.round(hb.h * .5), ink);
-    if (hat) { rect(hb.x - 2, hb.y - 1, hb.w + 4, 1, P.woodDk); rect(hb.x, hb.y - 3, hb.w, 2, P.sandDk); }
-    draw(groups[4], false);  // braço de perto por cima, com o contorno próprio (lê sobre o tronco)
+    if (helmet) rect(hb.x, hb.y + hr, hb.w, 1, P.stoneDk);
+    if (a.pose.face.blink < .5) rect(fc > 0 ? hb.x + hb.w - (big ? 3 : 2) : hb.x + (big ? 2 : 1), Math.max(hb.y + hr, hb.y + Math.round(hb.h * (.5 + .45 * hb.tilt)) - (big ? 1 : 0)), 1, big ? 2 : 1, ink);  // olho sobe quando olha para cima
+    if (hat) { const cr = big ? 3 : 2; rect(hb.x - 2, hb.y - 1, hb.w + 4, 1, P.woodDk); rect(hb.x + (big ? 1 : 0), hb.y - 1 - cr, hb.w - (big ? 2 : 0), cr, P.sandDk); }
+    if (!raised) draw(groups[4], false);  // braço de perto por cima, com o contorno próprio (lê sobre o tronco)
     if (a.holds === 'book') { const [x, y] = [(g('handL')[0] + g('handR')[0]) / 2, (g('handL')[1] + g('handR')[1]) / 2]; rect(x - 3, y - 3, 6, 4, ink); rect(x - 2, y - 2, 4, 2, P.shadow); rect(x - 2, y - 2, 4, 1, P.cloud); }
   }
 
@@ -355,7 +447,8 @@
     parts(a, F) {
       const J = a.pose.joints, z = F.cam.z; if (!J) return [];
       const out = pieces(a, z).flat().map(([name, from, to, w]) => ({ actor: a.id, name, from, to, pts: [J[from], J[to]], r: w * S / z / 2, cap: 'butt' }));
-      return [...out, { actor: a.id, name: 'head', from: 'headBase', to: null, pts: [J.headBase, J.headTop], r: headBox(a, view(F, a.layer)).w * S / z / 2, cap: 'round' }];
+      const hb = headBox(a, view(F, a.layer));
+      return [...out, { actor: a.id, name: 'head', from: 'headBase', to: null, pts: [J.headBase, hb.top], r: hb.w * S / z / 2, cap: 'round' }];
     },
   };
 })();

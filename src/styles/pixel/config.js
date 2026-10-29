@@ -19,13 +19,13 @@ AnimationPlatform.registerStyle({
     },
     // Rampa por clima de luz (nomes de cores da paleta): céu de cima, do meio e de baixo, nuvem, longe, meio, perto, chão, luz, sombra, brilho.
     moods: {
-      dawn: { skyTop: 'dawnTop', skyMid: 'dawnMid', skyLow: 'light', cloud: 'cloud', cloudDk: 'dawnMid', far: 'dawnFar', mid: 'dawnMid2', near: 'dawnNear', ground: 'dawnGround', light: 'light', shadow: 'ink', glow: 'wing' },
+      dawn: { skyTop: 'dawnTop', skyMid: 'dawnMid', skyLow: 'light', cloud: 'cloud', cloudDk: 'dawnFar', far: 'dawnFar', mid: 'dawnMid2', near: 'dawnNear', ground: 'dawnGround', light: 'light', shadow: 'ink', glow: 'wing' },
       day: { skyTop: 'dayTop', skyMid: 'dayMid', skyLow: 'sky', cloud: 'cloud', cloudDk: 'snowShade', far: 'dayFar', mid: 'dayMid2', near: 'foliage', ground: 'ground', light: 'cloud', shadow: 'ink', glow: 'wing' },
       dusk: { skyTop: 'duskTop', skyMid: 'duskMid', skyLow: 'duskLow', cloud: 'body', cloudDk: 'duskMid2', far: 'duskFar', mid: 'duskMid2', near: 'duskNear', ground: 'duskGround', light: 'wing', shadow: 'black', glow: 'wing' },
       night: { skyTop: 'night0', skyMid: 'night1', skyLow: 'night2', cloud: 'nightFar', cloudDk: 'nightMid', far: 'nightFar', mid: 'nightMid', near: 'black', ground: 'nightGround', light: 'cloud', shadow: 'black', glow: 'wing' },
       interior: { skyTop: 'night0', skyMid: 'night1', skyLow: 'night2', cloud: 'nightFar', cloudDk: 'nightMid', far: 'woodDk', mid: 'duskNear', near: 'black', ground: 'wood', light: 'flame', shadow: 'black', glow: 'wing' },
     },
     episodeScenes: ['campo', 'ceu-noturno', 'mar', 'floresta', 'deserto', 'cidade-antiga', 'interior-vela', 'mapa'],
-    texture: { scale: 6, dither: true }, outline: { weight: 1 }, character: { unit: 40, width: 10, height: 8 }, effects: { shadow: true, transition: .5 }
+    texture: { scale: 6, dither: true }, outline: { weight: 1 }, character: { unit: 40, width: 10, height: 8, headScale: 1.7 }, effects: { shadow: true, transition: .5 }
   }
 });
