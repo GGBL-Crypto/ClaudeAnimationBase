@@ -28,9 +28,17 @@ test('the intro belongs to the first shot', () => {
   assert.equal(episodeProject(ep, t).storyboard[0].start, 0);
 });
 test('same scene in two shots shares one loop key', () => {
-  const p = episodeProject(ep, timing); assert.equal(loopKeyOf(p.episode.shots[0]), loopKeyOf(p.episode.shots[1]));
-  assert.equal(p.episode.shots[0].key, p.episode.shots[1].key);
-  assert.notEqual(loopKeyOf({ ...p.episode.shots[0], params: { ...scene.params, seed: 2 } }), p.episode.shots[0].key);
+  const p = episodeProject(ep, timing), [a, b] = p.episode.shots;
+  assert.equal(loopKeyOf(a, ep.cast), a.key); assert.equal(loopKeyOf(b, ep.cast), b.key); assert.equal(a.key, b.key);
+  assert.ok(a.key.startsWith('mar-'));
+});
+test('loop key changes with params, actors, cast used and loop length', () => {
+  const [a] = episodeProject(ep, timing).episode.shots, k = (o, cast = ep.cast) => loopKeyOf({ ...a, ...o }, cast);
+  assert.equal(k({}), a.key);
+  assert.notEqual(k({ params: { ...a.params, seed: 2 } }), a.key);
+  assert.notEqual(k({ actors: [{ cast: 'a', action: 'stand', at: .5, dir: 1 }] }), a.key);
+  assert.notEqual(k({ actors: [{ cast: 'a', action: 'stand', at: .5, dir: 1 }] }, [{ ...ep.cast[0], body: 'child' }]), k({ actors: [{ cast: 'a', action: 'stand', at: .5, dir: 1 }] }));
+  assert.notEqual(k({ loopLen: 14 }), a.key);
 });
 test('writeEpisodes replaces the same id and keeps others', () => {
   const f = join(mkdtempSync(join(tmpdir(), 'ep-')), 'episodes.js');
