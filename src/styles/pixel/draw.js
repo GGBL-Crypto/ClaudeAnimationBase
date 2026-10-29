@@ -365,6 +365,26 @@
     // A inclinação desloca só 40% em x (a cabeça grande não sai de cima do pescoço); tilt (+ para baixo, − para cima) vai para o olho.
     return { x: Math.round(b[0] + u[0] * k * .4 - hw / 2), y: Math.round(b[1] + u[1] * k - hh / 2), w: hw, h: hh, tilt: u[0] * a.pose.facing, top: J.headBase.map((v, i) => v + (J.headTop[i] - v) * f) };
   }
+  // Braço de perto cuja mão cairia dentro da cabeça grande (o point põe o pulso na altura do rosto): o braço inteiro gira no
+  // ombro, sem mudar os comprimentos, o menor ângulo (de preferência para baixo, à frente) que tira pulso, mão e dedo 1 px
+  // para fora da cabeça, contados o bloco e o contorno. O point ganha um dedo de 1 px na direção da mão. Devolve os pontos
+  // desenhados em px da grade (S, E, W, H, D → tip do dedo, rot = girou) ou null.
+  function reach(a, V, hb, lw) {
+    const J = a.pose.joints, n = a.pose.facing > 0 ? 'L' : 'R', S0 = V.p(J['shoulder' + n]), pt = a.role === 'point', m = lw / 2 + 2;
+    const hit = (q, d) => q[0] > hb.x - d && q[0] < hb.x + hb.w + d && q[1] > hb.y - d && q[1] < hb.y + hb.h + d;
+    const arm = t => {
+      const rot = q => { const dx = q[0] - S0[0], dy = q[1] - S0[1], c = Math.cos(t), s = Math.sin(t); return [S0[0] + dx * c - dy * s, S0[1] + dx * s + dy * c]; };
+      const [E, W, H] = ['elbow', 'wrist', 'hand'].map(k => rot(V.p(J[k + n])));
+      const d = Math.hypot(H[0] - W[0], H[1] - W[1]) > .5 ? [H[0] - W[0], H[1] - W[1]] : [W[0] - E[0], W[1] - E[1]], L = Math.hypot(...d) || 1, u = [d[0] / L, d[1] / L];
+      const q = { n, S: S0, E, W, H, rot: t !== 0, ...(pt && { D: [H[0] + u[0] * (lw / 2 + .5), H[1] + u[1] * (lw / 2 + .5)], tip: [H[0] + u[0] * (lw / 2 + 2), H[1] + u[1] * (lw / 2 + 2)] }) };
+      q.clear = !hit(W, m) && !hit(H, m) && !(pt && hit(q.tip, 2.5));  // o braço de cima e o cotovelo podem encostar no queixo
+      return q;
+    };
+    const q0 = arm(0);
+    if (q0.clear) return pt ? q0 : null;
+    for (let k = 1; k <= 24; k++) for (const sg of [a.pose.facing, -a.pose.facing]) { const q = arm(sg * k * .1); if (q.clear) return q; }
+    return pt ? q0 : null;
+  }
   // Cores do elenco levadas à paleta aqui (o engine.js quantiza de novo, sem mudança) e o tom de sombra de cada uma
   // (a cor mais próxima da versão escura, mais escura que ela), para o braço e a perna do lado de longe.
   const pal = hex => nearest(hex), dim = q => nearest(mixCol(q, '#000010', .35), x => x !== q && lum(x) < lum(q)) || q;
@@ -372,11 +392,13 @@
     const V = view(F, a.layer), J = a.pose.joints, ink = P.ink, z = F.cam.z, cc = { skin: P.body, hair: P.woodDk, shirt: P.sea, pants: P.ink, ...(a.colors || {}) };
     const C = { skin: pal(cc.skin), hair: pal(cc.hair), shirt: pal(cc.shirt), pants: pal(cc.pants), shoe: P.black };
     Object.assign(C, { shirtDk: dim(C.shirt), pantsDk: dim(C.pants), skinDk: dim(C.skin) });
-    const g = n => V.p(J[n]), fc = a.pose.facing, gear = a.gear || [], groups = pieces(a, z), hb = headBox(a, V), back = fc > 0 ? hb.x : hb.x + hb.w - 1;
+    const fc = a.pose.facing, gear = a.gear || [], groups = pieces(a, z), hb = headBox(a, V), back = fc > 0 ? hb.x : hb.x + hb.w - 1, rc = reach(a, V, hb, groups[4][0][3]);
+    const O = rc ? { ['elbow' + rc.n]: rc.E, ['wrist' + rc.n]: rc.W, ['hand' + rc.n]: rc.H } : {}, g = n => O[n] || V.p(J[n]);
+    const finger = out => rc && rc.D && seg(rc.D, rc.tip, out ? 3 : 1, out ? ink : C.skin, out ? -1.5 : -.5);  // dedo de 1 px (2 de comprido) do point
     const ch = g('chest'), pw = Math.max(2, Math.round(3 * z)), ph = Math.round(7 * z), bx = Math.round(ch[0] - fc * (groups[2][0][3] / 2 + pw / 2 + .5)) - (pw >> 1), hat = gear.includes('hat');
     const draw = (list, out, dk) => { for (const [name, j0, j1, w, part] of list) seg(g(j0), g(j1), w + (out ? 2 : 0), out ? ink : C[part + (dk && part !== 'shoe' ? 'Dk' : '')], name.startsWith('foot') ? -w - (out ? 1 : 0) : undefined); };
     // Contorno de 1 px da silhueta inteira primeiro; depois o recheio do longe para o perto (por dentro, só o braço de perto).
-    groups.forEach(list => draw(list, true));
+    groups.slice(0, 4).forEach(list => draw(list, true));  // o do braço de perto vem depois do tronco (uma vez só)
     rect(hb.x - 1, hb.y, hb.w + 2, hb.h, ink); rect(hb.x, hb.y - 1, hb.w, hb.h + 2, ink);  // contorno sem os cantos: cabeça menos quadrada
     if (gear.includes('backpack')) rect(bx - 1, ch[1] - 1, pw + 2, ph + 2, ink);
     if (hat) { const cr = hb.h >= 10 ? 3 : 2, d = hb.h >= 10 ? 1 : 0; rect(hb.x - 3, hb.y - 2, hb.w + 6, 3, ink); rect(hb.x - 1 + d, hb.y - 2 - cr, hb.w + 2 - 2 * d, cr + 1, ink); }
@@ -387,19 +409,16 @@
     const src = (!K.interior && K.sky.celestial) || K.lights[0], side = src ? (ch[0] >= view(F, src.f || 0).x(src.x) ? 1 : -1) : 1;
     for (const [, j0, j1, w] of groups[2]) { const [x0, y0] = g(j0), [x1, y1] = g(j1), n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)))); for (let i = 0; i <= n; i++) rect(Math.round(lerp(x0, x1, i / n) - w / 2) + (side > 0 ? w - 1 : 0), Math.round(lerp(y0, y1, i / n) - w / 2), 1, w, C.shirtDk); }
     // Cabeça em bloco, cabelo em cima e atrás (mais grosso na cabeça grande), olho do lado para onde olha (fecha quando pisca).
-    draw(groups[4], true);  // contorno do braço de perto antes da cabeça: braço erguido não corta o rosto
-    // Braço erguido (pulso acima do ombro, como no point): só o braço de cima passa atrás da cabeça grande; antebraço e mão
-    // vêm depois dela, com contorno próprio, e o braço inteiro continua legível.
-    const raised = g(groups[4][1][2])[1] < g(groups[4][0][1])[1], fore = groups[4].slice(1); if (raised) draw(groups[4].slice(0, 1), false);
+    draw(groups[4], true); finger(true);  // contorno do braço de perto (e do dedo) sobre o tronco; o braço não entra na cabeça (reach)
     rect(hb.x, hb.y, hb.w, hb.h, C.skin);
     const hood = gear.includes('hood'), helmet = gear.includes('helmet'), hairC = hood ? C.shirt : helmet ? P.stone : C.hair, big = hb.h >= 10, hr = Math.max(2, Math.round(hb.h * .22));
     rect(hb.x, hb.y, hb.w, helmet ? hr + 1 : hr, hairC); rect(fc > 0 ? back : back - (big ? 1 : 0), hb.y, big ? 2 : 1, hood ? hb.h : Math.round(hb.h * .7), hairC);
     if (hood) rect(hb.x - 1, hb.y - 1, hb.w + 2, 1, C.shirt);
     if (helmet) rect(hb.x, hb.y + hr, hb.w, 1, P.stoneDk);
-    if (a.pose.face.blink < .5) rect(fc > 0 ? hb.x + hb.w - (big ? 3 : 2) : hb.x + (big ? 2 : 1), Math.max(hb.y + hr, hb.y + Math.round(hb.h * (.5 + .45 * hb.tilt)) - (big ? 1 : 0)), 1, big ? 2 : 1, ink);  // olho sobe quando olha para cima
     if (hat) { const cr = big ? 3 : 2; rect(hb.x - 2, hb.y - 1, hb.w + 4, 1, P.woodDk); rect(hb.x + (big ? 1 : 0), hb.y - 1 - cr, hb.w - (big ? 2 : 0), cr, P.sandDk); }
-    if (raised) { draw(fore, true); draw(fore, false); } else draw(groups[4], false);  // braço de perto por cima, com o contorno próprio (lê sobre o tronco)
+    draw(groups[4], false); finger(false);  // braço de perto por cima, com o contorno próprio (lê sobre o tronco)
     if (a.holds === 'book') { const [x, y] = [(g('handL')[0] + g('handR')[0]) / 2, (g('handL')[1] + g('handR')[1]) / 2]; rect(x - 3, y - 3, 6, 4, ink); rect(x - 2, y - 2, 4, 2, P.shadow); rect(x - 2, y - 2, 4, 1, P.cloud); }
+    if (a.pose.face.blink < .5) rect(fc > 0 ? hb.x + hb.w - (big ? 3 : 2) : hb.x + (big ? 2 : 1), Math.max(hb.y + hr, hb.y + Math.round(hb.h * (.5 + .45 * hb.tilt)) - (big ? 1 : 0)), 1, big ? 2 : 1, ink);  // olho por último: nada o cobre; sobe quando olha para cima
   }
 
   function drawK(F) {
@@ -449,8 +468,18 @@
     // O que draw desenha de cada boneco (contrato em check-motion.mjs), em px do mundo: traços em blocos (butt) e a cabeça.
     parts(a, F) {
       const J = a.pose.joints, z = F.cam.z; if (!J) return [];
-      const out = pieces(a, z).flat().map(([name, from, to, w]) => ({ actor: a.id, name, from, to, pts: [J[from], J[to]], r: w * S / z / 2, cap: 'butt' }));
-      const hb = headBox(a, view(F, a.layer));
+      // Com reach, o braço desenhado é o girado: o braço de cima sai do ombro com o mesmo comprimento; antebraço e mão (mais o
+      // dedo do point) vão como traço do ombro pelos pontos desenhados (to = null: já não estão sobre o osso).
+      const V = view(F, a.layer), hb = headBox(a, V), groups = pieces(a, z), rc = reach(a, V, hb, groups[4][0][3]), w = q => [V.wx(q[0]), V.wy(q[1])];
+      const out = groups.flat().map(([name, from, to, lw]) => {
+        const p = { actor: a.id, name, from, to, pts: [J[from], J[to]], r: lw * S / z / 2, cap: 'butt' };
+        if (!rc) return p;
+        const sh = 'shoulder' + rc.n, path = [J[sh], w(rc.E), w(rc.W)];
+        if (rc.rot && name === 'upperArm' + rc.n) p.pts = [J[sh], w(rc.E)];
+        if (rc.rot && name === 'forearm' + rc.n) Object.assign(p, { from: sh, to: null, pts: path });
+        if ((rc.rot || rc.tip) && name === 'hand' + rc.n) Object.assign(p, { from: sh, to: null, pts: [...path, w(rc.H), ...(rc.tip ? [w(rc.tip)] : [])] });
+        return p;
+      });
       return [...out, { actor: a.id, name: 'head', from: 'headBase', to: null, pts: [J.headBase, hb.top], r: hb.w * S / z / 2, cap: 'round' }];
     },
   };
