@@ -17,7 +17,8 @@ export function catalog() {
 export function sourceSnapshot() {
   const hash = createHash('sha256'), files = {};
   const walk = dir => readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(`${dir}/${entry.name}`) : /\.js$/.test(entry.name) ? [`${dir}/${entry.name}`] : []);
-  for (const path of [...walk('src'), ...walk('fixtures'), ...DEPENDENCY_ROUTES, 'node_modules/three/package.json', 'studio.html', 'package.json', 'package-lock.json', 'render.mjs', 'scripts/render-lib.mjs', 'scripts/studio-server.mjs', 'scripts/asset-catalog.mjs', 'scripts/png-rgba.mjs', 'scripts/import-assets.mjs'].sort()) {
+  // src/episodes.js é gerado por build-episode e não muda o desenho; com ele no hash, cada build trocaria todas as chaves do acervo.
+  for (const path of [...walk('src').filter(p => p !== 'src/episodes.js'), ...walk('fixtures'), ...DEPENDENCY_ROUTES, 'node_modules/three/package.json', 'studio.html', 'package.json', 'package-lock.json', 'render.mjs', 'scripts/render-lib.mjs', 'scripts/studio-server.mjs', 'scripts/asset-catalog.mjs', 'scripts/png-rgba.mjs', 'scripts/import-assets.mjs'].sort()) {
     const bytes = readFileSync(join(ROOT, path));
     hash.update(path); hash.update(bytes); files[path] = createHash('sha256').update(bytes).digest('hex');
   }
@@ -47,9 +48,9 @@ export function interval(value, duration) {
 }
 // Frame grid of a render: frame i at range[0] + i / fps (the project's fps; nothing assumes 24).
 export const frameTimes = (range, fps) => Array.from({ length: Math.round((range[1] - range[0]) * fps) }, (_, i) => range[0] + i / fps);
-export function run(cmd, args, { capture = false } = {}) {
+export function run(cmd, args, { capture = false, cwd } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { windowsHide: true, stdio: capture ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'inherit', 'inherit'] });
+    const child = spawn(cmd, args, { cwd, windowsHide: true, stdio: capture ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'inherit', 'inherit'] });
     let out = '', err = '';
     if (capture) { child.stdout.on('data', data => { out += data; }); child.stderr.on('data', data => { err += data; }); }
     child.on('error', reject);

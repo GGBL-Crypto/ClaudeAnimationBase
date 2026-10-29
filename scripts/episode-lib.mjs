@@ -1,5 +1,6 @@
 // Biblioteca do motor de episódio. Parte ASS: legenda, título de capítulo e texto de tela (1920x1080); parte validação.
 import vm from 'node:vm';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, catalog } from './render-lib.mjs';
@@ -171,3 +172,21 @@ export function validateEpisode(ep) {
   }
   return { ok: true, warnings };
 }
+
+// --- Acervo, segmentos e montagem (decisões 9 e 10) ---
+// Chave do loop no acervo: não inclui o id do episódio, então outro episódio com a mesma cena reaproveita o MP4.
+export const acervoKey = ({ style, styleConfig, scene, params, castUsed, actors, L, fps, sourceHash }) =>
+  createHash('sha256').update(JSON.stringify([style, styleConfig, scene, params, castUsed, actors, L, fps, sourceHash])).digest('hex');
+
+// Segmento do plano: o loop repetido até dur, com fade de entrada e saída (sem fade abaixo de 2 s). O FFmpeg não aceita "d=.75".
+export function segmentArgs(loopFile, dur, out) {
+  const fade = dur < 2 ? [] : ['-vf', `fade=t=in:st=0:d=0.75,fade=t=out:st=${+(dur - .75).toFixed(3)}:d=0.75`];
+  return ['-y', '-v', 'error', '-stream_loop', '-1', '-i', loopFile, '-t', String(dur), ...fade, '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', '24', out];
+}
+
+// Lista do concat demuxer; os caminhos são relativos à pasta da lista.
+export const concatList = files => files.map(f => `file '${f.replace(/'/g, "'\\''")}'\n`).join('');
+
+// Montagem final, com cwd na raiz: caminhos relativos com / (o filtro subtitles não lida com "C:").
+export const assembleArgs = ({ list, ass, audio, out }) => ['-y', '-v', 'error', '-f', 'concat', '-i', list, '-i', audio, '-map', '0:v:0', '-map', '1:a:0',
+  '-vf', `subtitles=${ass}:fontsdir=assets/fonts`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p', '-r', '24', '-c:a', 'copy', '-movflags', '+faststart', out];
