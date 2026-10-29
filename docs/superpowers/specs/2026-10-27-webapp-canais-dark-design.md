@@ -179,6 +179,32 @@ Assistente em etapas. Cada etapa grava o seu resultado e pode ser refeita sozinh
 
 Os geradores das etapas 5 e 6 (a cena paramétrica de episódio e o render por loops) são código novo no motor: hoje o repositório só tem as cenas de fumaça (`fixtures/smoke/`).
 
+## Atualização de 29/10/2026 (posts novos do Rhaj e story em pixel art)
+
+Pedido do usuário: incluir o estilo pixel e "tudo que for melhorar". Isso substitui o que conflitar acima.
+
+- **Pixel art entra como terceiro estilo de vídeo** (`flat`, `watercolor` e `pixel`). A referência é o story de 28/10 (`docs/arquivos/video_2026-10-28_22-17-07.mp4`). Ela mostra:
+  - cenário em 320×180 com céu em degradê pontilhado, estrelas, lua com faixas, montanhas, pinheiros e casas com janelas acesas;
+  - bonecos sprite com ciclo curto;
+  - uma caixa de dados no canto (ano, idade), o nome do lugar e uma etiqueta presa ao personagem;
+  - legenda em fonte pixel com a palavra falada destacada;
+  - uma ficha de 4 bonecos com 4 poses.
+
+  O objetivo é igualar e superar o exemplo. Tudo continua função do tempo, com personagens iguais entre vídeos, luz e clima animados e custo zero. Não use personagens nem universos de terceiros (o exemplo é Halo, da Microsoft).
+- **Cenas por kit, não por estilo** (substitui a chamada 10):
+  - Cada cena do catálogo é dado puro: uma composição de primitivas (céu, astros, nuvens, cordilheiras, árvores, construções, chão, água, interior, adereços, mapa, clima, luzes).
+  - Cada estilo desenha as primitivas uma vez, à sua maneira.
+  - A marca de capacidade `episodeScenes` passa a ser exposta pelo servidor e substitui a lista fixa `EPISODE_STYLES`.
+- **Acervo de loops:** cada loop renderizado fica guardado pelo hash de estilo, cena, parâmetros, duração, fps e revisão do código. Um vídeo novo reusa o que já existe (o "acervos 65 de 160" do reel do Rhaj).
+- **Texto por cima, fora do loop:** legenda com destaque palavra a palavra, título de capítulo, caixa de dados, nome do lugar e etiqueta de personagem saem num arquivo ASS queimado pelo FFmpeg (libass) na montagem. Assim o loop fica reutilizável. Fontes OFL em `assets/fonts/`: uma pixel para o `pixel` e uma legível para os outros.
+- **Transição entre planos** (substitui o crossfade da chamada 11): escurecer e clarear (0,75 s de cada lado). Cada segmento é codificado uma vez e a montagem final usa o concat. Um crossfade de 100 entradas não cabe nesta máquina em 2 h de vídeo.
+- **Fase 6 ganha:**
+  - a etapa **Revisão**, em que você assiste e aprova antes de exportar;
+  - o tempo de cada etapa na tela;
+  - a análise do roteiro de um vídeo outlier (legenda automática pelo yt-dlp, depois o Claude extrai gancho, estrutura, ritmo e técnicas como padrão, sem copiar);
+  - na Embalagem, 5 conceitos de thumbnail e 15 títulos com o porquê.
+- **Depois da fase 6:** métricas do seu canal por importação do CSV do YouTube Studio, com análise local pelo Claude. Sem OAuth.
+
 ## Fases de entrega
 
 Cada fase tem o seu plano e termina com algo que se usa de verdade.
@@ -187,7 +213,7 @@ Cada fase tem o seu plano e termina com algo que se usa de verdade.
 2. **Resto da pesquisa:** Minerar vídeos, Outliers, painel (Análise e Concorrentes), Coleções, Favoritos, Histórico, Visão geral.
 3. **Monitoramento, Concorrentes e Nichos.**
 4. **Modelar e Meus canais.**
-5. **Motor de episódio:** cenas paramétricas, render por loops, montagem, testados pela CLI fora do app.
+5. **Motor de episódio:** kit de cenas em `flat`, `watercolor` e `pixel`, ficha de personagens, render por loops com acervo, texto em ASS, montagem e verificação, tudo testado pela CLI fora do app.
 6. **Gerar vídeo e Embalagem** no app, ligando as etapas.
 
 ## Deixado ao construtor
