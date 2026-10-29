@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { thumbUrl, fetchThumbs } from '../scripts/app/thumbs.mjs';
@@ -31,5 +31,24 @@ test('fetchThumbs rejects a big content-length, swallows errors and stops at max
     const got = await fetchThumbs(['boom0000001', 'len00000001', 'ok000000001', 'ok000000002', 'ok000000003'], dir, { fetch: fake, max: 2 });
     assert.deepEqual(got.map(g => g.id), ['ok000000001', 'ok000000002']);
     assert.ok(!urls.some(u => u.includes('ok000000003')));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+test('fetchThumbs uses timeout signal, no redirects, and rejects empty or non-jpeg bodies', async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'thumbs-'));
+  try {
+    const opts = [];
+    const fake = async (url, o) => { opts.push(o); return new Response(url.includes('empty000001') ? Buffer.alloc(0) : Buffer.from('<html>nope'), { headers: { 'content-type': 'image/jpeg' } }); };
+    const got = await fetchThumbs(['empty000001', 'fake0000001'], dir, { fetch: fake });
+    assert.deepEqual(got, []); assert.deepEqual(readdirSync(dir), []);
+    assert.equal(opts.length, 2); for (const o of opts) { assert.equal(o.redirect, 'error'); assert.ok(o.signal instanceof AbortSignal); }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+test('fetchThumbs ignores a bad cached file and re-downloads', async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'thumbs-'));
+  try {
+    writeFileSync(path.join(dir, 'bad00000001.jpg'), 'not a jpeg');
+    const jpg = Buffer.from([0xff, 0xd8, 0xff, 9]);
+    const got = await fetchThumbs(['bad00000001'], dir, { fetch: async () => new Response(jpg, { headers: { 'content-type': 'image/jpeg' } }) });
+    assert.equal(got[0].base64, jpg.toString('base64')); assert.deepEqual(readFileSync(path.join(dir, 'bad00000001.jpg')), jpg);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

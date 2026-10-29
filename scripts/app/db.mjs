@@ -96,6 +96,7 @@ export function openDb(file) {
     myAll: q('SELECT m.*,(SELECT COUNT(*) FROM my_competitors WHERE my_id=m.id) n FROM my_channels m ORDER BY m.name COLLATE NOCASE'),
     compOf: q('SELECT channel_id FROM my_competitors WHERE my_id=? ORDER BY rowid'),
     compClr: q('DELETE FROM my_competitors WHERE my_id=?'),
+    compOff: q('DELETE FROM my_competitors WHERE channel_id=?'),
     compIn: q('INSERT OR IGNORE INTO my_competitors(my_id,channel_id) VALUES(?,?)'),
     job: q('INSERT OR REPLACE INTO jobs(id,kind,status,created_at,finished_at,result,error) VALUES(?,?,?,?,?,?,?)'),
   };
@@ -153,6 +154,7 @@ export function openDb(file) {
     setWatch(id, { monitor, competitor }) { // campo omitido não muda; since grava na primeira vez que algo liga
       const w = watchOf(s.watchOne.get(id)), m = monitor ?? w.monitor, c = competitor ?? w.competitor;
       s.watchSet.run(id, +m, +c, w.since ?? ((m || c) ? new Date().toISOString() : null), w.lastRun);
+      if (competitor === false) s.compOff.run(id); // desmarcado: some dos Meus canais (vinculado => marcado)
       return this.watch(id);
     },
     watchList: () => s.watchAll.all().map(r => ({ channelId: r.channel_id, ...watchOf(r) })),

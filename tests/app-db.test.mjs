@@ -141,6 +141,14 @@ test('my channels: update conflicts, list order, competitors replace', () => {
   assert.deepEqual(db.myCompetitorIds(a), ['UC2']); assert.equal(db.myChannels()[0].competitorCount, 1); assert.equal(db.watch('UC1').competitor, true);
   db.deleteMyChannel(a); assert.deepEqual(db.myCompetitorIds(a), []); assert.deepEqual(db.myCompetitorIds(b), ['UC2']);
 });
+test('setWatch competitor:false unlinks my channels; other changes keep the link', () => {
+  const db = openDb(':memory:'); db.upsertChannel({ id: 'UC1', title: 'A' });
+  const id = db.createMyChannel({ name: 'c', lang: 'pt', style: 'flat', voice: 'kokoro:pm_alex', speed: 1, targetMin: 30, toleranceMin: 3, format: 'long-16:9' });
+  db.setMyCompetitors(id, ['UC1']);
+  db.setWatch('UC1', { monitor: true }); db.setWatch('UC1', {}); assert.deepEqual(db.myCompetitorIds(id), ['UC1']);
+  db.setWatch('UC1', { competitor: false });
+  assert.deepEqual(db.myChannel(id).competitors, []); assert.deepEqual(db.myCompetitorIds(id), []); assert.equal(db.watch('UC1').competitor, false); assert.equal(db.watch('UC1').monitor, true);
+});
 test('my channel keeps model link and clears it when the model goes', () => {
   const db = openDb(':memory:'); db.upsertChannel({ id: 'UC1', title: 'A' });
   const mid = db.addModel({ anchorId: 'UC1', input: {}, output: { conceitos: [] } });

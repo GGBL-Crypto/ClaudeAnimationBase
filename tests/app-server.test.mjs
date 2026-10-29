@@ -28,7 +28,7 @@ const fakeFetch = async (url, init) => {
 
 // Fase 4: thumbnail, Claude com imagens e Kokoro falsos.
 const thumbCalls = [];
-const fakeThumb = async url => { thumbCalls.push(url); return { ok: true, headers: new Headers({ 'content-type': 'image/jpeg', 'content-length': '3' }), arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer }; };
+const fakeThumb = async url => { thumbCalls.push(url); return { ok: true, headers: new Headers({ 'content-type': 'image/jpeg', 'content-length': '3' }), arrayBuffer: async () => new Uint8Array([0xff, 0xd8, 3]).buffer }; };
 const modelImages = [];
 // Modelo válido com os ids do prompt (linhas "id | views | ...").
 const fakeModeler = async (prompt, images) => {
