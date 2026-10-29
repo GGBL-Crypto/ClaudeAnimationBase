@@ -34,14 +34,14 @@ var { KIT_SCENES, kitFrame, castActor } = (() => {
   }
   const glow = (lights, items, f) => { for (const b of items) for (const w of b.windows) if (w.lit) lights.push({ x: w.x + w.w / 2, y: w.y + w.h / 2, r: 50, k: w.lit, f }); };
 
-  // Céu (sem paralaxe): estrelas cintilam (tw), nuvens dão uma volta no quadro por loop; o = {area, stars, clouds, celestial}.
+  // Céu (sem paralaxe): estrelas cintilam (tw), nuvens balançam no lugar (até 40 px, 1 ciclo por loop); o = {area, stars, clouds, celestial}.
   const SUN = { dawn: { x: 360, y: 600, r: 70, glow: .9 }, day: { x: 1420, y: 170, r: 58, glow: .5 }, dusk: { x: 1560, y: 620, r: 78, glow: 1 } };
   function sky(p, phase, o = {}) {
     const { time, seed, weather } = p, A = o.area || { x: 0, y: 0, w: 1920, h: 560 }, stars = [], clouds = [];
     const n = Math.round((o.stars ?? 70) * (time === 'night' ? 1 : time === 'day' ? 0 : .25));
     for (let i = 0; i < n; i++) stars.push({ x: A.x + rnd(seed, i) * A.w, y: A.y + rnd(seed, i + 500) * A.h, r: .8 + 1.8 * rnd(seed, i + 900) ** 3, tw: .5 + .5 * cyc(phase, 1 + i % 3, rnd(seed, i + 1300)) });
     const nc = o.clouds ?? (weather === 'clear' ? 3 : weather === 'fog' ? 5 : 7) - (time === 'night' ? 1 : 0);
-    for (let i = 0; i < nc; i++) { const w = 220 + 220 * rnd(seed, i + 1700); clouds.push({ x: -300 + frac(rnd(seed, i + 1600) + phase) * 2520, y: 70 + 280 * rnd(seed, i + 1800), w, h: .36 * w, seed: seed * 31 + i }); }
+    for (let i = 0; i < nc; i++) { const w = 220 + 220 * rnd(seed, i + 1700); clouds.push({ x: -100 + 2120 * rnd(seed, i + 1600) + 40 * cyc(phase, 1, rnd(seed, i + 1900)), y: 70 + 280 * rnd(seed, i + 1800), w, h: .36 * w, seed: seed * 31 + i }); }
     const celestial = 'celestial' in o ? o.celestial : time === 'night' ? { kind: 'moon', x: 1480, y: 180, r: 44, glow: .6 } : { kind: 'sun', ...SUN[time] };
     return { stars, celestial, clouds };
   }
@@ -79,7 +79,7 @@ var { KIT_SCENES, kitFrame, castActor } = (() => {
       const waves = Array.from({ length: 26 }, (_, i) => { const r = rnd(s, i + 5000); return { x: 1920 * rnd(s, i + 5100), y: seaY + 12 + 140 * r * r, len: 40 + 120 * r, k: .5 + .5 * cyc(phase, per(L, 3), rnd(s, i + 5200)) }; });
       const layers = [{ kind: 'ridge', f: .15, prof: coast }, { kind: 'sea', f: .5, y: seaY, waves }];
       if (has(p, 'lighthouse')) { layers.push({ kind: 'buildings', f: .5, items: [{ x: 1640, y: seaY + 10, w: 64, h: 250, roof: 'tower', windows: [{ x: 1628, y: seaY - 226, w: 24, h: 24, lit: 1 }] }] }); lights.push({ x: 1640, y: seaY - 214, r: 260, k: .55 + .45 * cyc(phase, per(L, 4)), f: .5 }); }
-      if (has(p, 'ship')) layers.push({ kind: 'props', f: .5, items: [{ kind: 'ship', x: 520, y: seaY + 4 + 3 * cyc(phase, per(L, 3)), s: 120, k: frac(per(L, 3) * phase), seed: s }] });
+      if (has(p, 'ship')) layers.push({ kind: 'props', f: .5, items: [{ kind: 'ship', x: 520, y: seaY + 4 + 3 * cyc(phase, per(L, 3)), s: 120, k: .5 + .5 * cyc(phase, per(L, 3), .25), seed: s }] });
       layers.push(groundLayer(p, g, 'sand'));
       return outside(p, phase, L, layers, g, lights, [.25, .5, .75]);
     } },
@@ -160,6 +160,8 @@ var { KIT_SCENES, kitFrame, castActor } = (() => {
     const spec0 = humanSpec(member.body), size = HEIGHT[member.body], seed = [...member.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7);
     const X = action === 'walk' ? (dir > 0 ? lerp(-200, 2120, phase) : lerp(2120, -200, phase)) : at * 1920;
     const path = makePath(dir > 0 ? [[-1200, 0], [3200, 0]] : [[3200, 0], [-1200, 0]]), s = (dir > 0 ? X + 1200 : 3200 - X) / size;
+    // ponytail: o micro-ajuste da cabeça e o cabelo de creaturePose usam noise1(t) e não fecham em φ = 1 (salto de ~1 px no topo da cabeça
+    // na emenda); para zerar, dar a creaturePose um tempo periódico (o.loop) em src/nature/creature.js.
     const Pb = 3 + hash(seed * 3.7 + 1), tp = phase * per(L, Pb) * Pb;  // creaturePose respira com período Pb: tp fecha o ciclo em φ = 1
     const o = { path, s, size, ground, t: tp, seed, moving: action === 'walk' ? 1 : 0, blink: blink(t, seed, L / per(L, 3.6)) };
     const seated = action === 'sit' || action === 'read';

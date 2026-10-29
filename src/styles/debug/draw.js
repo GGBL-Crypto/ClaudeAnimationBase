@@ -25,11 +25,13 @@ function drawK(c, F, cam, line, ring) {
     else if (o.kind === 'fire') { flame(x, y, s * (.7 + .3 * o.k)); line([[x - s * .5, y], [x + s * .5, y]], WOOD, 3); }
     else if (o.kind === 'rock') oval(x, y, s * 1.1, s, '#707070', Math.PI, TAU);
   };
-  cam(0);
+  const win = K.interior && K.interior.window, clip = () => { cam(1); c.save(); c.beginPath(); c.rect(win.x, win.y, win.w, win.h); c.clip(); };
+  if (win) clip(); else cam(0);  // no interior, céu e clima pela câmera da janela (f = 1), recortados por ela
   for (const s of S.stars) ring(s.x, s.y, s.r * (.6 + .6 * s.tw), '#606880', 1);
   if (S.celestial) { const o = S.celestial, sun = o.kind === 'sun'; ring(o.x, o.y, o.r, sun ? '#d08020' : '#6070a0', 3); ring(o.x, o.y, o.r * (1.3 + .5 * o.glow), sun ? '#e0b070' : '#9098c0', 1); }
   for (const o of S.clouds) oval(o.x, o.y, o.w / 2, o.h / 2, '#8090a0');
   if (S.meteor && S.meteor.k > 0 && S.meteor.k < 1) { const m = S.meteor, x = lerp(m.x0, m.x1, m.k), y = lerp(m.y0, m.y1, m.k); line([[x - .25 * (m.x1 - m.x0), y - .25 * (m.y1 - m.y0)], [x, y]], '#a06020', 3); }
+  if (win) c.restore();
   for (const l of K.layers) {
     cam(l.f);
     if (l.kind === 'ridge' || l.kind === 'dunes' || l.kind === 'ground') prof(l.prof, l.kind === 'ground' ? GROUND[l.surface] : l.kind === 'dunes' ? '#b09050' : '#708070', l.kind === 'ground' ? 4 : 2);
@@ -62,10 +64,12 @@ function drawK(c, F, cam, line, ring) {
       line(pts, '#c03020', 4);
     }
   }
-  for (const d of K.weather.drops) if (K.weather.kind === 'rain') line([[d.x, d.y], [d.x - 3, d.y - 26 * d.k]], '#5070a0', 1.5); else ring(d.x, d.y, 2 + 2 * d.k, '#7080a0', 1.5);
   for (const l of K.lights) { cam(l.f); ring(l.x, l.y, l.r * (.2 + .3 * l.k), '#e0a020', 1); }
+  if (win) clip(); else cam(1);
+  for (const d of K.weather.drops) if (K.weather.kind === 'rain') line([[d.x, d.y], [d.x - 3, d.y - 26 * d.k]], '#5070a0', 1.5); else ring(d.x, d.y, 2 + 2 * d.k, '#7080a0', 1.5);
+  if (K.weather.fog) { c.fillStyle = `rgba(255,255,255,${.5 * K.weather.fog})`; if (win) c.fillRect(win.x, win.y, win.w, win.h); else { c.resetTransform(); c.fillRect(0, 0, W, H); } }
+  if (win) c.restore();
   c.resetTransform();
-  if (K.weather.fog) { c.fillStyle = `rgba(255,255,255,${.5 * K.weather.fog})`; c.fillRect(0, 0, W, H); }
 }
 window.ExpStyle = {
   draw(F) {
@@ -76,7 +80,7 @@ window.ExpStyle = {
     if (F.world.kit) drawK(c, F, cam, line, ring);
     cam(1); const x0 = cx - W / z, x1 = cx + W / z, Wd = F.world, g = Wd.ground, gl = [];
     for (let x = x0; x <= x1; x += 20) gl.push([x, g(x)]);
-    line(gl, '#4a8a3a', 3);
+    if (!Wd.kit) line(gl, '#4a8a3a', 3);  // o kit desenha o próprio chão
     if (Wd.lake) { const L = Wd.lake; line([[Math.max(L.x0, x0), L.waterY], [Math.min(L.x1, x1), L.waterY]], '#2a70c0', 3); }
     for (const p of Wd.tunnels || []) line(p, '#8a6a4a', 2);
     for (const [x, y, w, h] of Wd.chambers || []) { c.strokeStyle = '#8a6a4a'; c.lineWidth = 2 / z; c.strokeRect(x - w / 2, y - h, w, h); }

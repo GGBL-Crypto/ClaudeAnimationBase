@@ -17,6 +17,22 @@ test('every scene and action is periodic in L', () => {
     for (const t of [0, 3.1, 11.99]) assert.ok(close(strip(kitFrame(spec, t, 12)), strip(kitFrame(spec, t + 12, 12)), 1e-6), `${id}/${action}@${t}`);
   }
 });
+// O teste acima passa por construção (kitFrame reduz t mod L); a emenda de verdade é build em φ → 1 contra φ = 0
+// (1 − 1e-8: a chuva anda 1400 px/s, então 1e-7 de fase já são 1,7e-3 px).
+test('every scene closes at the phase seam (all extras, every weather and time)', () => {
+  for (const [id, K] of Object.entries(KIT_SCENES)) for (const weather of ['clear', 'rain', 'snow', 'fog']) for (const time of ['dawn', 'day', 'dusk', 'night']) {
+    const p = { time, weather, seed: 7, framing: 'wide', extras: K.extras }, [a, b] = [1 - 1e-8, 0].map(ph => K.build(p, ph, 12));
+    for (const x of [a, b]) if (x.kit.sky.meteor) { assert.ok([0, 1].includes(x.kit.sky.meteor.k), 'meteoro fora da tela na emenda'); delete x.kit.sky.meteor.k; }
+    assert.ok(close(strip(a), strip(b), 1e-3), `${id}/${weather}/${time}`);
+  }
+});
+test('non-walk actors close at the seam within 1.5 px per joint', () => {
+  const g = x => 880 + 10 * Math.sin(x / 300);
+  for (const body of ['adult', 'child', 'elder', 'heavy', 'thin']) for (const action of ['stand', 'point', 'look-up', 'sit', 'read']) for (const dir of [1, -1]) {
+    const m = { id: `p-${body}`, body }, a = castActor(m, action, .4, dir, 1 - 1e-7, 12, g, 12 * (1 - 1e-7)), b = castActor(m, action, .4, dir, 0, 12, g, 0);
+    for (const [k, [x, y]] of Object.entries(a.pose.joints)) { const d = Math.hypot(x - b.pose.joints[k][0], y - b.pose.joints[k][1]); assert.ok(d < 1.5, `${body}/${action}/${dir} ${k}: ${d.toFixed(2)} px`); }
+  }
+});
 test('walkers start and end off screen', () => {
   const f = t => kitFrame({ scene: 'campo', params: P, cast: [{ id: 'a', body: 'adult' }], actors: [{ cast: 'a', action: 'walk', dir: 1 }] }, t, 12).actors[0].track.x;
   assert.ok(f(0) < -100 && f(11.999) > 2020);
