@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { kitCatalog, validateEpisode } from '../episode-lib.mjs';
 import { oneLine } from './llm.mjs';
-import { prodDir, runStep } from './production.mjs';
+import { prodDir, invalidateAfter } from './production.mjs';
 import { wordBudget, sourceNumbers, outlinePrompt, validateOutline, chapterPrompt, validateChapter, checkNarration, buildEpisode, roteiroResult, writeRoteiro } from './roteiro.mjs';
 
 const BAD_JSON = 'Resposta do Claude não é JSON válido', NEED = 'Gere o roteiro antes';
@@ -11,6 +11,8 @@ const BAD_JSON = 'Resposta do Claude não é JSON válido', NEED = 'Gere o rotei
 export default function ({ db, cfg, no, nf, fail, readJson, prod, active, step, outDir, ROOT, inject }) {
   const json = (dir, name, hint) => readFile(join(dir, name), 'utf8').then(JSON.parse, () => { throw fail(409, hint); });
   const template = name => readFile(join(ROOT, 'prompts', name), 'utf8');
+  // As citações [n] do episode.json valem para as fontes com que foi gerado; fontes trocadas pedem roteiro novo.
+  const sameSources = (ep, sources) => { if (JSON.stringify(ep.sources) !== JSON.stringify(sources.map(({ text, ...s }) => s))) throw fail(409, 'Fontes mudaram: gere o roteiro de novo'); };
 
   // Tudo que o roteiro usa: fontes, perfil, meta de palavras, catálogo do estilo e os padrões de outlier (0 a 3).
   async function inputs(p, dir) {
@@ -80,6 +82,7 @@ export default function ({ db, cfg, no, nf, fail, readJson, prod, active, step, 
     ['POST', /^\/api\/productions\/([^/]+)\/roteiro\/capitulo$/, async (m, req) => {
       const p = prod(m[1]), { id } = await readJson(req), dir = prodDir(outDir, p.id);
       if (!(await json(dir, 'outline.json', NEED)).capitulos.some(c => c.id === id)) nf('Capítulo não encontrado');
+      sameSources(await json(dir, 'episode.json', NEED), await json(dir, 'sources.json', 'Rode a etapa Fontes'));
       return { jobId: step(p.id, 'roteiro', async ({ report, signal, prod: q }) => {
         const [c, outline, ep] = await Promise.all([inputs(q, dir), json(dir, 'outline.json', NEED), json(dir, 'episode.json', NEED)]);
         const i = outline.capitulos.findIndex(x => x.id === id), chapters = ep.chapters.map(x => x.shots);
@@ -94,14 +97,16 @@ export default function ({ db, cfg, no, nf, fail, readJson, prod, active, step, 
       if (typeof b.narracao !== 'string' || typeof b.id !== 'string') no('Plano e narração obrigatórios');
       if (Object.keys(active(p.id)).length) throw fail(409, 'Produção com etapa em andamento');
       const [c, outline, ep] = await Promise.all([inputs(p, dir), json(dir, 'outline.json', NEED), json(dir, 'episode.json', NEED)]);
+      sameSources(ep, c.sources);
       const shot = ep.chapters.flatMap(x => x.shots).find(s => s.id === b.id) ?? nf('Plano não encontrado');
       try { Object.assign(shot, checkNarration(b.narracao, { nSources: c.sources.length, wpm: c.budget.wpm, numbers: c.numbers })); validateEpisode(ep); }
       catch (e) { no(`Plano ${shot.id}: ${e.message}`); }
-      const result = await runStep({ db, id: p.id, step: 'roteiro' }, async () => {
-        const r = roteiroResult(ep, outline, c.budget);
-        await writeRoteiro(dir, { outline, episode: ep, sources: c.sources });
-        return r;
-      });
+      // Grava o resultado sem mexer no tempo da geração; as etapas done seguintes ficam stale, como ao refazer.
+      const result = roteiroResult(ep, outline, c.budget);
+      await writeRoteiro(dir, { outline, episode: ep, sources: c.sources });
+      const st = db.production(p.id).steps;
+      for (const [k, v] of Object.entries(invalidateAfter(st, 'roteiro'))) if (v !== st[k]) db.setStep(p.id, k, { status: 'stale' });
+      db.setStep(p.id, 'roteiro', { status: 'done', result, error: null });
       return { result };
     }],
   ];

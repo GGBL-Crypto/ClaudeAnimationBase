@@ -190,6 +190,7 @@ test('roteiro step writes outline, episode and roteiro.md; edit plan and redo ch
   assert.ok(got.result.avisos.some(a => /ritmo da voz não medido/i.test(a)));
   // editar a narração de um plano: revalida; erro é 400 e não mexe na etapa
   t.db.setStep(t.id, 'narracao', { status: 'done' });
+  const gen = t.db.production(t.id).steps.roteiro; // tempo da geração: a edição não sobrescreve
   await assert.rejects(async () => t.call('POST', `/api/productions/${t.id}/roteiro/plano`, { id: 'c1-s1', narracao: narr(20) }), e => e.status === 400 && /c1-s1: 20 palavras/.test(e.message));
   assert.equal(t.db.production(t.id).steps.roteiro.status, 'done');
   const r = await t.call('POST', `/api/productions/${t.id}/roteiro/plano`, { id: 'c1-s1', narracao: 'Um farol orienta navios [1]. ' + narr(196, '[2]') });
@@ -197,6 +198,13 @@ test('roteiro step writes outline, episode and roteiro.md; edit plan and redo ch
   const ep2 = JSON.parse(await readFile(join(t.dir, 'episode.json'), 'utf8'));
   assert.deepEqual(ep2.chapters[0].shots[0].cites, [1, 2]); assert.match(ep2.chapters[0].shots[0].narration, /^Um farol orienta navios\. palavra/);
   assert.equal(t.db.production(t.id).steps.narracao.status, 'stale');
+  const ed = t.db.production(t.id).steps.roteiro;
+  assert.deepEqual([ed.status, ed.startedAt, ed.finishedAt, ed.ms], ['done', gen.startedAt, gen.finishedAt, gen.ms]); assert.equal(ed.result.capitulos[0].palavras, 450);
+  // fontes mudaram depois do roteiro: editar ou refazer capítulo pede gerar de novo (as citações apontariam para outras fontes)
+  await writeFile(join(t.dir, 'sources.json'), JSON.stringify([...sources].reverse()));
+  for (const [path, body] of [['plano', { id: 'c1-s1', narracao: 'Um farol orienta navios [1]. ' + narr(196, '[2]') }], ['capitulo', { id: 'c2' }]])
+    await assert.rejects(async () => t.call('POST', `/api/productions/${t.id}/roteiro/${path}`, body), e => e.status === 409 && e.message === 'Fontes mudaram: gere o roteiro de novo');
+  await writeFile(join(t.dir, 'sources.json'), JSON.stringify(sources));
   // refazer um capítulo: só ele vai ao Claude
   const before = t.calls.length;
   await t.call('POST', `/api/productions/${t.id}/roteiro/capitulo`, { id: 'c2' }); await t.done();
