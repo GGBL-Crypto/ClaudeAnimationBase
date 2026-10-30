@@ -1,6 +1,7 @@
 // Rotas da análise de roteiro de outlier (fase 6): candidatos, resultados e o job legenda -> Claude -> banco.
 import { readFile, readdir, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { suggestThemes } from './pauta.mjs';
 import { ytdlpArgs, vttToText, analysisPrompt, validateScriptAnalysis } from './subs.mjs';
 
 const ID = /^[A-Za-z0-9_-]{11}$/;
@@ -24,8 +25,7 @@ export default function ({ db, cfg, now, no, nf, readJson, prod, step, inject, R
 
   return [
     // Outliers da pauta (os mesmos de suggestThemes) com a marca de já analisado.
-    ['GET', /^\/api\/productions\/([^/]+)\/analise$/, async m => {
-      const { suggestThemes } = await import('./pauta.mjs');
+    ['GET', /^\/api\/productions\/([^/]+)\/analise$/, m => {
       const p = prod(m[1]), my = db.myChannel(p.myId), t = now(), comp = new Set(my.competitors);
       const rows = db.videoRowsAll(t).filter(v => comp.has(v.channelId)), by = new Map(rows.map(v => [v.id, v]));
       return suggestThemes({ my, competitorRows: rows, model: my.modelId == null ? null : db.model(my.modelId), cfg: cfg(), now: t })
