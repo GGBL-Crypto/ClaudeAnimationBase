@@ -43,6 +43,21 @@ test('wikiText caps text at 20000 chars and sets accessed', async () => {
   await assert.rejects(wikiText('pt', 'Nao existe', { fetch: fakeFetch, now: () => NOW }), e => e.status === 404 && /não encontrada/.test(e.message));
   await assert.rejects(wikiText('pt', 'Fora', { fetch: fakeFetch, now: () => NOW }), /Wikipedia indisponível/);
 });
+test('wiki fetch has a timeout and follows the step signal', async () => {
+  const got = [], f = async (url, init) => { got.push(init.signal); return { ok: true, json: async () => fx(url.includes('rest.php') ? 'search' : 'extract') }; };
+  await wikiSearch('pt', 'Roma', { fetch: f });
+  assert.ok(got[0] instanceof AbortSignal && !got[0].aborted); // sem signal da etapa: só o timeout de 30 s
+  const ac = new AbortController();
+  await wikiText('pt', 'Roma Antiga', { fetch: f, now: () => NOW, signal: ac.signal });
+  ac.abort(); assert.equal(got[1].aborted, true);
+});
+test('accessed is the local date', () => {
+  // 00:30 e 23:30 locais do mesmo dia: em qualquer fuso fora do UTC, uma das duas cai em outro dia UTC.
+  for (const h of [0, 23]) {
+    const t = new Date(2026, 9, 30, h, 30).getTime();
+    assert.equal(validateLink({ url: 'https://x.org/', title: 't', excerpt: 'e' }, t).accessed, '2026-10-30');
+  }
+});
 test('validateLink rejects non-https and long excerpts', () => {
   const ok = { url: 'https://exemplo.org/a?b=1', title: ' Título ', excerpt: ' trecho ' };
   assert.deepEqual(validateLink(ok, NOW), { url: 'https://exemplo.org/a?b=1', title: 'Título', accessed: '2026-10-30', text: 'trecho', kind: 'link' });

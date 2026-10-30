@@ -42,11 +42,11 @@ export default function ({ db, cfg, now, no, nf, fail, readJson, prod, active, s
       if (!Array.isArray(fontes) || fontes.length < 1 || fontes.length > MAX_SOURCES) no('De 1 a 12 fontes');
       const items = fontes.map(f => f?.kind === 'wikipedia' ? (typeof f.title === 'string' && f.title.trim() && f.title.length <= 200 ? { wiki: f.title.trim() } : no('Título da Wikipedia de 1 a 200 caracteres'))
         : f?.kind === 'link' ? { source: validateLink(f, t) } : no('Fonte deve ser wikipedia ou link'));
-      return { jobId: step(p.id, 'fontes', async ({ report, dir }) => {
+      return { jobId: step(p.id, 'fontes', async ({ report, signal, dir }) => {
         const sources = [];
         for (const [i, it] of items.entries()) {
           report(it.wiki ? `Baixando ${it.wiki}` : 'Conferindo links', i, items.length);
-          sources.push(it.source ?? await wikiText(c.lang, it.wiki, { fetch: inject.fetch, now }));
+          sources.push(it.source ?? await wikiText(c.lang, it.wiki, { fetch: inject.fetch, now, signal }));
         }
         await writeFile(join(dir, 'sources.json'), JSON.stringify(sources, null, 2));
         return { count: sources.length, sources: sources.map(({ text, ...s }) => ({ ...s, chars: text.length })) }; // o texto fica só no sources.json
