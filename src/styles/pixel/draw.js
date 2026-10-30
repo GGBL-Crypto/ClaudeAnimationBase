@@ -369,7 +369,8 @@
   const short = (W, H) => { const dx = H[0] - W[0], dy = H[1] - W[1], L = Math.hypot(dx, dy); return L > 1 ? [W[0] + dx / L, W[1] + dy / L] : H; };
   // Braço de perto cuja mão cairia dentro da cabeça grande (o point põe o pulso na altura do rosto): o braço inteiro gira no
   // ombro, sem mudar os comprimentos, o menor ângulo (de preferência para baixo, à frente) que tira pulso, mão e dedo 1 px
-  // para fora da cabeça, contados o bloco e o contorno. O point ganha um dedo de 1 px na direção da mão. Devolve os pontos
+  // para fora da cabeça, contados o bloco e o contorno. Giro de até 1,3 rad (o menor teto que ainda tira a mão do point do
+  // idoso do rosto); se nada sai, fica o braço sem giro. O point ganha um dedo de 1 px na direção da mão. Devolve os pontos
   // desenhados em px da grade (S, E, W, H, D → tip do dedo, rot = girou) ou null.
   function reach(a, V, hb, lw) {
     const J = a.pose.joints, n = a.pose.facing > 0 ? 'L' : 'R', S0 = V.p(J['shoulder' + n]), pt = a.role === 'point', m = lw / 2 + 2;
@@ -384,7 +385,7 @@
     };
     const q0 = arm(0);
     if (q0.clear) return pt ? q0 : null;
-    for (let k = 1; k <= 24; k++) for (const sg of [a.pose.facing, -a.pose.facing]) { const q = arm(sg * k * .1); if (q.clear) return q; }
+    for (let k = 1; k <= 13; k++) for (const sg of [a.pose.facing, -a.pose.facing]) { const q = arm(sg * k * .1); if (q.clear) return q; }
     return pt ? q0 : null;
   }
   // Cores do elenco levadas à paleta aqui (o engine.js quantiza de novo, sem mudança) e o tom de sombra de cada uma
@@ -419,7 +420,7 @@
     // Cabeça em bloco, cabelo em cima e atrás (mais grosso na cabeça grande), olho do lado para onde olha (fecha quando pisca).
     // Contorno do braço de perto (e do dedo) sobre o tronco; o braço não entra na cabeça (reach). À noite, no tom escuro da
     // manga: o contorno claro da silhueta, por dentro do corpo, viraria fios de cabelo.
-    if (K.mood === 'night') { const sl = groups[4].map(p => [...p]); for (const [name, j0, j1, w, part] of sl) seg(g(j0), g(j1), w + 2, part === 'skin' ? C.skinDk : C.shirtDk); } else draw(groups[4], true);
+    if (K.mood === 'night') { for (const [, j0, j1, w, part] of groups[4]) seg(g(j0), g(j1), w + 2, part === 'skin' ? C.skinDk : C.shirtDk); } else draw(groups[4], true);
     finger(true);
     rect(hb.x, hb.y, hb.w, hb.h, C.skin);
     const hood = gear.includes('hood'), helmet = gear.includes('helmet'), hairC = hood ? C.shirt : helmet ? P.stone : C.hair, big = hb.h >= 10, hr = Math.max(2, Math.round(hb.h * .22));
@@ -432,7 +433,7 @@
     if (hat) { const cr = big ? 3 : 2; rect(hb.x - 2 + hx, hb.y - 1 + hy, hb.w + 4, 1, P.woodDk); rect(hb.x + (big ? 1 : 0) + hx, hb.y - 1 - cr + hy, hb.w - (big ? 2 : 0), cr, P.sandDk); }
     draw(groups[4], false); finger(false);  // braço de perto por cima, com o contorno próprio (lê sobre o tronco)
     if (a.holds === 'book') { const [x, y] = [(g('handL')[0] + g('handR')[0]) / 2, (g('handL')[1] + g('handR')[1]) / 2]; rect(x - 3, y - 3, 6, 4, ink); rect(x - 2, y - 2, 4, 2, P.shadow); rect(x - 2, y - 2, 4, 1, P.cloud); }
-    // Olho em black por último (nada o cobre), sobe quando olha para cima; olhando para cima, a boca abre (1 px na frente, embaixo).
+    // Olho em black por último (nada o cobre), sobe quando olha para cima; olhando para cima, a boca abre (2 px na frente, embaixo).
     const ex = fc > 0 ? hb.x + hb.w - (big ? 3 : 2) : hb.x + (big ? 2 : 1);
     if (a.pose.face.blink < .5) rect(ex, Math.max(hb.y + hr, hb.y + Math.round(hb.h * (.5 + .45 * hb.tilt)) - (big ? 1 : 0)), 1, big ? 2 : 1, P.black);
     if (up && big) rect(fc > 0 ? hb.x + hb.w - 2 : hb.x, hb.y + Math.round(hb.h * .7), 2, 1, P.black);
