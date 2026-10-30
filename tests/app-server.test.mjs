@@ -478,6 +478,8 @@ test('file route serves only whitelisted names with Range', async () => {
   const full = await get(f('video.mp4')); assert.equal(full.status, 200); assert.equal(full.body.length, 20); assert.equal(full.headers['x-content-type-options'], 'nosniff');
   const md = await get(f('roteiro.md')); assert.equal(md.body, '# Roma'); assert.match(md.headers['content-type'], /text\/markdown/);
   assert.equal((await get(f('cena-s1-a.png'))).body, 'png'); assert.equal((await get(f('thumb-2.png'))).headers['content-type'], 'image/png');
+  await writeFile(join(ed, 'narration.wav'), 'RIFFwave');
+  const wav = await get(f('narration.wav'), { Range: 'bytes=4-' }); assert.equal(wav.status, 206); assert.equal(wav.body, 'wave'); assert.equal(wav.headers['content-type'], 'audio/wav');
   assert.equal((await get(f('mix.m4a'))).status, 404); assert.equal((await get(f('legendas.srt'))).status, 404);
   for (const n of ['../secret.txt', '..%2fsecret.txt', '%2e%2e', 'video.mp4x', 'video.mp4/../x', 'secret.txt', 'cena-../x.png', 'cena-A.png', 'production.json']) assert.ok([403, 404].includes((await get(f(n))).status), n);
   for (const p of ['/api/productions/abc/files/video.mp4', '/api/productions/999999/files/video.mp4', '/api/productions/1e3/files/video.mp4']) assert.ok([403, 404].includes((await get(p)).status), p);

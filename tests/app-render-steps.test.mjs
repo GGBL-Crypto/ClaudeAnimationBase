@@ -9,7 +9,8 @@ import { join } from 'node:path';
 import { request } from 'node:http';
 import { startAppServer } from '../scripts/app-server.mjs';
 import { saveConfig } from '../scripts/app/config.mjs';
-import { prodDir } from '../scripts/app/production.mjs';
+import { prodDir, runStep } from '../scripts/app/production.mjs';
+import { openDb } from '../scripts/app/db.mjs';
 import { kitCatalog } from '../scripts/episode-lib.mjs';
 import { stillTimes, swapScene, renderProgress, narrationStep, renderStep } from '../scripts/app/render-steps.mjs';
 
@@ -35,6 +36,8 @@ const fakeEpisode = ({ skip = [], timing = TIMING } = {}) => async (dir, { steps
     for (const l of LINES[s]) log(JSON.stringify(l));
   }
 };
+// Pasta com timing.json: o render recusa sem narração.
+const tdir = async () => { const d = await mkdtemp(join(tmpdir(), 'app-render-t-')); await writeFile(join(d, 'timing.json'), '{}'); return d; };
 const io = () => { const rep = []; return { rep, report: (...a) => rep.push(a), signal: new AbortController().signal }; };
 
 test('stillTimes picks the middle of each shot', () => {
@@ -66,7 +69,7 @@ test('render step records sub-step ms from runEpisode lines', async () => {
   assert.deepEqual(renderProgress(JSON.stringify(LINES.loops[2])), { message: 'loops: 2 renderizados, 6 já no acervo (61 s)', done: 2, total: 2, sub: { step: 'loops', ms: 61000 } });
   assert.deepEqual(renderProgress(JSON.stringify({ step: 'segments', error: 'ffmpeg terminou com código 1' })), { message: 'segments: ffmpeg terminou com código 1', done: 0, total: 0 });
   const { rep, report, signal } = io(), steps = [];
-  const r = await renderStep({ inject: { runEpisodeFn: (d, o) => { steps.push(...o.steps); return fakeEpisode()(d, o); }, spawnProc: () => { throw new Error('não chama'); } }, dir: '.', signal, report });
+  const r = await renderStep({ inject: { runEpisodeFn: (d, o) => { steps.push(...o.steps); return fakeEpisode()(d, o); }, spawnProc: () => { throw new Error('não chama'); } }, dir: await tdir(), signal, report });
   assert.deepEqual(steps, ['loops', 'segments', 'mix', 'assemble', 'verify']);
   assert.deepEqual(r, { verify: '1920x1080, 24 fps, 1920 quadros, 80 s, áudio aac', subSteps: { loops: 61000, segments: 9000, mix: 2000, assemble: 5000, verify: 700 } });
   assert.deepEqual(rep[2], ['loops: deserto (deserto-5e6f7a8b)', 1, 2]);
@@ -74,7 +77,7 @@ test('render step records sub-step ms from runEpisode lines', async () => {
 
 test('render done only with verify message', async () => {
   const { report, signal } = io();
-  await assert.rejects(renderStep({ inject: { runEpisodeFn: fakeEpisode({ skip: ['verify'] }) }, dir: '.', signal, report }), /verifica/i);
+  await assert.rejects(renderStep({ inject: { runEpisodeFn: fakeEpisode({ skip: ['verify'] }) }, dir: await tdir(), signal, report }), /verifica/i);
 });
 
 // Spawn falso do render.mjs --stills: grava um PNG por tempo, com o nome que o render.mjs usa.
@@ -87,6 +90,19 @@ const fakeStills = (cmd, args) => {
   setImmediate(() => c.emit('close', 0));
   return c;
 };
+test('step errors and progress never carry absolute paths', async () => {
+  const db = openDb(':memory:'), myc = db.createMyChannel({ name: 'c', lang: 'pt', style: 'pixel', voice: 'kokoro:pm_alex', speed: 1, targetMin: 30, toleranceMin: 3 });
+  const id = db.createProduction({ myId: myc, theme: 'Faróis', targetMin: 30, toleranceMin: 3, style: 'pixel' }), dir = await mkdtemp(join(tmpdir(), 'app-render-path-')), rep = [];
+  const { signal } = io(), report = (...a) => rep.push(a);
+  await assert.rejects(renderStep({ inject: { runEpisodeFn: fakeEpisode() }, dir, signal, report }), { message: 'Sem timing.json: rode a narração' });  // render antes da narração
+  await writeFile(join(dir, 'timing.json'), '{}');
+  const msg = "ENOENT: no such file, open 'C:\\x\\timing.json'", runEpisodeFn = async (d, { log }) => { log(JSON.stringify({ step: 'mix', error: msg })); throw new Error(msg); };
+  await assert.rejects(runStep({ db, id, step: 'render', signal, report }, x => renderStep({ ...x, inject: { runEpisodeFn }, dir })));
+  assert.equal(db.production(id).steps.render.error, "ENOENT: no such file, open '…'");
+  assert.deepEqual(rep, [["mix: ENOENT: no such file, open '…'", 0, 0]]);
+  await rm(dir, { recursive: true, force: true });
+});
+
 let s, temp, my;
 const send = (method, path, body) => new Promise((done, bad) => {
   const req = request(s.origin, { path, method, headers: { Host: new URL(s.origin).host, 'Content-Type': 'application/json', 'X-App-Token': s.token, Origin: s.origin } }, r => {
@@ -133,7 +149,8 @@ test('swap marks cenas and later stale, not narracao', async () => {
   assert.equal(r.status, 200);
   p = (await send('GET', '/api/productions/' + id)).body;
   assert.equal(p.steps.narracao.status, 'done');
-  assert.equal(p.steps.cenas.status, 'stale'); assert.equal(p.steps.render.status, 'stale'); assert.equal(p.steps.revisao.status, 'stale');
+  assert.equal(p.steps.cenas.status, 'stale'); assert.equal(p.steps.render.status, 'stale');
+  const r409 = await send('POST', `/api/productions/${id}/render`, {}); assert.equal(r409.status, 409); assert.equal(r409.body.error, 'Gere as cenas antes'); assert.equal(p.steps.revisao.status, 'stale');
   const ep = JSON.parse(await readFile(join(dir, 'episode.json'), 'utf8'));
   assert.equal(ep.chapters[0].shots[1].scene.id, 'floresta'); assert.equal(ep.chapters[0].shots[1].narration, DEMO.chapters[0].shots[1].narration);
   const g = (await send('GET', `/api/productions/${id}/cenas`)).body;

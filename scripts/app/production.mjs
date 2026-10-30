@@ -29,14 +29,15 @@ export async function runStep({ db, id, step, signal, report, now = Date.now }, 
     if (signal?.aborted) throw new Error('Cancelada');
     finish('done', { result }); return result;
   } catch (e) {
-    finish(signal?.aborted ? 'canceled' : 'error', { error: signal?.aborted ? 'Cancelada' : e?.message ?? String(e) }); // só a mensagem
+    finish(signal?.aborted ? 'canceled' : 'error', { error: signal?.aborted ? 'Cancelada' : scrub(e?.message ?? String(e)) }); // só a mensagem, sem caminho absoluto
     throw e;
   }
 }
 
-// Última linha útil do stderr, sem frames de stack e sem caminhos absolutos (a mensagem vai para a tela), até 200 caracteres.
-const tail = s => (s.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('at ')).at(-1) ?? '')
-  .replace(/[A-Za-z]:[\\/][^\s'"`)]*|(?<![\w.])\/(?:[\w.-]+\/)+[\w.-]*/g, '…').slice(0, 200);
+// Mensagem para a tela: caminhos absolutos (Windows e POSIX) viram "…".
+export const scrub = s => String(s).replace(/[A-Za-z]:[\\/][^\s'"`)]*|(?<![\w.])\/(?:[\w.-]+\/)+[\w.-]*/g, '…');
+// Última linha útil do stderr, sem frames de stack e sem caminhos absolutos, até 200 caracteres.
+const tail = s => scrub(s.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('at ')).at(-1) ?? '').slice(0, 200);
 
 // Executor de processos das etapas, com a assinatura do run de runEpisode: (cmd, args) => stdout.
 // No aborto mata a árvore inteira (Chrome e FFmpeg filhos do node): taskkill /T no Windows, grupo de processos nos outros.

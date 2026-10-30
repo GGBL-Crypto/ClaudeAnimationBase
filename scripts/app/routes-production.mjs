@@ -6,8 +6,8 @@ import { pipeline } from 'node:stream/promises';
 import { EPISODE_STYLES } from './profiles.mjs';
 import { prodDir, epDir } from './production.mjs';
 
-const FILE = /^(video\.mp4|mix\.m4a|roteiro\.md|legendas\.srt|descricao\.txt|tags\.txt|titulo\.txt|(cena|thumb)-[a-z0-9-]+\.png)$/;
-const TYPE = { mp4: 'video/mp4', m4a: 'audio/mp4', md: 'text/markdown; charset=utf-8', srt: 'text/plain; charset=utf-8', txt: 'text/plain; charset=utf-8', png: 'image/png' };
+const FILE = /^(video\.mp4|mix\.m4a|narration\.wav|roteiro\.md|legendas\.srt|descricao\.txt|tags\.txt|titulo\.txt|(cena|thumb)-[a-z0-9-]+\.png)$/;
+const TYPE = { mp4: 'video/mp4', m4a: 'audio/mp4', wav: 'audio/wav', md: 'text/markdown; charset=utf-8', srt: 'text/plain; charset=utf-8', txt: 'text/plain; charset=utf-8', png: 'image/png' };
 const HEAD = { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' };
 const int = (v, min, max) => Number.isInteger(v) && v >= min && v <= max;
 
@@ -32,7 +32,7 @@ function range(h, size) {
 export default function ({ db, no, nf, fail, readJson, jobs, outDir, prod, active }) {
   const my = n => db.myChannel(n) ?? nf('Canal próprio não encontrado');
   const wipe = id => Promise.all([prodDir(outDir, id), epDir(outDir, id)].map(d => rm(d, { recursive: true, force: true })));
-  const fileOf = (id, name) => /^(video\.mp4|mix\.m4a)$/.test(name) ? join(epDir(outDir, id), name)
+  const fileOf = (id, name) => /^(video\.mp4|mix\.m4a|narration\.wav)$/.test(name) ? join(epDir(outDir, id), name)
     : name.startsWith('cena-') ? join(prodDir(outDir, id), 'cenas', name.slice(5))
     : name.startsWith('thumb-') ? join(prodDir(outDir, id), 'thumbs', name) : join(prodDir(outDir, id), name);
   return [
@@ -55,11 +55,11 @@ export default function ({ db, no, nf, fail, readJson, jobs, outDir, prod, activ
       return { ok: true };
     }],
     ['POST', /^\/api\/jobs\/([\w-]+)\/cancel$/, m => { if (!jobs.get(m[1])) nf('Job não encontrado'); return { canceled: jobs.cancel(m[1]) }; }],
-    // Nome da lista fixa, sem caminho vindo de fora; mp4 e m4a com Range para o player.
+    // Nome da lista fixa, sem caminho vindo de fora; mp4, m4a e wav com Range para o player.
     ['GET', /^\/api\/productions\/([^/]+)\/files\/([^/]+)$/, async (m, req, res) => {
       const p = prod(m[1]); if (!FILE.test(m[2])) nf('Arquivo não encontrado');
       const file = fileOf(p.id, m[2]), ext = m[2].split('.').pop(), missing = e => { throw e.code === 'ENOENT' ? fail(404, 'Arquivo não encontrado') : e; };
-      if (ext !== 'mp4' && ext !== 'm4a') {
+      if (!['mp4', 'm4a', 'wav'].includes(ext)) {
         const bytes = await readFile(file).catch(missing);
         res.writeHead(200, { ...HEAD, 'Content-Type': TYPE[ext], 'Content-Length': bytes.length }); return void res.end(bytes);
       }

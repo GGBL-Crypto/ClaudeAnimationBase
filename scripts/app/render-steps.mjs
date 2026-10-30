@@ -4,7 +4,7 @@ import { mkdir, readFile, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { episodeProject } from '../build-episode.mjs';
 import { validateEpisode } from '../episode-lib.mjs';
-import { runCancellable } from './production.mjs';
+import { runCancellable, scrub } from './production.mjs';
 
 export const RENDER = ['loops', 'segments', 'mix', 'assemble', 'verify'];
 const sec = ms => +(ms / 1000).toFixed(1) + ' s';
@@ -14,7 +14,7 @@ export const stillTimes = storyboard => storyboard.map(s => ({ shot: s.id, t: +(
 
 // Linha JSON do runEpisode → progresso do job; a linha final de cada etapa (com ms) vira subetapa.
 export function renderProgress(line) {
-  const o = JSON.parse(line), message = `${o.step}: ${o.error ?? o.message ?? ''}`;
+  const o = JSON.parse(line), message = scrub(`${o.step}: ${o.error ?? o.message ?? ''}`);  // o motor lança ENOENT com caminho absoluto
   if (o.ms == null || o.error) return { message, done: o.done ?? 0, total: o.total ?? 0 };
   return { message: `${message} (${sec(o.ms)})`, done: o.done, total: o.total, sub: { step: o.step, ms: o.ms } };
 }
@@ -62,6 +62,7 @@ export async function scenesStep({ inject, dir, signal, report }) {
 
 // render: loops → verify com o tempo de cada subetapa. Só termina bem com a mensagem do verify.
 export async function renderStep({ inject, dir, signal, report }) {
+  await json(dir, 'timing.json', TIMING);
   const subSteps = {}; let verify = null;
   await inject.runEpisodeFn(dir, { steps: RENDER, run: runOf(inject, signal), log: l => {
     const p = renderProgress(l);
