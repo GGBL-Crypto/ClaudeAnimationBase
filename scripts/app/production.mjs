@@ -29,8 +29,9 @@ export async function runStep({ db, id, step, signal, report, now = Date.now }, 
     if (signal?.aborted) throw new Error('Cancelada');
     finish('done', { result }); return result;
   } catch (e) {
-    finish(signal?.aborted ? 'canceled' : 'error', { error: signal?.aborted ? 'Cancelada' : scrub(e?.message ?? String(e)) }); // só a mensagem, sem caminho absoluto
-    throw e;
+    if (signal?.aborted) { finish('canceled', { error: 'Cancelada' }); throw e; }
+    const error = scrub(e?.message ?? String(e)); // só a mensagem, sem caminho absoluto; o job (SSE e tabela jobs) recebe a mesma
+    finish('error', { error }); throw new Error(error);
   }
 }
 

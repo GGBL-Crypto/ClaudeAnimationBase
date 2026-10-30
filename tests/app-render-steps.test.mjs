@@ -11,6 +11,7 @@ import { startAppServer } from '../scripts/app-server.mjs';
 import { saveConfig } from '../scripts/app/config.mjs';
 import { prodDir, runStep } from '../scripts/app/production.mjs';
 import { openDb } from '../scripts/app/db.mjs';
+import { createJobs } from '../scripts/app/jobs.mjs';
 import { kitCatalog } from '../scripts/episode-lib.mjs';
 import { stillTimes, swapScene, renderProgress, narrationStep, renderStep } from '../scripts/app/render-steps.mjs';
 
@@ -97,9 +98,16 @@ test('step errors and progress never carry absolute paths', async () => {
   await assert.rejects(renderStep({ inject: { runEpisodeFn: fakeEpisode() }, dir, signal, report }), { message: 'Sem timing.json: rode a narração' });  // render antes da narração
   await writeFile(join(dir, 'timing.json'), '{}');
   const msg = "ENOENT: no such file, open 'C:\\x\\timing.json'", runEpisodeFn = async (d, { log }) => { log(JSON.stringify({ step: 'mix', error: msg })); throw new Error(msg); };
-  await assert.rejects(runStep({ db, id, step: 'render', signal, report }, x => renderStep({ ...x, inject: { runEpisodeFn }, dir })));
-  assert.equal(db.production(id).steps.render.error, "ENOENT: no such file, open '…'");
-  assert.deepEqual(rep, [["mix: ENOENT: no such file, open '…'", 0, 0]]);
+  // Pelo job, como no servidor: o fim do job (SSE) e a linha da tabela jobs também saem sem caminho.
+  const jobs = createJobs(db), jobId = jobs.start(`prod:${id}:render`, (r, sig) => runStep({ db, id, step: 'render', signal: sig, report: r }, x => renderStep({ ...x, inject: { runEpisodeFn }, dir })));
+  const events = []; await new Promise(ok => jobs.subscribe(jobId, (e, d) => { events.push([e, d]); if (e === 'end') ok(); }));
+  const clean = "ENOENT: no such file, open '…'";
+  assert.equal(db.production(id).steps.render.error, clean);
+  assert.deepEqual(events.at(-1), ['end', { status: 'error', error: clean }]);
+  assert.equal(db.jobsList().find(j => j.id === jobId).error, clean);
+  assert.ok(!JSON.stringify(events).includes('C:\\'));
+  assert.deepEqual(rep, []);  // o report do job foi para events
+  assert.ok(events.some(([e, d]) => e === 'progress' && d.message === 'mix: ' + clean));
   await rm(dir, { recursive: true, force: true });
 });
 
