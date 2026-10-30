@@ -38,8 +38,11 @@ test('runStep records ms and marks later done steps stale', async () => {
   assert.deepEqual([st.roteiro.status, st.roteiro.error, st.roteiro.ms, st.roteiro.result], ['error', 'Capítulo c2: cena fora do catálogo', 5, null]);
   assert.deepEqual([st.fontes.status, st.narracao.status, st.cenas.status, st.render.status], ['done', 'stale', 'stale', 'pending']);
   db.setStep(id, 'narracao', { status: 'done' });
-  await runStep({ db, id, step: 'roteiro', now }, async () => 1); // estava error: não invalida
-  assert.equal(db.production(id).steps.narracao.status, 'done');
+  await runStep({ db, id, step: 'roteiro', now }, async () => 1); // estava error: invalida também (a entrada pode ter mudado)
+  assert.equal(db.production(id).steps.narracao.status, 'stale');
+  db.setStep(id, 'roteiro', { status: 'done' }); db.setStep(id, 'narracao', { status: 'done' });
+  await runStep({ db, id, step: 'pauta', now }, async () => 0); // pauta pendente refeita: tudo done depois fica stale
+  assert.deepEqual(['roteiro', 'narracao'].map(k => db.production(id).steps[k].status), ['stale', 'stale']);
   db.setStep(id, 'cenas', { status: 'stale' }); db.setStep(id, 'render', { status: 'done' });
   await runStep({ db, id, step: 'cenas', now }, async () => 2); // stale refeita: invalida como done
   assert.deepEqual(['cenas', 'render'].map(k => db.production(id).steps[k].status), ['done', 'stale']);

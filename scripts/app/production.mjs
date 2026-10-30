@@ -17,11 +17,11 @@ export function invalidateAfter(steps, step) {
 }
 
 // Roda fn({ report, signal, prod }) gravando running → done | error | canceled, com startedAt, finishedAt e ms.
-// Refazer etapa done ou stale marca as seguintes done como stale.
+// Rodar qualquer etapa marca as seguintes done como stale (a entrada delas pode ter mudado).
 // prod é a produção já com a etapa em running. Devolve o resultado de fn (gravado em result) ou relança o erro.
 export async function runStep({ db, id, step, signal, report, now = Date.now }, fn) {
   const before = db.production(id).steps, t0 = now(), iso = t => new Date(t).toISOString();
-  if (['done', 'stale'].includes(before[step].status)) for (const [k, v] of Object.entries(invalidateAfter(before, step))) if (v !== before[k]) db.setStep(id, k, { status: 'stale' });
+  for (const [k, v] of Object.entries(invalidateAfter(before, step))) if (v !== before[k]) db.setStep(id, k, { status: 'stale' });
   db.setStep(id, step, { status: 'running', startedAt: iso(t0), finishedAt: null, ms: null, result: null, error: null });
   const finish = (status, x) => { const t = now(); db.setStep(id, step, { status, finishedAt: iso(t), ms: t - t0, ...x }); };
   try {
