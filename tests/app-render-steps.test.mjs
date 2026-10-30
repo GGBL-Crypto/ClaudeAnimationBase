@@ -111,7 +111,7 @@ test('step errors and progress never carry absolute paths', async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-let s, temp, my;
+let s, temp, my, db2;
 const send = (method, path, body) => new Promise((done, bad) => {
   const req = request(s.origin, { path, method, headers: { Host: new URL(s.origin).host, 'Content-Type': 'application/json', 'X-App-Token': s.token, Origin: s.origin } }, r => {
     let b = ''; r.setEncoding('utf8'); r.on('data', x => b += x); r.on('end', () => done({ status: r.statusCode, body: b ? JSON.parse(b) : null }));
@@ -123,12 +123,14 @@ before(async () => {
   temp = await mkdtemp(join(tmpdir(), 'app-render-')); const dataDir = join(temp, 'data');
   saveConfig(dataDir, {});
   s = await startAppServer({ dataDir, outDir: join(temp, 'out', 'app'), runEpisodeFn: fakeEpisode({ timing: { ...TIMING, duration: 40 * 60 } }), spawnProc: fakeStills });
+  db2 = openDb(join(dataDir, 'app.db')); // segunda conexão: o teste prepara o estado das etapas
   my = (await send('POST', '/api/mychannels', { name: 'Render', lang: 'pt', style: 'pixel', voice: 'kokoro:pm_alex', targetMin: 30, toleranceMin: 3 })).body.id;
 });
-after(async () => { await s.close(); await rm(temp, { recursive: true, force: true }); });
+after(async () => { db2.close(); await s.close(); await rm(temp, { recursive: true, force: true }); });
 const newProd = async () => {
   const p = (await send('POST', '/api/productions', { myId: my })).body, dir = prodDir(join(temp, 'out', 'app'), p.id);
   await mkdir(dir, { recursive: true }); await writeFile(join(dir, 'episode.json'), JSON.stringify({ ...DEMO, id: 'p' + p.id }));
+  db2.setStep(p.id, 'roteiro', { status: 'done' });
   return { id: p.id, dir };
 };
 
@@ -140,6 +142,14 @@ test('narration warns outside tolerance without failing', async () => {
   const { report, signal } = io();
   const ok = await narrationStep({ inject: { runEpisodeFn: fakeEpisode({ timing: { ...TIMING, duration: 1900 } }) }, prod: { targetMin: 30, toleranceMin: 3 }, dir: join(temp, 'out', 'app', 'prod', String(id)), signal, report });
   assert.deepEqual(ok, { duration: 1900, targetS: 1800, within: true });
+});
+
+test('steps run only after the previous one is done', async () => {
+  const { id } = await newProd();
+  db2.setStep(id, 'roteiro', { status: 'stale' }); // roteiro editado: narração e cenas esperam
+  for (const [k, prev] of [['narracao', 'Roteiro'], ['cenas', 'Narração'], ['render', 'Cenas']]) {
+    const r = await send('POST', `/api/productions/${id}/${k}`, {}); assert.equal(r.status, 409); assert.equal(r.body.error, `Etapa ${prev} precisa estar feita`);
+  }
 });
 
 test('swap marks cenas and later stale, not narracao', async () => {
@@ -158,7 +168,7 @@ test('swap marks cenas and later stale, not narracao', async () => {
   p = (await send('GET', '/api/productions/' + id)).body;
   assert.equal(p.steps.narracao.status, 'done');
   assert.equal(p.steps.cenas.status, 'stale'); assert.equal(p.steps.render.status, 'stale');
-  const r409 = await send('POST', `/api/productions/${id}/render`, {}); assert.equal(r409.status, 409); assert.equal(r409.body.error, 'Gere as cenas antes'); assert.equal(p.steps.revisao.status, 'stale');
+  const r409 = await send('POST', `/api/productions/${id}/render`, {}); assert.equal(r409.status, 409); assert.equal(r409.body.error, 'Etapa Cenas precisa estar feita'); assert.equal(p.steps.revisao.status, 'stale');
   const ep = JSON.parse(await readFile(join(dir, 'episode.json'), 'utf8'));
   assert.equal(ep.chapters[0].shots[1].scene.id, 'floresta'); assert.equal(ep.chapters[0].shots[1].narration, DEMO.chapters[0].shots[1].narration);
   const g = (await send('GET', `/api/productions/${id}/cenas`)).body;

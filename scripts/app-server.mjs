@@ -152,6 +152,9 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
   const step = (id, name, fn) => {
     if (!STEPS.includes(name)) throw new Error('Etapa desconhecida: ' + name);
     if (Object.keys(active(id)).length) throw fail(409, 'Produção com etapa em andamento');
+    // Ordem: narração, cenas e render só com a etapa anterior feita (roteiro editado deixa a narração stale).
+    const prev = { narracao: ['roteiro', 'Roteiro'], cenas: ['narracao', 'Narração'], render: ['cenas', 'Cenas'] }[name];
+    if (prev && db.production(id).steps[prev[0]].status !== 'done') throw fail(409, `Etapa ${prev[1]} precisa estar feita`);
     const dir = prodDir(outDir, id);
     return jobs.start(`prod:${id}:${name}`, (report, signal) => runStep({ db, id, step: name, signal, report }, async x => { await mkdir(dir, { recursive: true }); return fn({ ...x, dir }); }));
   };

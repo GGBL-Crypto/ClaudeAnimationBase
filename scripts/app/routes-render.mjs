@@ -18,8 +18,8 @@ export default function ({ db, no, nf, fail, readJson, outDir, prod, active, ste
   return [
     ['POST', P('narracao'), go('narracao', narrationStep)],
     ['POST', P('cenas'), go('cenas', scenesStep)],
-    // O render usa o projeto do último build (src/episodes.js): depois de uma troca, só com as cenas refeitas.
-    ['POST', P('render'), m => { if (prod(m[1]).steps.cenas.status !== 'done') throw fail(409, 'Gere as cenas antes'); return go('render', renderStep)(m); }],
+    // O render usa o projeto do último build (src/episodes.js): ctx.step exige as cenas feitas.
+    ['POST', P('render'), go('render', renderStep)],
     // Planos para a folha de contato e o formulário de troca: cena, atores e narração; elenco e catálogo do estilo.
     ['GET', P('cenas'), async m => {
       const ep = await episode(prod(m[1]));
