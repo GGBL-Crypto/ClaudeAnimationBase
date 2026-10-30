@@ -98,7 +98,7 @@ test('every exterior scene has a foreground that keeps actor spots clear', () =>
     const spots = KIT_SCENES[id].build(P, 0, 12).spots.map(sp => sp.x);
     for (const it of fg) for (const x of spots) assert.ok(Math.abs((it.x ?? (it.x0 + it.x1) / 2) - x) > 120 || it.kind === 'tuft', `${id}: ${it.kind} sobre o ator`);
     // Extensão inteira (meia largura pelo AGENTS.md "Cena K"), não só o meio.
-    const HALF = { bush: s => .8 * s, cart: s => s, boat: s => s / 2, rock: s => 1.1 * s, post: () => 10 };
+    const HALF = { bush: s => .95 * s, cart: s => s, boat: s => s / 2, rock: s => 1.1 * s, post: () => 10 };
     for (const it of fg) if (it.kind !== 'tuft') {
       const [lo, hi] = it.kind === 'fence' ? [it.x0, it.x1] : [it.x - HALF[it.kind](it.s), it.x + HALF[it.kind](it.s)];
       for (const x of spots) assert.ok(Math.max(lo - x, x - hi) > 120, `${id}: ${it.kind} [${lo.toFixed(0)}, ${hi.toFixed(0)}] a menos de 120 px do ator em ${x}`);

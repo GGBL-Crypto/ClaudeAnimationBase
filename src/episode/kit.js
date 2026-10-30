@@ -111,7 +111,7 @@ var { KIT_SCENES, KIT_DEFAULTS, kitFrame, castActor } = (() => {
         layers.push({ kind: 'props', f: 1, items: [{ kind: 'fire', x, y: g(x), s: 70, k: fl, seed: s }] }); lights.push({ x, y: g(x) - 40, r: 320, k: .7 + .3 * fl, f: 1 });
       }
       // Um arbusto por faixa livre (menos a da fogueira) e tufos.
-      const ats = [.2, .45, .8], bushes = gapsOf(ats).filter(([lo, hi]) => !(has(p, 'campfire') && lo < 1250 && 1250 < hi)).map((gp, i) => { const x = inGap(gp, rnd(s, i + 10500), 90), h = 70 + 40 * rnd(s, i + 10600); return { kind: 'bush', x, y: g(x) + 4, s: h, seed: s * 29 + i }; });
+      const ats = [.2, .45, .8], bushes = gapsOf(ats).filter(([lo, hi]) => !(has(p, 'campfire') && lo < 1250 && 1250 < hi)).map((gp, i) => { const x = inGap(gp, rnd(s, i + 10500), 105), h = 70 + 40 * rnd(s, i + 10600); return { kind: 'bush', x, y: g(x) + 4, s: h, seed: s * 29 + i }; });
       layers.push({ kind: 'props', f: 1, items: [...bushes, ...tufts(s + 9, g, 14)] });
       return outside(p, phase, L, layers, g, lights, ats, { fog: has(p, 'mist') ? .45 : 0 });
     } },
