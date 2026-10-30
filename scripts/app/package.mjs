@@ -21,9 +21,10 @@ export function chaptersText(timing) {
 export const sourcesList = sources => sources.map((s, i) => `${i + 1}. ${s.title} - ${s.url} (acessado em ${s.accessed})`).join('\n');
 
 // Molde do perfil com {fontes} e {capitulos}; sem molde: resumo, capítulos e fontes. `chapters` é o texto (vazio se não valeu).
+// Molde sem {capitulos} ou {fontes}: o bloco que falta vai ao fim.
 export function descriptionText({ template, summary, chapters, sources }) {
-  const fontes = sourcesList(sources);
-  const text = template.trim() ? template.replace(/\{fontes\}/g, () => fontes).replace(/\{capitulos\}/g, () => chapters)
+  const fontes = sourcesList(sources), has = k => template.includes(`{${k}}`);
+  const text = template.trim() ? [template.replace(/\{fontes\}/g, () => fontes).replace(/\{capitulos\}/g, () => chapters), !has('capitulos') && chapters, !has('fontes') && fontes && `Fontes:\n${fontes}`].filter(Boolean).join('\n\n')
     : [summary, chapters, fontes && `Fontes:\n${fontes}`].filter(Boolean).join('\n\n');
   return text.replace(/\n{3,}/g, '\n\n').trim();
 }

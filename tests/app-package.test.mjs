@@ -48,6 +48,11 @@ test('descriptionText fills {fontes} and {capitulos}', () => {
   assert.equal(bare, 'Resumo do vídeo.\n\n0:00 Intro\n0:30 Meio\n1:10 Fim\n\nFontes:\n1. Farol - https://pt.wikipedia.org/wiki/Farol (acessado em 2026-10-29)\n2. Mar - https://pt.wikipedia.org/wiki/Mar (acessado em 2026-10-30)');
   const noCh = descriptionText({ template: 'A\n\n{capitulos}\n\nB', summary: '', chapters: '', sources: [] });
   assert.equal(noCh, 'A\n\nB'); // sem capítulos o bloco some, sem linhas em branco sobrando
+  // molde sem {fontes} ou {capitulos}: o bloco que falta vai ao fim (fontes nunca somem da descrição)
+  const tail = '1. Farol - https://pt.wikipedia.org/wiki/Farol (acessado em 2026-10-29)\n2. Mar - https://pt.wikipedia.org/wiki/Mar (acessado em 2026-10-30)';
+  assert.equal(descriptionText({ template: 'Só texto', summary: 'x', chapters, sources }), `Só texto\n\n0:00 Intro\n0:30 Meio\n1:10 Fim\n\nFontes:\n${tail}`);
+  assert.equal(descriptionText({ template: 'T\n{capitulos}', summary: 'x', chapters, sources }), `T\n0:00 Intro\n0:30 Meio\n1:10 Fim\n\nFontes:\n${tail}`);
+  assert.equal(descriptionText({ template: 'T\n{fontes}', summary: 'x', chapters: '', sources }), `T\n${tail}`);
 });
 test('srtFrom matches speech timings', () => {
   const srt = srtFrom(timing);
