@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { episodeProject } from '../build-episode.mjs';
 import { validateEpisode } from '../episode-lib.mjs';
 import { runCancellable, scrub } from './production.mjs';
+import { words } from './roteiro.mjs';
 
 export const RENDER = ['loops', 'segments', 'mix', 'assemble', 'verify'];
 const sec = ms => +(ms / 1000).toFixed(1) + ' s';
@@ -37,12 +38,16 @@ const EP = 'Sem episode.json: termine o roteiro', TIMING = 'Sem timing.json: rod
 const runOf = (inject, signal) => runCancellable(signal, { spawn: inject.spawnProc });
 
 // narracao: Kokoro pelo motor; duração real contra a alvo. Fora da tolerância só avisa (within: false).
-export async function narrationStep({ inject, prod, dir, signal, report }) {
-  await json(dir, 'episode.json', EP);
+// Mede o ritmo real (palavras narradas / minutos de fala, sem intro, outro e holds) e grava pelo saveWpm para a meta do próximo roteiro.
+export async function narrationStep({ inject, saveWpm, prod, dir, signal, report }) {
+  const ep = await json(dir, 'episode.json', EP);
   report('Narrando', 0, 1);
   await inject.runEpisodeFn(dir, { steps: ['narrate'], run: runOf(inject, signal), log: l => { const p = renderProgress(l); report(p.message, p.done, p.total); } });
-  const { duration } = await json(dir, 'timing.json', TIMING), targetS = prod.targetMin * 60;
-  return { duration, targetS, within: Math.abs(duration - targetS) <= prod.toleranceMin * 60 };
+  const { duration, shots = [] } = await json(dir, 'timing.json', TIMING), targetS = prod.targetMin * 60;
+  const speechS = shots.flatMap(s => s.speech ?? []).reduce((a, x) => a + x.end - x.start, 0);
+  const wpm = speechS > 0 ? Math.round(ep.chapters.flatMap(c => c.shots).reduce((a, s) => a + words(s.narration ?? ''), 0) / (speechS / 60)) : null;
+  if (wpm) saveWpm?.(wpm);
+  return { duration, targetS, within: Math.abs(duration - targetS) <= prod.toleranceMin * 60, wpm };
 }
 
 // cenas: monta o projeto (build) e tira um still no meio de cada plano, num Chrome só; grava cenas/<plano>.png.

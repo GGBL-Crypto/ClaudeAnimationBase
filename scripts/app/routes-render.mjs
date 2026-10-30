@@ -7,7 +7,7 @@ import { narrationStep, scenesStep, renderStep, swapScene } from './render-steps
 
 const P = s => new RegExp(`^/api/productions/([^/]+)/${s}$`);
 
-export default function ({ db, no, nf, fail, readJson, outDir, prod, active, step, inject }) {
+export default function ({ db, no, nf, fail, readJson, outDir, prod, active, step, saveWpm, inject }) {
   const go = (name, fn) => m => ({ jobId: step(prod(m[1]).id, name, x => fn({ ...x, inject })) });
   const idle = p => { if (Object.keys(active(p.id)).length) throw fail(409, 'Produção com etapa em andamento'); return p; };
   const epFile = p => join(prodDir(outDir, p.id), 'episode.json');
@@ -16,7 +16,8 @@ export default function ({ db, no, nf, fail, readJson, outDir, prod, active, ste
   const stale = (id, after) => { const st = db.production(id).steps; for (const [k, v] of Object.entries(invalidateAfter(st, after))) if (v !== st[k]) db.setStep(id, k, { status: 'stale' }); };
   const out = id => ({ ...db.production(id), active: active(id) });
   return [
-    ['POST', P('narracao'), go('narracao', narrationStep)],
+    // O ritmo medido vale para a voz e a velocidade do perfil (a mesma chave da amostra de voz).
+    ['POST', P('narracao'), m => { const p = prod(m[1]), my = db.myChannel(p.myId); return { jobId: step(p.id, 'narracao', x => narrationStep({ ...x, inject, saveWpm: w => saveWpm(`${my.voice}|${my.speed}`, w) })) }; }],
     ['POST', P('cenas'), go('cenas', scenesStep)],
     // O render usa o projeto do último build (src/episodes.js): ctx.step exige as cenas feitas.
     ['POST', P('render'), go('render', renderStep)],

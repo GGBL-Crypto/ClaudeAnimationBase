@@ -158,7 +158,9 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
     const dir = prodDir(outDir, id);
     return jobs.start(`prod:${id}:${name}`, (report, signal) => runStep({ db, id, step: name, signal, report }, async x => { await mkdir(dir, { recursive: true }); return fn({ ...x, dir }); }));
   };
-  const ctx = { db, cfg, now, no, nf, fail, readJson, job, jobs, outDir, ROOT, prod, active, step, inject: { claudeLong, claudeImages, spawnProc, runEpisodeFn, ytdlp, fetch: fetch ?? globalThis.fetch } };
+  // saveWpm: a narração grava o ritmo real da voz; o config inteiro não sai daqui.
+  const saveWpm = (key, wpm) => { saveConfig(dataDir, { voiceWpm: { ...cfg().voiceWpm, [key]: wpm } }); };
+  const ctx = { db, cfg, now, no, nf, fail, readJson, job, jobs, outDir, ROOT, prod, active, step, saveWpm, inject: { claudeLong, claudeImages, spawnProc, runEpisodeFn, ytdlp, fetch: fetch ?? globalThis.fetch } };
 
   const ROUTES = [
     ['GET', /^\/api\/config$/, () => publicConfig(cfg())],
@@ -354,7 +356,7 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
       let r; // curto: fora da fila de jobs
       try { r = await sampleVoice({ voice, speed, lang }, samplesDir, { spawn: voiceSpawn, exists: voiceExists, root: ROOT }); }
       catch (e) { if (/^Kokoro não instalado/.test(e?.message)) return { error: e.message }; throw fail(502, 'Kokoro falhou ao gerar a amostra'); } // outras mensagens podem ter caminhos
-      saveConfig(dataDir, { voiceWpm: { ...cfg().voiceWpm, [`${voice}|${speed}`]: r.wpm } });
+      saveWpm(`${voice}|${speed}`, r.wpm);
       return { url: '/api/samples/' + r.name, seconds: r.seconds, wpm: r.wpm };
     }],
     // Rota de /api/ que não responde JSON (como a de arquivos da produção): nome estrito, sem caminho vindo de fora.

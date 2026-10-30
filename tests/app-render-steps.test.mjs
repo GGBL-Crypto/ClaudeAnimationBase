@@ -18,6 +18,9 @@ import { stillTimes, swapScene, renderProgress, narrationStep, renderStep } from
 const DEMO = JSON.parse(readFileSync(new URL('../fixtures/episodes/demo/episode.json', import.meta.url), 'utf8'));
 // Timing mínimo da demo: 8 planos de 10 s, com fala nos narrados.
 const TIMING = { duration: 80, fps: 24, shots: DEMO.chapters.flatMap(c => c.shots.map(s => ({ id: s.id, chapter: c.id }))).map((s, i) => ({ ...s, start: i * 10, end: i * 10 + 10, speech: [] })) };
+// Fala de 5 s em cada plano (40 s) e as palavras narradas da demo: o ritmo real que a narração mede.
+const SPOKEN = { ...TIMING, shots: TIMING.shots.map(s => ({ ...s, speech: [{ start: s.start + 1, end: s.start + 6, text: 'x' }] })) };
+const DEMO_WPM = Math.round(DEMO.chapters.flatMap(c => c.shots).reduce((a, s) => a + (s.narration?.trim().split(/\s+/).length ?? 0), 0) / (40 / 60));
 // Linhas que o runEpisode da demo emite (validate, loops com progresso e uma linha final com ms por etapa).
 const LINES = {
   narrate: [{ step: 'narrate', done: 1, total: 1, message: 'p1: 80.00 s', ms: 4000 }],
@@ -122,7 +125,7 @@ const settle = async id => { for (let i = 0; i < 200; i++) { const p = (await se
 before(async () => {
   temp = await mkdtemp(join(tmpdir(), 'app-render-')); const dataDir = join(temp, 'data');
   saveConfig(dataDir, {});
-  s = await startAppServer({ dataDir, outDir: join(temp, 'out', 'app'), runEpisodeFn: fakeEpisode({ timing: { ...TIMING, duration: 40 * 60 } }), spawnProc: fakeStills });
+  s = await startAppServer({ dataDir, outDir: join(temp, 'out', 'app'), runEpisodeFn: fakeEpisode({ timing: { ...SPOKEN, duration: 40 * 60 } }), spawnProc: fakeStills });
   db2 = openDb(join(dataDir, 'app.db')); // segunda conexão: o teste prepara o estado das etapas
   my = (await send('POST', '/api/mychannels', { name: 'Render', lang: 'pt', style: 'pixel', voice: 'kokoro:pm_alex', targetMin: 30, toleranceMin: 3 })).body.id;
 });
@@ -138,10 +141,11 @@ test('narration warns outside tolerance without failing', async () => {
   const { id } = await newProd();
   const r = await send('POST', `/api/productions/${id}/narracao`, {}); assert.equal(r.status, 200); assert.ok(r.body.jobId);
   const st = (await settle(id)).steps.narracao;
-  assert.equal(st.status, 'done'); assert.deepEqual(st.result, { duration: 2400, targetS: 1800, within: false });
-  const { report, signal } = io();
-  const ok = await narrationStep({ inject: { runEpisodeFn: fakeEpisode({ timing: { ...TIMING, duration: 1900 } }) }, prod: { targetMin: 30, toleranceMin: 3 }, dir: join(temp, 'out', 'app', 'prod', String(id)), signal, report });
-  assert.deepEqual(ok, { duration: 1900, targetS: 1800, within: true });
+  assert.equal(st.status, 'done'); assert.deepEqual(st.result, { duration: 2400, targetS: 1800, within: false, wpm: DEMO_WPM });
+  assert.equal((await send('GET', '/api/voices')).body.wpm['kokoro:pm_alex|1'], DEMO_WPM); // ritmo real gravado para a voz do perfil
+  const { report, signal } = io(), saved = [];
+  const ok = await narrationStep({ inject: { runEpisodeFn: fakeEpisode({ timing: { ...TIMING, duration: 1900 } }) }, saveWpm: w => saved.push(w), prod: { targetMin: 30, toleranceMin: 3 }, dir: join(temp, 'out', 'app', 'prod', String(id)), signal, report });
+  assert.deepEqual(ok, { duration: 1900, targetS: 1800, within: true, wpm: null }); assert.deepEqual(saved, []); // sem fala medida: não grava
 });
 
 test('steps run only after the previous one is done', async () => {
