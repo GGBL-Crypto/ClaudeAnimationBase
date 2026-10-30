@@ -17,10 +17,11 @@ export function invalidateAfter(steps, step) {
 }
 
 // Roda fn({ report, signal, prod }) gravando running → done | error | canceled, com startedAt, finishedAt e ms.
+// Refazer etapa done ou stale marca as seguintes done como stale.
 // prod é a produção já com a etapa em running. Devolve o resultado de fn (gravado em result) ou relança o erro.
 export async function runStep({ db, id, step, signal, report, now = Date.now }, fn) {
   const before = db.production(id).steps, t0 = now(), iso = t => new Date(t).toISOString();
-  if (before[step].status === 'done') for (const [k, v] of Object.entries(invalidateAfter(before, step))) if (v !== before[k]) db.setStep(id, k, { status: 'stale' });
+  if (['done', 'stale'].includes(before[step].status)) for (const [k, v] of Object.entries(invalidateAfter(before, step))) if (v !== before[k]) db.setStep(id, k, { status: 'stale' });
   db.setStep(id, step, { status: 'running', startedAt: iso(t0), finishedAt: null, ms: null, result: null, error: null });
   const finish = (status, x) => { const t = now(); db.setStep(id, step, { status, finishedAt: iso(t), ms: t - t0, ...x }); };
   try {
@@ -33,6 +34,10 @@ export async function runStep({ db, id, step, signal, report, now = Date.now }, 
   }
 }
 
+// Última linha útil do stderr, sem frames de stack e sem caminhos absolutos (a mensagem vai para a tela), até 200 caracteres.
+const tail = s => (s.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('at ')).at(-1) ?? '')
+  .replace(/[A-Za-z]:[\\/][^\s'"`)]*|(?<![\w.])\/(?:[\w.-]+\/)+[\w.-]*/g, '…').slice(0, 200);
+
 // Executor de processos das etapas, com a assinatura do run de runEpisode: (cmd, args) => stdout.
 // No aborto mata a árvore inteira (Chrome e FFmpeg filhos do node): taskkill /T no Windows, grupo de processos nos outros.
 export const runCancellable = (signal, { spawn = nodeSpawn, platform = process.platform, cwd = ROOT } = {}) => (cmd, args) => new Promise((ok, bad) => {
@@ -44,5 +49,5 @@ export const runCancellable = (signal, { spawn = nodeSpawn, platform = process.p
   const off = () => signal?.removeEventListener('abort', kill);
   child.stdout.on('data', d => { out += d; }); child.stderr.on('data', d => { err += d; });
   child.on('error', e => { off(); bad(e); });
-  child.on('close', code => { off(); signal?.aborted ? bad(new Error('Cancelada')) : code === 0 ? ok(out) : bad(new Error(`${cmd} terminou com código ${code}: ${err.trim()}`)); });
+  child.on('close', code => { off(); signal?.aborted ? bad(new Error('Cancelada')) : code === 0 ? ok(out) : bad(new Error(`${cmd} terminou com código ${code}` + (tail(err) && ': ' + tail(err)))); });
 });

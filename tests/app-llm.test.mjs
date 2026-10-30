@@ -87,3 +87,8 @@ test('runClaudeImages errors', async () => {
   await assert.rejects(run({ error: Object.assign(new Error('x'), { code: 'ENOENT' }) }), /claude não encontrado no PATH/);
   const sp = fakeSpawn({ hang: true }); await assert.rejects(runClaudeImages('P', [], { spawn: sp, timeoutMs: 20 }), /demorou demais/); assert.ok(sp.killed);
 });
+test('abort signal kills claude and rejects as canceled', async () => {
+  const sp = fakeSpawn({ hang: true }), ac = new AbortController(), p = runClaude('x', { spawn: sp, signal: ac.signal });
+  ac.abort(); await assert.rejects(p, { message: 'Cancelada' }); assert.ok(sp.killed);
+  const im = fakeSpawn({ hang: true }); await assert.rejects(runClaudeImages('x', [], { spawn: im, signal: ac.signal }), { message: 'Cancelada' }); assert.equal(im.calls.length, 0); // já abortado: nem abre
+});

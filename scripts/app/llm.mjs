@@ -18,12 +18,16 @@ export function parseClaudeJson(stdout) {
 }
 
 // Roda o claude, manda `input` no stdin e entrega o stdout inteiro a `parse(out)`.
-function spawnClaude(args, input, parse, { spawn, timeoutMs }) {
+// signal (opcional): o aborto mata o claude e rejeita com "Cancelada".
+function spawnClaude(args, input, parse, { spawn, timeoutMs, signal }) {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new Error('Cancelada'));
     let out = '', done = false;
-    const end = (fn, v) => { if (done) return; done = true; clearTimeout(timer); fn(v); };
+    const end = (fn, v) => { if (done) return; done = true; clearTimeout(timer); signal?.removeEventListener('abort', abort); fn(v); };
     const child = spawn('claude', args, { cwd: os.tmpdir(), windowsHide: true });
     const timer = setTimeout(() => { child.kill(); end(reject, new Error('claude demorou demais')); }, timeoutMs);
+    const abort = () => { child.kill(); end(reject, new Error('Cancelada')); };
+    signal?.addEventListener('abort', abort, { once: true });
     child.on('error', e => end(reject, new Error(e.code === 'ENOENT' ? 'claude não encontrado no PATH' : e.message)));
     child.stdout.on('data', d => { out += d; });
     child.stderr.on('data', () => {}); // ponytail: stderr descartado (pode ter caminhos); mostrar só o código
@@ -36,16 +40,16 @@ function spawnClaude(args, input, parse, { spawn, timeoutMs }) {
   });
 }
 
-export function runClaude(prompt, { spawn = nodeSpawn, timeoutMs = 180000 } = {}) {
+export function runClaude(prompt, { spawn = nodeSpawn, timeoutMs = 180000, signal } = {}) {
   return spawnClaude(CLAUDE_ARGS, prompt, out => {
     let env; try { env = JSON.parse(out); } catch { throw new Error(BAD_JSON); }
     if (env?.is_error) throw new Error(String(env.result));
     return parseClaudeJson(out);
-  }, { spawn, timeoutMs });
+  }, { spawn, timeoutMs, signal });
 }
 
 // images: { mediaType, base64 }[]. Entrada stream-json: uma mensagem de usuário com imagens + texto; saída: última linha `result`.
-export function runClaudeImages(prompt, images, { spawn = nodeSpawn, timeoutMs = 300000 } = {}) {
+export function runClaudeImages(prompt, images, { spawn = nodeSpawn, timeoutMs = 300000, signal } = {}) {
   const content = [...images.map(i => ({ type: 'image', source: { type: 'base64', media_type: i.mediaType, data: i.base64 } })), { type: 'text', text: prompt }];
   const input = JSON.stringify({ type: 'user', message: { role: 'user', content } }) + '\n';
   return spawnClaude(CLAUDE_IMAGE_ARGS, input, out => {
@@ -53,7 +57,7 @@ export function runClaudeImages(prompt, images, { spawn = nodeSpawn, timeoutMs =
     if (!last) throw new Error(BAD_JSON);
     if (last.is_error) throw new Error(String(last.result));
     return parseResult(last.result);
-  }, { spawn, timeoutMs });
+  }, { spawn, timeoutMs, signal });
 }
 
 export function validateSummary(o) {

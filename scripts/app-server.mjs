@@ -86,7 +86,7 @@ const myOut = r => ({ ...r, titleTemplates: r.titleTemplates ?? [] });
 
 export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app', outDir = 'out/app', fetch, now = Date.now, claude = prompt => runClaude(prompt).then(validateSummary), subniches = prompt => runClaude(prompt).then(validateSubniches), monitorEveryMs = 3600e3,
   modeler = (prompt, images) => runClaudeImages(prompt, images), thumbFetch = globalThis.fetch, voiceSpawn, voiceExists,
-  claudeLong = prompt => runClaude(prompt, { timeoutMs: 600e3 }), claudeImages = (prompt, images) => runClaudeImages(prompt, images, { timeoutMs: 600e3 }), spawnProc = nodeSpawn,
+  claudeLong = (prompt, { signal } = {}) => runClaude(prompt, { timeoutMs: 600e3, signal }), claudeImages = (prompt, images, { signal } = {}) => runClaudeImages(prompt, images, { timeoutMs: 600e3, signal }), spawnProc = nodeSpawn,
   runEpisodeFn = (dir, o) => import('./episode.mjs').then(m => m.runEpisode(dir, o)), ytdlp = (args, { signal } = {}) => runCancellable(signal, { spawn: spawnProc })('yt-dlp', args) } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Porta inválida');
   dataDir = resolve(ROOT, dataDir); appDir = resolve(ROOT, appDir); outDir = resolve(ROOT, outDir);

@@ -40,8 +40,13 @@ test('runStep records ms and marks later done steps stale', async () => {
   db.setStep(id, 'narracao', { status: 'done' });
   await runStep({ db, id, step: 'roteiro', now }, async () => 1); // estava error: não invalida
   assert.equal(db.production(id).steps.narracao.status, 'done');
+  db.setStep(id, 'cenas', { status: 'stale' }); db.setStep(id, 'render', { status: 'done' });
+  await runStep({ db, id, step: 'cenas', now }, async () => 2); // stale refeita: invalida como done
+  assert.deepEqual(['cenas', 'render'].map(k => db.production(id).steps[k].status), ['done', 'stale']);
 });
 
+// stderr com caminho absoluto e frame de stack: nada disso pode chegar à mensagem.
+const STACK = "Error: Cannot find module 'C:\\x\\y.js' in /home/u/app/z.mjs\n    at foo (C:\\x\\y.js:1:1)\n    at bar (node:internal/x:2:3)\n";
 // Spawn falso: cada filho registra o comando; taskkill fecha o filho vivo com código 1.
 function fakeSpawn() {
   const calls = [], live = [];
@@ -51,6 +56,7 @@ function fakeSpawn() {
     if (cmd === 'taskkill') { for (const x of live.splice(0)) setImmediate(() => x.emit('close', 1)); setImmediate(() => c.emit('close', 0)); }
     else if (args[0] === 'ok') setImmediate(() => { c.stdout.write('saída\n'); setImmediate(() => c.emit('close', 0)); });
     else if (args[0] === 'bad') setImmediate(() => { c.stderr.write('falhou'); setImmediate(() => c.emit('close', 2)); });
+    else if (args[0] === 'stack') setImmediate(() => { c.stderr.write(STACK); setImmediate(() => c.emit('close', 1)); });
     else live.push(c);
     return c;
   };
@@ -60,6 +66,9 @@ test('runCancellable returns stdout and readable errors', async () => {
   const { spawn } = fakeSpawn(), run = runCancellable(new AbortController().signal, { spawn, platform: 'win32' });
   assert.equal(await run('node', ['ok']), 'saída\n');
   await assert.rejects(run('ffmpeg', ['bad']), { message: 'ffmpeg terminou com código 2: falhou' });
+  const e = await run('node', ['stack']).catch(e => e);
+  assert.equal(e.message, "node terminou com código 1: Error: Cannot find module '…' in …");
+  for (const x of ['C:\\x', 'y.js', 'at foo', '/home/u']) assert.ok(!e.message.includes(x), x);
   const ac = new AbortController(); ac.abort();
   await assert.rejects(runCancellable(ac.signal, { spawn, platform: 'win32' })('node', ['ok']), { message: 'Cancelada' });
 });
