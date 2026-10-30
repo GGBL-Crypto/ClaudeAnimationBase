@@ -2,6 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { kitCatalog, validateEpisode } from '../episode-lib.mjs';
+import { oneLine } from './llm.mjs';
 import { prodDir, runStep } from './production.mjs';
 import { wordBudget, sourceNumbers, outlinePrompt, validateOutline, chapterPrompt, validateChapter, checkNarration, buildEpisode, roteiroResult, writeRoteiro } from './roteiro.mjs';
 
@@ -25,7 +26,7 @@ export default function ({ db, cfg, no, nf, fail, readJson, prod, active, step, 
   // Até 3 perguntas ao Claude; a 2ª e a 3ª levam o motivo da rejeição. JSON quebrado também é refeito; cancelar e timeout não.
   async function ask(prompt, check, signal) {
     let feedback = '';
-    const again = e => `\n\nA resposta anterior foi rejeitada: ${e.message}. Corrija e responda de novo no mesmo formato.`;
+    const again = e => `\n\nA resposta anterior foi rejeitada: ${oneLine(e.message)}. Corrija e responda de novo no mesmo formato.`;
     for (let i = 0; ; i++) {
       let o;
       try { o = await inject.claudeLong(prompt + feedback, { signal }); } catch (e) { if (e.message !== BAD_JSON || i === 2) throw e; feedback = again(e); continue; }
@@ -69,9 +70,11 @@ export default function ({ db, cfg, no, nf, fail, readJson, prod, active, step, 
   return [
     ['POST', /^\/api\/productions\/([^/]+)\/roteiro$/, m => ({ jobId: step(prod(m[1]).id, 'roteiro', generate) })],
     ['GET', /^\/api\/productions\/([^/]+)\/roteiro$/, async m => {
-      const p = prod(m[1]), { status, result, error } = p.steps.roteiro;
-      const episode = await readFile(join(prodDir(outDir, p.id), 'episode.json'), 'utf8').then(JSON.parse, () => null);
-      return { status, result, error, episode };
+      const p = prod(m[1]), { status, result, error } = p.steps.roteiro, dir = prodDir(outDir, p.id);
+      const [episode, outline] = await Promise.all(['episode.json', 'outline.json'].map(f => readFile(join(dir, f), 'utf8').then(JSON.parse, () => null)));
+      // Refazer capítulo que falhou ou foi cancelado zera o result, mas os arquivos continuam válidos: recalcula deles.
+      const fromDisk = async () => { try { return roteiroResult(episode, outline, (await inputs(p, dir)).budget); } catch { return null; } };
+      return { status, result: result ?? (episode && outline ? await fromDisk() : null), error, episode };
     }],
     // Refaz um capítulo pelo Claude; os outros ficam. Roda como a etapa roteiro (as seguintes ficam desatualizadas).
     ['POST', /^\/api\/productions\/([^/]+)\/roteiro\/capitulo$/, async (m, req) => {

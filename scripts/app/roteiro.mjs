@@ -10,7 +10,6 @@ import { epId } from './production.mjs';
 const BAD_FORMAT = 'Resposta do Claude fora do formato';
 const ID = /^[a-z][a-z0-9-]*$/, HEX = /^#[0-9a-fA-F]{6}$/;
 const COLORS = ['skin', 'hair', 'shirt', 'pants']; // ponytail: chaves de cor do elenco copiadas de src/episode/kit.js (o KIT_CATALOG não as exporta)
-const PARAMS = ['time', 'weather', 'framing', 'extras', 'seed'];
 const LANG = { pt: 'português do Brasil', en: 'inglês' };
 const MAX_CHARS = 100000; // ponytail: trechos das fontes cortados para caber em ~100 mil caracteres por prompt; subir se o Claude pedir mais contexto
 const str = (s, n) => typeof s === 'string' && s.trim() !== '' && s.length <= n;
@@ -18,7 +17,8 @@ const arr = (a, min, max) => Array.isArray(a) && a.length >= min && a.length <= 
 
 // [n] ou [n, m] de fonte na narração. A voz lê o texto sem eles.
 const MARK = /\[(\d+(?:\s*,\s*\d+)*)\]/g;
-export const stripMarks = s => String(s).replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, '').replace(/\s+/g, ' ').trim();
+// "a.C. [2]." vira "a.C." (o ponto duplo some; reticências ficam).
+export const stripMarks = s => String(s).replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, '').replace(/(?<!\.)\.\.(?!\.)/g, '.').replace(/\s+/g, ' ').trim();
 export const words = s => { const t = String(s).trim(); return t ? t.split(/\s+/).length : 0; }; // como a medição da voz (voice.mjs)
 
 // Números: só os algarismos ("1.500", "1 500" e "1500" dão o mesmo). As fontes também valem com espaço entre milhares.
@@ -78,7 +78,7 @@ export function checkNarration(text, { nSources, wpm, numbers }, fontes = []) {
 }
 
 // Um capítulo do Claude -> planos no formato do episode.json (sem id). cast: ids do elenco do esboço; words: meta do capítulo (±15%).
-// Regras do kit que o catálogo não descreve (mapa sem atores) ficam para o validateEpisode.
+// Aqui só as listas do catálogo (com as opções na mensagem); o resto (chaves de params, seed, at, dir, hud.tag, mapa sem atores) fica para o validateEpisode.
 export function validateChapter(o, { catalog, cast, nSources, words: meta, wpm, numbers }) {
   if (!o || typeof o !== 'object' || !Array.isArray(o.planos) || !o.planos.length) throw new Error(`${BAD_FORMAT}: planos é uma lista de planos`);
   const shots = o.planos.map((p, i) => {
@@ -89,11 +89,9 @@ export function validateChapter(o, { catalog, cast, nSources, words: meta, wpm, 
     const K = catalog.scenes[p.cena?.id], params = p.cena?.params ?? {};
     if (!K) fail(`cena ${p.cena?.id} fora do catálogo (${Object.keys(catalog.scenes).join(', ')})`);
     if (typeof params !== 'object' || Array.isArray(params)) fail('cena.params é um objeto');
-    for (const k of Object.keys(params)) if (!PARAMS.includes(k)) fail(`parâmetro ${k} fora do catálogo (${PARAMS.join(', ')})`);
     for (const [k, list] of [['time', catalog.times], ['weather', catalog.weathers], ['framing', catalog.framings]])
       if (params[k] !== undefined && !list.includes(params[k])) fail(`${k} ${params[k]} fora do catálogo (${list.join(', ')})`);
     if (params.extras !== undefined && (!Array.isArray(params.extras) || params.extras.some((x, j) => !K.extras.includes(x) || params.extras.indexOf(x) !== j))) fail(`extras da cena ${p.cena.id}: só ${K.extras.join(', ')}, sem repetir`);
-    if (params.seed !== undefined && !(Number.isInteger(params.seed) && params.seed >= 0 && params.seed <= 9999)) fail('seed inteiro de 0 a 9999');
     const actors = p.atores ?? [];
     if (!arr(actors, 0, 3)) fail('atores: lista de até 3');
     for (const a of actors) {
@@ -102,16 +100,12 @@ export function validateChapter(o, { catalog, cast, nSources, words: meta, wpm, 
       if (actors.filter(b => b.cast === a.cast).length > 1) fail(`ator ${a.cast} repetido`);
       if (!catalog.actions.includes(a.action)) fail(`ação ${a.action} fora do catálogo (${catalog.actions.join(', ')})`);
       if (a.action === 'walk' && !K.exterior) fail(`walk só em cena de exterior, não em ${p.cena.id}`);
-      if (a.at !== undefined && !(typeof a.at === 'number' && a.at >= 0 && a.at <= 1)) fail('at de 0 a 1');
-      if (a.dir !== undefined && a.dir !== 1 && a.dir !== -1) fail('dir 1 ou -1');
     }
     const hud = p.hud == null ? null : p.hud;
     if (hud) {
       if (typeof hud !== 'object' || Object.keys(hud).some(k => !catalog.hud.includes(k))) fail(`hud só com ${catalog.hud.join(', ')}`);
       for (const k of ['year', 'sub', 'place']) if (hud[k] !== undefined && !str(hud[k], 40)) fail(`hud.${k}: texto até 40 caracteres`);
       const t = hud.tag;
-      if (t !== undefined && (!t || typeof t !== 'object' || Object.keys(t).some(k => !['text', 'sub', 'actor'].includes(k)) || !str(t.text, 30) || (t.sub !== undefined && !str(t.sub, 40))
-        || !actors.some(a => a.cast === t.actor && a.action !== 'walk'))) fail('hud.tag: { text até 30, sub até 40, actor: id de um ator parado do plano }');
       try { checkNumbers([hud.year, hud.sub, hud.place, t?.text, t?.sub].filter(Boolean).join(' '), numbers); } catch (e) { fail('hud: ' + e.message); }
     }
     return { ...nar, scene: { id: p.cena.id, params }, actors, ...(hud && Object.keys(hud).length && { hud }) };

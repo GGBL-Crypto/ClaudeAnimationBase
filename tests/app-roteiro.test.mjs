@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { openDb } from '../scripts/app/db.mjs';
 import { runStep, prodDir } from '../scripts/app/production.mjs';
 import { kitCatalog, validateEpisode } from '../scripts/episode-lib.mjs';
-import { wordBudget, validateOutline, validateChapter, dedupeShots, buildEpisode, roteiroMd, outlinePrompt, chapterPrompt, sourceNumbers } from '../scripts/app/roteiro.mjs';
+import { wordBudget, stripMarks, validateOutline, validateChapter, dedupeShots, buildEpisode, roteiroMd, outlinePrompt, chapterPrompt, sourceNumbers } from '../scripts/app/roteiro.mjs';
 import routesRoteiro from '../scripts/app/routes-roteiro.mjs';
 
 const catalog = kitCatalog('pixel');
@@ -50,13 +50,14 @@ test('validateChapter enforces catalog, cites and 30-120 s shots', () => {
   const ok = validateChapter({ planos: [plano(), plano({ narracao: 'O farol de Alexandria foi construído em 280 a.C. [1]. ' + narr(88, '[2]'), fontes: [2], hud: { year: '280 a.C.' } })] }, chOpts);
   assert.equal(ok.length, 2);
   assert.equal(ok[0].narration, narr(100).replace(' [1]', '')); assert.ok(!/\[/.test(ok[1].narration));
+  assert.match(ok[1].narration, /em 280 a\.C\. palavra/); // "a.C. [1]." sem o ponto duplo
+  assert.equal(stripMarks('Foi em 280 a.C. [2]. E depois... [1] veio [1, 2].'), 'Foi em 280 a.C. E depois... veio.'); // reticências ficam
   assert.deepEqual(ok[1].cites, [1, 2]); assert.match(ok[1].narrationCited, /280 a\.C\. \[1\]/);
   assert.deepEqual(ok[0].scene, { id: 'mar', params: { time: 'dusk', extras: ['ship'] } });
   const bad = (p, re, o = chOpts) => assert.throws(() => validateChapter({ planos: [plano(), plano(p)] }, o), re);
   bad({ cena: { id: 'praia', params: {} } }, /Plano 2: cena praia fora do catálogo/);
   bad({ cena: { id: 'mar', params: { extras: ['moon'] } } }, /extras/);
   bad({ cena: { id: 'mar', params: { time: 'noon' } } }, /time/);
-  bad({ cena: { id: 'mar', params: { zoom: 2 } } }, /zoom/);
   bad({ atores: [{ cast: 'viajante', action: 'dance' }] }, /ação dance fora do catálogo/);
   bad({ atores: [{ cast: 'rei', action: 'stand' }] }, /fora do elenco/);
   bad({ cena: { id: 'interior-vela', params: {} }, atores: [{ cast: 'viajante', action: 'walk' }] }, /walk/);
@@ -70,6 +71,13 @@ test('validateChapter enforces catalog, cites and 30-120 s shots', () => {
   bad({ narracao: 'Foram 1999 navios [1]. ' + narr(96) }, /número fora das fontes: 1999/);
   bad({ narracao: 'Em 956 caiu. Depois ' + narr(96) }, /frase com número sem \[n\]/);
   bad({ hud: { year: '1999' } }, /número fora das fontes/);
+  // chaves de params, seed, at/dir e hud.tag: quem barra é o validateEpisode logo depois (como na rota)
+  const o1 = validateOutline(outline(), { catalog, budget }); o1.capitulos = o1.capitulos.slice(0, 1);
+  const kit = p => validateEpisode(buildEpisode({ id: 1, outline: o1, chapters: [validateChapter({ planos: [plano(), plano(p)] }, chOpts)],
+    sources, profile: { voice: 'kokoro:pm_alex', speed: 1 }, style: 'pixel' }));
+  for (const [p, re] of [[{ cena: { id: 'mar', params: { zoom: 2 } } }, /zoom/], [{ cena: { id: 'mar', params: { seed: 10000 } } }, /seed/],
+    [{ atores: [{ cast: 'viajante', action: 'stand', at: 2 }] }, /at 0\.\.1/], [{ cena: { id: 'mapa', params: {} } }, /mapa não tem atores/],
+    [{ atores: [{ cast: 'viajante', action: 'walk' }], hud: { tag: { text: 'x', actor: 'viajante' } } }, /walk/]]) assert.throws(() => kit(p), re);
   assert.throws(() => validateChapter({ planos: [plano()] }, chOpts), /100 palavras; a meta é 200/); // fora de ±15%
   assert.throws(() => validateChapter({ planos: [] }, chOpts), /formato/);
 });
@@ -195,4 +203,19 @@ test('roteiro step writes outline, episode and roteiro.md; edit plan and redo ch
   assert.equal(t.calls.length - before, 1); assert.match(t.calls.at(-1), /capítulo 2 de 3/i);
   assert.equal(t.db.production(t.id).steps.roteiro.status, 'done');
   await assert.rejects(async () => t.call('POST', `/api/productions/${t.id}/roteiro/capitulo`, { id: 'c9' }), e => e.status === 404);
+});
+
+test('failed redo of a chapter keeps the chapters on screen (result from disk)', async () => {
+  let mode = 'ok';
+  const t = await setup({ claude: async (p, n) => n === 1 ? outline() : mode === 'ok' ? goodChapter() : { planos: [plano({ cena: { id: 'praia', params: {} } })] } });
+  await t.call('POST', `/api/productions/${t.id}/roteiro`, {}); await t.done();
+  mode = 'bad'; const before = t.calls.length;
+  await t.call('POST', `/api/productions/${t.id}/roteiro/capitulo`, { id: 'c2' });
+  await assert.rejects(t.done(), /Capítulo 2 de 3 \(Parte 2\): Plano 1: cena praia/);
+  assert.equal(t.calls.length - before, 3);
+  const s = t.db.production(t.id).steps.roteiro; assert.equal(s.status, 'error'); assert.equal(s.result, null);
+  const got = await t.call('GET', `/api/productions/${t.id}/roteiro`);
+  assert.equal(got.status, 'error'); assert.match(got.error, /Capítulo 2 de 3/);
+  assert.deepEqual(got.result.capitulos.map(c => [c.id, c.palavras]), [['c1', 500], ['c2', 500], ['c3', 500]]); // arquivos intactos
+  assert.equal(got.episode.chapters.length, 3);
 });

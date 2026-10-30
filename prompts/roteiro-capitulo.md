@@ -24,7 +24,7 @@ Tarefa: escreva o capítulo {{n}} de {{total}} do esboço, em {{idioma}}, dividi
 
 Regras da narração:
 - Os fatos vêm só das fontes acima. Não escreva fato, nome, data ou número que não esteja nelas. Escreva os números com algarismos, como aparecem nas fontes.
-- Toda frase com fato termina com o número da fonte entre colchetes antes do ponto, como "O farol foi construído em 280 a.C. [2]." Use só números de 1 a {{nfontes}}. Toda frase com número tem [n].
+- Toda frase que afirma um fato (quem, o quê, quando, onde, quanto, como) termina com o número da fonte entre colchetes antes do ponto, como "O farol foi construído em 280 a.C. [2]." Isso vale para toda frase com fato, tenha número ou não, inclusive frases curtas de ligação como "Ele morreu jovem [1]." Só perguntas e frases sem fato (como "Mas há mais nessa história.") ficam sem [n]. Use só números de 1 a {{nfontes}}.
 - "fontes" do plano lista os números das fontes que ele usa.
 - O capítulo inteiro tem cerca de {{palavras}} palavras (de 15% a menos até 15% a mais). Cada plano tem de {{pmin}} a {{pmax}} palavras (cerca de {{planos}} planos no capítulo).
 - Texto para ouvir: frases curtas e claras, sem listas, sem títulos, sem emoji, sem marcação além do [n]. Continue a partir do fim do capítulo anterior, sem repetir o que já foi dito e sem "neste capítulo".
