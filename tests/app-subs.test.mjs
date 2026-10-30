@@ -17,6 +17,7 @@ const ID = 'abcdefghijk', V2 = 'bcdefghijkl', V3 = 'cdefghijklm', V4 = 'defghijk
 test('ytdlpArgs only downloads subtitles', () => {
   const a = ytdlpArgs(ID, 'pt', join('x', 'dir'));
   assert.ok(a.includes('--skip-download') && a.includes('--write-auto-subs') && a.includes('--write-subs'));
+  assert.equal(a[0], '--ignore-config'); // config do usuário (cookies, formatos de download) não entra
   assert.equal(a[a.indexOf('--sub-langs') + 1], 'pt.*,pt'); assert.equal(a[a.indexOf('--sub-format') + 1], 'vtt');
   assert.ok(a.at(-1) === 'https://www.youtube.com/watch?v=' + ID && a[a.indexOf('-o') + 1].endsWith('%(id)s'));
   assert.ok(!a.some(x => /^(-f|--format|-x|--extract-audio|--audio-format|--no-skip-download)$/.test(x)));

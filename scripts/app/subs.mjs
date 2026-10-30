@@ -10,7 +10,7 @@ const norm = s => String(s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowe
 export function ytdlpArgs(id, lang, dir) {
   if (!ID.test(id ?? '')) throw new Error('Vídeo inválido');
   if (!/^[a-z]{2,3}$/.test(lang ?? '')) throw new Error('Idioma inválido');
-  return ['--skip-download', '--write-auto-subs', '--write-subs', '--sub-langs', `${lang}.*,${lang}`, '--sub-format', 'vtt', '-o', join(dir, '%(id)s'), `https://www.youtube.com/watch?v=${id}`];
+  return ['--ignore-config', '--skip-download', '--write-auto-subs', '--write-subs', '--sub-langs', `${lang}.*,${lang}`, '--sub-format', 'vtt', '-o', join(dir, '%(id)s'), `https://www.youtube.com/watch?v=${id}`];
 }
 
 const ENT = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' ' };
