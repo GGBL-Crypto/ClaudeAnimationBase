@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { acervoKey, segmentArgs, concatList, assembleArgs } from '../scripts/episode-lib.mjs';
-import { runEpisode } from '../scripts/episode.mjs';
+import { runEpisode, pruneAcervo } from '../scripts/episode.mjs';
 import { ROOT, sourceSnapshot } from '../scripts/render-lib.mjs';
 
 test('acervo key changes with style, params, L and source; not with episode id', () => {
@@ -17,6 +17,21 @@ test('acervo key changes with style, params, L and source; not with episode id',
   const bare = { ...base, params: {} }, spelled = { ...base, params: { extras: [], framing: 'wide', seed: 0, weather: 'clear', time: 'day' } };
   assert.equal(acervoKey(bare), acervoKey(spelled));
 });
+test('pruneAcervo removes stale and unindexed files, tolerates empty dir', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'acervo-'));
+  writeFileSync(join(dir, 'a.mp4'), 'aaaa'); writeFileSync(join(dir, 'b.mp4'), 'bbbbbb'); writeFileSync(join(dir, 'c.mp4'), 'cc');
+  writeFileSync(join(dir, 'index.json'), JSON.stringify({ a: { sourceHash: 'novo', bytes: 4 }, b: { sourceHash: 'velho', bytes: 6 } }));
+  assert.deepEqual(pruneAcervo(dir, 'novo'), { files: 2, bytes: 8 });
+  assert.deepEqual(readdirSync(dir).sort(), ['a.mp4', 'index.json']);
+  assert.deepEqual(Object.keys(JSON.parse(readFileSync(join(dir, 'index.json'), 'utf8'))), ['a']);
+  const empty = mkdtempSync(join(tmpdir(), 'acervo-'));
+  assert.deepEqual(pruneAcervo(empty, 'novo'), { files: 0, bytes: 0 });
+  assert.deepEqual(pruneAcervo(join(empty, 'nao-existe'), 'novo'), { files: 0, bytes: 0 });
+  const noIndex = mkdtempSync(join(tmpdir(), 'acervo-')); writeFileSync(join(noIndex, 'x.mp4'), 'xx');
+  assert.deepEqual(pruneAcervo(noIndex, 'novo'), { files: 0, bytes: 0 }); assert.deepEqual(readdirSync(noIndex), ['x.mp4']);
+  const keepRm = mkdtempSync(join(tmpdir(), 'acervo-')); writeFileSync(join(keepRm, 'b.mp4'), 'bb'); writeFileSync(join(keepRm, 'index.json'), JSON.stringify({ b: { sourceHash: 'velho' } }));
+  assert.deepEqual(pruneAcervo(keepRm, 'novo', { rm: () => {} }), { files: 1, bytes: 2 });  // rm que não apaga: conta uma vez só
+  for (const d of [dir, empty, noIndex, keepRm]) rmSync(d, { recursive: true, force: true });});
 test('segment args: fades, loop, no windows paths', () => {
   const a = segmentArgs('out/acervo/k.mp4', 30, 'out/episodes/x/seg/k-30.mp4').join(' ');
   // O FFmpeg recusa "d=.75" ("Unable to parse option value"); o brief pede .75, a forma aceita é 0.75.

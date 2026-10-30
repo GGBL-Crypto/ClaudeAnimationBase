@@ -205,7 +205,9 @@ const END = /^(ankle|wrist)[LR]?$|^headBase$|\.end$/;
 // (spec.limits: rad ou [mín, máx] por junta) sobrepõe lim naquele ser. Contrato das partes
 // (ExpStyle.parts(actor, F), exatamente o que o estilo desenha): {actor, name, from, to, pts: [[x, y], ...] (eixo do
 // traço em px do mundo), r (meia largura), cap: 'round' | 'butt' | 'square'}; from/to = juntas, to = null em parte
-// terminal (pé, mão, cabeça). Cabeça: pts = [headBase, headTop], eixo de baixo para cima; o círculo ou a elipse tem esse
+// terminal (pé, mão, cabeça). O contrato aceita to = null também no braço girado inteiro no ombro do pixel (reach):
+// antebraço e mão saem do ombro pelos pontos desenhados, fora do osso, e não passam pela checagem de passar da junta.
+// Cabeça: pts = [headBase, headTop], eixo de baixo para cima; o círculo ou a elipse tem esse
 // eixo como diâmetro e meia largura r, então a base dela toca headBase; from = 'headBase', to = null.
 // Reprova em todo quadro (uma entrada por quadro, ser e regra; tolerância max(1 px, 1% do osso)):
 //   osso varia: |joints[b] − joints[a]| difere de len em mais de 1%;

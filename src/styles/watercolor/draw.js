@@ -186,7 +186,9 @@ window.ExpStyle = (() => {
       // Braços e pernas engrossam com o tipo de corpo (raiz da girth em relação à do adulto).
       const lw = Math.max(1.1 / z, .004 * S), g = Math.sqrt((BODY[p.body] || BODY.adult).girth / .11), r = k => k * g * S + lw;
       part('neck', 'neck', 'headBase', .0225 * g * S + lw, 'butt');
-      part('head', 'headBase', null, .95 * Rh / 1.05 + lw / 2, 'round', [J.headBase, J.headTop]);
+      // Cabeça escalada por character.headScale em torno de headBase: o eixo cresce para cima e o pescoço continua ligado.
+      const hs = STYLE.character.headScale || 1, top = [J.headBase[0] + hs * (J.headTop[0] - J.headBase[0]), J.headBase[1] + hs * (J.headTop[1] - J.headBase[1])];
+      part('head', 'headBase', null, hs * .95 * Rh / 1.05 + lw / 2, 'round', [J.headBase, top]);
       for (const s of 'LR') {
         part('upperArm' + s, 'shoulder' + s, 'elbow' + s, r(.031), 'round');
         part('forearm' + s, 'elbow' + s, 'wrist' + s, r(.0225), 'round', [J['elbow' + s], short(J['elbow' + s], J['wrist' + s], r(.0225))]);
@@ -865,10 +867,11 @@ window.ExpStyle = (() => {
       : [[l - 5, t + 5], [l - 5, t - 10], [r + 5, t - 10], [r + 5, t + 5]];  // flat: parapeito
     return [body, roof];
   }
-  function paintBuildings(items, tint, ink, sd) {
+  // night: a parede vai mais para a cor da camada, com uma segunda aguada (a casa não acende no escuro).
+  function paintBuildings(items, tint, ink, sd, night) {
     items.forEach((b, i) => {
-      const [body, roof] = bpolys(b).map(p => dense(p)), wall = mixCol(WALL, tint, .4), l = b.x - b.w / 2, t = b.y - b.h;
-      flat(body, mixCol(wall, '#FFFFFF', .35)); wc(body, wall, 200, .08, .55);
+      const [body, roof] = bpolys(b).map(p => dense(p)), wall = mixCol(WALL, tint, night ? .7 : .4), l = b.x - b.w / 2, t = b.y - b.h;
+      flat(body, mixCol(wall, '#FFFFFF', .35)); wc(body, wall, 200, .08, .55); if (night) wc(body, wall, 230, .04, .3);
       wc(dense([[l, b.y + 8], [l, t + .55 * b.h], [l + b.w, t + .7 * b.h], [l + b.w, b.y + 8]]), dk(wall, .15), 70, .15, .6);  // sombra de baixo
       if (b.roof === 'temple') for (let k = 0; k < 6; k++) { const x = l + b.w * (.12 + .152 * k); wc([[x, t + .14 * b.h], [x + .07 * b.w, t + .14 * b.h], [x + .07 * b.w, b.y], [x, b.y]], dk(wall, .35), 160, .05, .4); }  // vãos entre as colunas
       flat(roof, mixCol(b.roof === 'temple' || b.roof === 'flat' ? wall : ROOF, tint, .35)); wc(roof, dk(mixCol(b.roof === 'temple' || b.roof === 'flat' ? wall : ROOF, tint, .35), .1), 150, .1, .5);
@@ -907,8 +910,52 @@ window.ExpStyle = (() => {
     for (let i = 0; i < 12; i++) { const x = lerp(-200, 2100, hash(i * 3.7 + 1)), y = l.y + 20 + 260 * hash(i * 1.9 + 2) ** 2, r = 80 + 200 * hash(i * 5.3); wc(ell(x, y, 2.5 * r, .12 * r, 14, i), dk(col, .2), 60, .3, .6); }
   }
   // Adereço de camada (por quadro): k = movimento próprio, contínuo na emenda.
-  function propK(o, M, tint) {
-    const { x, y, s } = o, lw = Math.max(1.2 / cam.z, .012 * s), sd = sid(o.kind + o.seed + Math.round(x));
+  // Primeiro plano (fence, bush, post, cart, boat, tuft) parado; surf = superfície do chão (cor do tufo), lit = poste aceso.
+  function propK(o, M, tint, surf, lit) {
+    const { x, y, s } = o, lw = Math.max(1.2 / cam.z, .012 * (s || o.h || 80)), sd = sid(o.kind + (o.seed ?? '') + Math.round(x ?? o.x0)), wood = mixCol('#7A5A40', tint, .3);
+    if (o.kind === 'fence') {  // mourões a cada ~60 px (altura e inclinação fixas pela semente) e duas travessas que cedem
+      const n = Math.max(1, Math.round((o.x1 - o.x0) / 60)), px = i => lerp(o.x0, o.x1, i / n);
+      for (let i = 0; i <= n; i++) limb([[px(i), o.y + 4], [px(i) + 4 * (hash(sd + i) - .5), o.y - o.h * (.94 + .1 * hash(sd + i * 3.1))]], 9, i & 1 ? wood : dk(wood, .08), lw);
+      for (const k of [.35, .75]) for (let i = 0; i < n; i++) limb([[px(i), o.y - k * o.h], [(px(i) + px(i + 1)) / 2, o.y - k * o.h + 3], [px(i + 1), o.y - k * o.h]], 6, dk(wood, .05), lw);
+      return;
+    }
+    if (o.kind === 'bush') {  // moita: cinco manchas de folha, a de baixo mais escura
+      const leaf = mixCol(P.tree, tint, .35);
+      for (const [dx, dy, r, k] of [[-.42, -.3, .34, .15], [.42, -.32, .33, .15], [-.12, -.22, .38, .1], [.18, -.5, .36, 0], [-.22, -.6, .3, 0]]) blot(oval(x + dx * s, y + dy * s, 1.15 * r * s, r * s, 0, sd + dx * 9, 14, .12), dk(leaf, k), lw, { light: false });
+      return;
+    }
+    if (o.kind === 'post') {  // poste de ferro com braço e lanterna; o vidro acende com a luz de lights
+      const h = o.h, iron = dk(mixCol('#4A4A4E', tint, .25), .1), glass = lit ? mixCol(M.glow, '#FFFFFF', .35) : mixCol(P.paper, tint, .3);
+      limb([[x, y + 2], [x, y - h]], 7, iron, lw); limb([[x - 9, y], [x + 9, y]], 8, iron, lw);
+      blot([[x - 8, y - h - 2], [x + 8, y - h - 2], [x + 10, y - h - 20], [x - 10, y - h - 20]], glass, lw, { shade: false, light: false, rim: iron, a: 1 });
+      blot([[x - 13, y - h - 19], [x + 13, y - h - 19], [x, y - h - 32]], iron, lw, { shade: false });
+      return;
+    }
+    if (o.kind === 'cart') {  // carroça de lado: caixa, varal e duas rodas com raios
+      const bed = [[x - s, y - .95 * s], [x + .5 * s, y - .95 * s], [x + .45 * s, y - .5 * s], [x - .95 * s, y - .5 * s]];
+      line([[x + .45 * s, y - .72 * s], [x + s, y - .5 * s]], .07 * s, dk(wood, .2));
+      blot(bed, wood, lw); line([[x - .97 * s, y - .74 * s], [x + .47 * s, y - .74 * s]], .03 * s, dk(wood, .3), .6);
+      for (const d of [-.6, .1]) {
+        const cx = x + d * s, cy = y - .3 * s, r = .3 * s;
+        for (let i = 0; i < 4; i++) { const a = i * Math.PI / 4; line([[cx - r * Math.cos(a), cy - r * Math.sin(a)], [cx + r * Math.cos(a), cy + r * Math.sin(a)]], .035 * s, dk(wood, .3), .9); }
+        c.beginPath(); c.arc(cx, cy, r, 0, TAU); c.globalAlpha = .9 * A; c.strokeStyle = dk(wood, .35); c.lineWidth = .08 * s; c.stroke(); c.globalAlpha = 1;
+      }
+      return;
+    }
+    if (o.kind === 'boat') {  // barco a remo virado de lado na areia: sombra, casco, friso e o remo
+      blot(oval(x, y + 2, .55 * s, .05 * s, 0, sd, 12, .05), dk(mixCol(SURF.sand, tint, .4), .3), lw, { shade: false, light: false, a: .45 });
+      blot([[x - .5 * s, y - .3 * s], [x + .5 * s, y - .32 * s], [x + .38 * s, y - .04 * s], [x + .2 * s, y], [x - .25 * s, y], [x - .4 * s, y - .06 * s]], mixCol('#5E7E8E', tint, .3), lw);
+      line([[x - .47 * s, y - .25 * s], [x + .47 * s, y - .27 * s]], .035 * s, mixCol(P.paper, tint, .25), .85);
+      line([[x - .3 * s, y - .02 * s], [x + .25 * s, y - .42 * s]], .025 * s, wood);
+      return;
+    }
+    if (o.kind === 'tuft') {  // tufo de capim pela superfície (seco na areia, pálido na neve); às vezes uma flor
+      const col = surf === 'sand' ? mixCol('#B89A5A', tint, .3) : surf === 'snow' ? mixCol('#DDE3E0', tint, .2) : surf === 'stone' ? mixCol('#7E8E5A', tint, .4) : dk(M.ground, .2);
+      for (let i = 0; i < 5; i++) blade(x + (i - 2) * .18 * s, y + 2, s * (.7 + .3 * hash(sd + i)), (i - 2) * .22 + .15 * (hash(sd + i * 2.3) - .5), i & 1 ? col : dk(col, .15), dk(col, .35), .9 * A);
+      c.globalAlpha = 1;
+      if (surf === 'grass' && hash(sd + 7) < .35) blot(oval(x + .1 * s, y - s, .16 * s + 2, .14 * s + 2, 0, sd, 7), ['#E8C84E', '#E2E0D6', '#C77A9A'][Math.floor(3 * hash(sd + 9))], lw, { shade: false });
+      return;
+    }
     if (o.kind === 'ship') {
       const wood = mixCol('#6B4A34', tint, .3), sail = mixCol(P.paper, tint, .2);
       c.save(); c.translate(x, y); c.rotate(.06 * (o.k - .5));
@@ -1025,8 +1072,24 @@ window.ExpStyle = (() => {
       flat(co, '#E6D6A8'); wc(co, '#CDB377', 200, .1, .5); wc(co.map(([u, v]) => [cx + .72 * (u - cx), cy + .72 * (v - cy)]), '#9FAE70', 150, .3, .6);
       nibBroken([...co, co[0]], .55, i * 11, .85, 4, '#5A4632');
     });
+    // Montanhas (lado da sombra mais escuro) e matas (copa redonda e tronco) dentro das terras.
+    for (const [i, o] of Mp.peaks.entries()) {
+      const { x: u, y: v, s } = o, L = [u - .6 * s, v], T = [u + .04 * s * (hash(i) - .5), v - s], Rr = [u + .6 * s, v];
+      flat([L, T, Rr], '#C9AE7E'); wc([L, T, Rr], '#B08E5C', 230, .05, .4); wc([T, Rr, [u + .05 * s, v]], '#7E6446', 200, .05, .4); nib([L, T, Rr], .45, '#5A4632');
+    }
+    for (const [i, o] of Mp.woods.entries()) for (const [dx, k] of [[-.32, .8], [.32, .85], [0, 1]]) {  // mata: três árvores, a do meio na frente
+      const { x: u, y: v, s } = o, tx = u + dx * s, r = .3 * k * s, cy = v - (.25 + .45 * k) * s;
+      nib([[tx, v], [tx, cy + r]], .4, '#5A4632'); flat(ell(tx, cy, r, 1.1 * r, 12, i * 3 + k), '#8EAA6A'); wc(ell(tx, cy, r, 1.1 * r, 12, i * 3 + k), '#5E8048', 230, .08, .4);
+      nib([...ell(tx, cy, r, 1.1 * r, 12, i * 3 + k), ell(tx, cy, r, 1.1 * r, 12, i * 3 + k)[0]], .3, '#3E5232');
+    }
+    // Rosa dos ventos: anel a nanquim, cruz de pontas e o norte em vermelho-terra.
+    { const { x: u, y: v, r } = Mp.compass, pt = (a, k) => [u + k * r * Math.sin(a), v - k * r * Math.cos(a)], ring = k => Array.from({ length: 41 }, (_, i) => pt(i * TAU / 40, k));
+      wc(ring(1), '#E6D6A8', 160, .05, .3); nib(ring(1), .4, '#5A4632'); nib(ring(.86), .25, '#5A4632');
+      for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; wc([pt(a, .95), pt(a + .35, .22), [u, v], pt(a - .35, .22)], i ? '#8A7A5E' : '#9A3A2A', 230, .03, .3); }
+      for (let i = 0; i < 4; i++) { const a = Math.PI / 4 + i * Math.PI / 2; wc([pt(a, .55), pt(a + .4, .16), [u, v], pt(a - .4, .16)], '#B7A47E', 200, .03, .3); } }
     for (const [i, m] of Mp.marks.entries()) { wc(ell(m.x, m.y, 9, 9, 10, i), '#8A3A2A', 230, .05, .3); nib([...ell(m.x, m.y, 16, 16, 12, i + 4), ell(m.x, m.y, 16, 16, 12, i + 4)[0]], .35, '#5A2E22'); }
     nibBroken([...R, R[0]], .6, 4, .8, 1, '#7A5A3A');
+    if (Mp.border) for (const d of [12, 22]) { const B = dense([[x + d, y + d], [x + w - d, y + d], [x + w - d, y + h - d], [x + d, y + h - d]], 60); nib([...B, B[0]], d < 20 ? .5 : .3, '#7A5A3A'); }  // moldura dupla
   };
   let KBASE = null;
   function kitScene(F) {
@@ -1037,6 +1100,10 @@ window.ExpStyle = (() => {
       const Pp = K.map.paper, r = K.map.route;
       at(1); still('Kdesk', [-140, -100, W + 280, H + 200], .4, () => { const R = dense([[-200, -160], [W + 200, -160], [W + 200, H + 160], [-200, H + 160]], 80); flat(R, '#C9A27A'); wc(R, '#A87A52', 150, .2, .6); for (let j = 0; j < 22; j++) wc(ell(W * hash(j * 3.3), 30 + 48 * j, 500 + 500 * hash(j * 1.7), 9 + 8 * hash(j), 24, j), '#8A6040', 70, .2, .6); });
       at(1); still(`Kmap|${K.seed}`, [Pp.x - 20, Pp.y - 20, Pp.w + 40, Pp.h + 40], 1, paintMap(K.map), () => c.rect(Pp.x, Pp.y, Pp.w, Pp.h));
+      // Marcas de onda (já oscilam em y no kit) e o N da rosa, por quadro.
+      c.beginPath(); for (const { x, y } of K.map.waves) { c.moveTo(x - 14, y); c.quadraticCurveTo(x - 7, y - 7, x, y); c.quadraticCurveTo(x + 7, y - 7, x + 14, y); }
+      c.globalAlpha = .7; c.strokeStyle = '#4E6E78'; c.lineWidth = 2.2; c.lineCap = 'round'; c.stroke(); c.globalAlpha = 1;
+      { const { x, y, r: cr } = K.map.compass; c.font = `italic 600 ${Math.round(.42 * cr)}px Georgia, "Times New Roman", serif`; c.textAlign = 'center'; c.textBaseline = 'alphabetic'; c.fillStyle = '#5A2E22'; c.globalAlpha = .85; c.fillText('N', x, y - 1.08 * cr); c.globalAlpha = 1; }
       if (r) {  // trecho da rota até a fração k do comprimento, tracejado em vermelho-terra
         const d = r.pts.slice(1).map((q, i) => Math.hypot(q[0] - r.pts[i][0], q[1] - r.pts[i][1])); let left = r.k * d.reduce((a, b) => a + b, 0); const pts = [r.pts[0]];
         for (let i = 0; i < d.length && left > 0; i++) { const u = Math.min(1, left / d[i]); pts.push([lerp(r.pts[i][0], r.pts[i + 1][0], u), lerp(r.pts[i][1], r.pts[i + 1][1], u)]); left -= d[i]; }
@@ -1076,7 +1143,7 @@ window.ExpStyle = (() => {
         at(l.f); still(key, [x0, y0, x1 - x0, y1 - y0], kOf(l.f), () => paintTrees(l.trees, tint, ink));
       } else if (l.kind === 'buildings') {
         let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (const b of l.items) for (const p of bpolys(b)) for (const [x, y] of p) { x0 = Math.min(x0, x - 20); x1 = Math.max(x1, x + 20); y0 = Math.min(y0, y - 20); y1 = Math.max(y1, y + 20); }
-        at(l.f); still(key + '|' + l.items.map(b => b.x + b.roof).join(), [x0, y0, x1 - x0, y1 - y0], Math.min(kOf(l.f), 3800 / (x1 - x0)), () => paintBuildings(l.items, tint, ink, K.seed),
+        at(l.f); still(key + '|' + l.items.map(b => b.x + b.roof).join(), [x0, y0, x1 - x0, y1 - y0], Math.min(kOf(l.f), 3800 / (x1 - x0)), () => paintBuildings(l.items, tint, ink, K.seed, K.mood === 'night'),
           () => { for (const b of l.items) for (const p of bpolys(b)) { c.moveTo(...p[0]); for (const v of p) c.lineTo(...v); c.closePath(); } });
         c.fillStyle = mixCol(M.glow, '#FFFFFF', .2);
         for (const b of l.items) for (const w of b.windows) if (w.lit > 0) { c.globalAlpha = .9 * w.lit; c.fillRect(w.x + 2, w.y + 2, w.w - 4, w.h - 4); }
@@ -1085,7 +1152,7 @@ window.ExpStyle = (() => {
         const col = mixCol('#6F9DB8', tint, .35);
         at(l.f); still(key, [-260, l.y - 4, 2440, 1184 - l.y], .7, () => paintSea(l, col), () => c.rect(-260, l.y, 2440, 1180 - l.y));
         for (const wv of l.waves) line([[wv.x - wv.len / 2, wv.y - 3 * wv.k], [wv.x + wv.len / 2, wv.y - 3 * wv.k]], 2.4, M.light, .2 + .5 * wv.k);
-      } else if (l.kind === 'props') { at(l.f); for (const o of l.items) propK(o, M, tint); }
+      } else if (l.kind === 'props') { at(l.f); const surf = K.layers.find(g => g.kind === 'ground')?.surface, lit = K.time === 'dusk' || K.time === 'night'; for (const o of l.items) propK(o, M, tint, surf, lit); }
     }
     actors(F, false); actors(F, true);
     if (I) {  // o cômodo escurece longe da vela (multiply), mais à noite

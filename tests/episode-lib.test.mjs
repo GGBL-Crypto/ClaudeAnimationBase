@@ -6,7 +6,18 @@ test('wordTimes is proportional and covers the sentence', () => {
   const w = wordTimes({ start: 10, end: 13, text: 'O céu se move.' });
   assert.equal(w[0].start, 10); assert.equal(w.at(-1).end, 13); assert.ok(w[0].end - w[0].start < w[1].end - w[1].start);
 });
-test('chunks of up to 7 words', () => { assert.deepEqual(chunks(wordTimes({ start: 0, end: 9, text: 'um dois três quatro cinco seis sete oito nove' })).map(c => c.words.length), [7, 2]); });
+test('chunks break by width and never split words', () => {
+  const w = wordTimes({ start: 0, end: 10, text: 'O farol de Alexandria era uma das sete maravilhas do mundo antigo' });
+  for (const c of chunks(w, 34)) assert.ok(c.words.map(x => x.w).join(' ').length <= 34);
+  const long = chunks(wordTimes({ start: 0, end: 2, text: 'inconstitucionalissimamente sim' }), 20);
+  assert.deepEqual(long.map(c => c.words.map(x => x.w).join(' ')), ['inconstitucionalissimamente', 'sim']);
+});
+test('pixel captions use the new sizes', () => {
+  const ass = buildAss({ style: 'pixel', episode: { chapters: [], shots: [] }, timing: { chapters: [], shots: [] } });
+  assert.match(ass, /Style: Caption,Press Start 2P,40,/); assert.match(ass, /Style: Chapter,Press Start 2P,64,/);
+  assert.match(ass, /Style: Hud,Press Start 2P,30,/); assert.match(ass, /Style: Place,Press Start 2P,34,/); assert.match(ass, /Style: Tag,Press Start 2P,26,/);
+  assert.match(buildAss({ style: 'flat', episode: { chapters: [], shots: [] }, timing: { chapters: [], shots: [] } }), /Style: Caption,Atkinson Hyperlegible,60,/);
+});
 test('ass escapes override braces and backslashes', () => {
   const ass = buildAss({ style: 'pixel', episode: { chapters: [{ id: 'c', title: 'A {\\b1} B' }], shots: [] }, timing: { chapters: [{ id: 'c', title: 'A {\\b1} B', start: 0, end: 5 }], shots: [{ id: 's', start: 0, end: 5, speech: [{ start: 1, end: 2, text: 'Olá {x}\\n mundo' }] }] } });
   assert.ok(!/\{\\b1\}/.test(ass)); assert.match(ass, /Olá ｛x｝/); assert.match(ass, /PlayResX: 1920/); assert.match(ass, /Press Start 2P/);
@@ -20,17 +31,26 @@ test('hud and tag events come from shot.hud', () => {
   const ass = buildAss({ style: 'pixel', episode, timing: { chapters: [{ id: 'c', title: 'C', start: 0, end: 6 }], shots: [{ id: 's', start: 0, end: 6, speech: [] }] } });
   for (const s of ['Hud', 'Place', 'Tag']) assert.match(ass, new RegExp(`,${s},`)); assert.match(ass, /1811/);
 });
+const tagAt = (style, framing, at = .3) => {
+  const episode = { cast: [{ id: 'a', body: 'adult' }], chapters: [{ id: 'c', title: 'C', shots: [{ id: 's', scene: { id: 'campo', params: { framing } }, actors: [{ cast: 'a', action: 'stand', at }], hud: { tag: { text: 'Ana', actor: 'a' } } }] }] };
+  const ass = buildAss({ style, episode, timing: { chapters: [], shots: [{ id: 's', start: 0, end: 6, speech: [] }] } });
+  return ass.match(/\\pos\((\d+),(\d+)\)/).slice(1).map(Number);
+};
 test('the tag sits above the head through the real camera (wide and mid framing)', () => {
-  const pos = (framing, at) => {
-    const episode = { cast: [{ id: 'a', body: 'adult' }], chapters: [{ id: 'c', title: 'C', shots: [{ id: 's', scene: { id: 'campo', params: { framing } }, actors: [{ cast: 'a', action: 'stand', at }], hud: { tag: { text: 'Ana', actor: 'a' } } }] }] };
-    const ass = buildAss({ style: 'pixel', episode, timing: { chapters: [], shots: [{ id: 's', start: 0, end: 6, speech: [] }] } });
-    return ass.match(/\\pos\((\d+),(\d+)\)/).slice(1).map(Number);
-  };
-  const [wx, wy] = pos('wide', .3), [mx, my] = pos('mid', .3);
+  const [wx, wy] = tagAt('flat', 'wide'), [mx, my] = tagAt('flat', 'mid');
   // wide: z 1, cx ~960, cabeça de adulto a ~180 px do chão (~885): x perto de .3 * 1920, y perto de 700 - 16
   assert.ok(Math.abs(wx - 576) < 40, `wide x ${wx}`); assert.ok(wy > 640 && wy < 720, `wide y ${wy}`);
   // mid: z 1.35, cy 610: (576 - 960) * 1.35 + 960 = 442; a cabeça sobe na tela (o centro da câmera desce)
   assert.ok(Math.abs(mx - 442) < 40, `mid x ${mx}`); assert.ok(my < wy - 20, `mid y ${my} vs wide ${wy}`);
+});
+test('the pixel tag clears the scaled head and the hat', () => {
+  // Adulto em at .3: headBase y 739.6, cabeça 30.6 px. Pixel: cabeça 1.7x + 3 px da grade (18) e copa do chapéu ~6 px da
+  // grade (36) acima dela; a base da etiqueta fica acima disso. wide z 1, cy 540; mid z 1.35, cy 610.
+  const top = (z, cy) => (739.6 - cy) * z + 540 - 1.7 * 30.6 * z - 18 - 36;
+  assert.ok(tagAt('pixel', 'wide')[1] < top(1, 540), `pixel wide ${tagAt('pixel', 'wide')[1]} vs ${top(1, 540)}`);
+  assert.ok(tagAt('pixel', 'mid')[1] < top(1.35, 610), `pixel mid ${tagAt('pixel', 'mid')[1]} vs ${top(1.35, 610)}`);
+  // flat e watercolor: só a cabeça escalada (1.25 e 1.15), sem chapéu alto; a etiqueta fica perto de onde estava (693).
+  for (const s of ['flat', 'watercolor']) { const y = tagAt(s, 'wide')[1]; assert.ok(y > 670 && y < 693, `${s} wide ${y}`); }
 });
 test('a chapter title lasts at most the chapter length', () => {
   const ass = buildAss({ style: 'flat', episode: { chapters: [] }, timing: { chapters: [{ id: 'c', title: 'Curto', start: 10, end: 11 }], shots: [] } });

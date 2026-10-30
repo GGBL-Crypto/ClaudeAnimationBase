@@ -12,7 +12,7 @@ AnimationPlatform.registerStyle({
       skin: '#F0B48A', skinDk: '#D08A64', shirt: '#E9A83A', shirtDk: '#B97A1E', pants: '#3D5A73', pantsDk: '#2A3F52',
       hat: '#D9C08A', hatDk: '#A88E58', pack: '#D8603E', packDk: '#A8402A', boot: '#5A3A2E', hair: '#4A3026', ink: '#1F2430', path: '#D8B98A',
     },
-    texture: {}, outline: { weight: 0 }, character: { unit: 40, width: 10, height: 8 }, effects: { glow: true, longShadow: .9 },
+    texture: {}, outline: { weight: 0 }, character: { unit: 40, width: 10, height: 8, headScale: 1.25 }, effects: { glow: true, longShadow: .9 },
     // Cena K (kit de episódio): rampa por clima de luz. far/mid/near = camadas por paralaxe (esfriam com a distância),
     // light = realce, shadow = cor da sombra e do escurecimento, glow = brilho aditivo das luzes, dim = quanto pessoas e
     // adereços escurecem para shadow. No interior: skyTop/skyLow = parede, far = rodapé, mid/near = madeira, ground = piso.

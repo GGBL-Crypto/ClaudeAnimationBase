@@ -190,3 +190,31 @@ Limites: revisão de imagens estáticas selecionadas e leitura de código, sem r
 - Episódio longo em pixel (`out/tmp/long-pixel`, 18 capítulos, 48 planos, narração descritiva sem fatos, 3 696 palavras): 1536,4 s (25,6 min), 36 874 quadros, AAC, −14,2 LUFS e −1,8 dBTP, 119 MB. `verify` aprovado e `decoded-sheet.png` aberto. Etapas (s): narração 735, build 0,1, loops 0 (8 já no acervo), segmentos 45, mix 349, montagem 198, verificação 294; total 1621 s (27 min). Escalado para 30 min: cerca de 32 min.
 - Pixel × story de 28/10 (folha `out/check/story/compare.png`): céu pontilhado, estrelas e lua em faixas iguais ou melhores; luz de janelas e fogueira melhor; mais cenas e climas. Pior: a cena `ceu-noturno` é vazia perto da composição do story, e os bonecos são mais finos e menos icônicos que os de cabeça grande.
 - Não conferido: ouvir o áudio inteiro; o estúdio no navegador com o `ep-demo`.
+
+## 29/10/2026 — acabamento visual do kit (pixel primeiro)
+
+- O que mudou:
+  - Kit: primeiro plano por cena (`fence`, `bush`, `post`, `cart`, `boat`, `tuft`), fora dos `spots` com margem de 130 px.
+  - `ceu-noturno` composto: pinheiros perto, casa de 180×140 com 1 ou 2 janelas acesas, cerca, céu em cerca de 57% da altura.
+  - Mapa com ondas, rosa dos ventos, picos, matas e moldura dupla.
+  - Cabeça maior por estilo (`headScale`: pixel 1.7, flat 1.25, watercolor 1.15).
+  - No pixel: tronco +2, nuvens com degrau e sombra, chão em faixas, braço que aponta sem tampar a cabeça, idoso legível à noite.
+  - ASS: textos maiores; legenda quebrada por largura (34 caracteres no pixel, 44 nos outros).
+  - `--prune-acervo`.
+- `npm test`: 385/385. `npm run test:visual`: PASS, 16 estilo×cena. `check-motion` em smoke-kit: 0 violações em debug, pixel, flat e watercolor. `git status --porcelain data/ out/ src/episodes.js`: vazio.
+- Acervo: `node scripts/episode.mjs --prune-acervo` removeu 48 arquivos, 58 MB (de 59 MB para 32 KB).
+- Demo nos 3 estilos (`fixtures/episodes/demo`, `out/tmp/demo-flat`, `out/tmp/demo-watercolor`). `verify` aprovado nos 3: 1920×1080, 24 fps, 1883 quadros, 78,458 s, AAC. `decoded-sheet.png` aberto nos 3.
+  - Loops renderizados do zero: pixel 167 s, flat 187 s, watercolor 965 s.
+  - Vídeos: pixel 8,3 MB, flat 8,2 MB, watercolor 21 MB.
+- Pixel × story (folha `out/check/story/compare-acabamento.png`, demo s1 noite e s2 pôr do sol contra `story-1.5.png` e `story-7.png`):
+  - Igual ou melhor: céu, estrelas e lua; pinheiros, cerca e casa com janela acesa; sol em faixas e reflexo no mar; chão com detalhe; cabeça grande na proporção do story.
+  - Volta à Task 2 uma vez: o idoso olhando para cima era um bloco claro (cabelo branco igual à pele, contorno sumindo no escuro). Depois do conserto (`3c52fec`), lê-se tão bem quanto o menino do story.
+  - Ainda pior:
+    - a casa da noite é menor e mais distante que a casa grande em primeiro plano do story;
+    - o olhar para cima depende do olho, da boca e do chapéu, sem inclinar a cabeça;
+    - as nuvens do entardecer ainda parecem almofadas lisas de longe.
+- Revisão final do ramo: no pixel, a etiqueta do ator ("Leitor" / "relê os registros") cobria o alto da cabeça e o chapéu inteiro, porque ficava 16 px acima do `headTop` do esqueleto e o pixel desenha a cabeça 1,7× maior e o chapéu ~30 px acima. Conserto: a etiqueta sobe até o alto da cabeça escalada pelo `headScale` do estilo, mais 40 px no pixel (arredondamento e chapéu). Teste em `tests/episode-lib.test.mjs`. O giro do braço do pixel (`reach`) ficou limitado a 1,3 rad, o menor teto que ainda tira a mão do point do idoso do rosto (0,8 rad deixava a mão sobre o rosto no elenco e na demo s5).
+- Não conferido:
+  - corpos `heavy` e `thin`, capuz e capacete: não renderizados em nenhum estilo, nem no pixel;
+  - corpo `child`: visto só no pixel (interior da smoke-kit), não no flat nem na aquarela;
+  - ouvir o áudio inteiro.

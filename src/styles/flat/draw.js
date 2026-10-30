@@ -180,7 +180,8 @@ window.ExpStyle = (() => {
       const g = BODY[p.body || 'adult'].girth, k = clamp(Math.sqrt(g / .11), .85, 1.25);  // corpo largo, braços e pernas mais grossos
       part('torso', 'pelvis', 'chest', [J.pelvis, J.chest], g * S, 'butt');  // o ombro (disco de raio r no peito) chega à base do pescoço
       part('neck', 'neck', 'headBase', [J.neck, J.headBase], .028 * S, 'butt');
-      part('head', 'headBase', null, [J.headBase, J.headTop], hl, 'round');
+      const hs = STYLE.character.headScale || 1;  // cabeça maior, crescendo para cima a partir de headBase (pescoço ligado)
+      part('head', 'headBase', null, [J.headBase, lerp2(J.headBase, J.headTop, hs)], hs * hl, 'round');
       for (const s of ['L', 'R']) {
         const j = k => J[k + s], hr = .028 * S, hu = unit2(j('wrist'), j('hand')), fr = .032 * S;
         part('upperArm' + s, 'shoulder' + s, 'elbow' + s, [j('shoulder'), j('elbow')], .036 * k * S, 'round');
@@ -777,7 +778,18 @@ window.ExpStyle = (() => {
       const pp = M.paper; c.fillStyle = rgba(R.shadow, .35); c.fillRect(pp.x + 14, pp.y + 18, pp.w, pp.h);
       c.fillStyle = vgrad(pp.y, pp.y + pp.h, [KC.paper, mixCol(KC.paper, '#C8B48A', .6)]); c.fillRect(pp.x, pp.y, pp.w, pp.h);
       c.fillStyle = rgba('#7FAFB4', .35); c.fillRect(pp.x + 30, pp.y + 30, pp.w - 60, pp.h - 60);
+      const ink = '#7A5A3A';
+      if (M.border) { c.strokeStyle = ink; c.lineWidth = 4; c.strokeRect(pp.x + 14, pp.y + 14, pp.w - 28, pp.h - 28); c.lineWidth = 1.5; c.strokeRect(pp.x + 22, pp.y + 22, pp.w - 44, pp.h - 44); }
+      for (const w of M.waves) { c.beginPath(); c.moveTo(w.x - 14, w.y); c.quadraticCurveTo(w.x - 7, w.y - 7, w.x, w.y); c.quadraticCurveTo(w.x + 7, w.y - 7, w.x + 14, w.y); c.strokeStyle = rgba('#3A6E80', .6); c.lineWidth = 3; c.lineCap = 'round'; c.stroke(); }
       for (const co of M.coasts) { c.save(); c.translate(5, 7); poly(co, mixCol(KC.land, '#6A4E3A', .45)); c.restore(); poly(co, KC.land); }
+      for (const o of M.peaks) { const pk = mixCol(KC.land, '#6A4E3A', .5); poly([[o.x - .6 * o.s, o.y], [o.x, o.y - o.s], [o.x + .6 * o.s, o.y]], pk); poly([[o.x - .6 * o.s, o.y], [o.x, o.y - o.s], [o.x - .1 * o.s, o.y]], mixCol(pk, KC.paper, .35)); poly([[o.x - .2 * o.s, o.y - .67 * o.s], [o.x, o.y - o.s], [o.x + .2 * o.s, o.y - .67 * o.s]], KC.paper); }
+      for (const o of M.woods) { c.fillStyle = '#6E4A36'; c.fillRect(o.x - .05 * o.s, o.y - .3 * o.s, .1 * o.s, .3 * o.s); ell(o.x + .04 * o.s, o.y - .6 * o.s, .34 * o.s, .34 * o.s, 0, mixCol(KC.leaf, '#2F5A3A', .4)); ell(o.x, o.y - .63 * o.s, .3 * o.s, .3 * o.s, 0, KC.leaf); }
+      if (M.compass) {  // rosa dos ventos: anel e estrela de quatro pontas em facetas, norte em vermelho
+        const { x, y, r } = M.compass; c.beginPath(); c.arc(x, y, r, 0, TAU); c.strokeStyle = ink; c.lineWidth = 2; c.stroke();
+        for (const [ux, uy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) { const tip = [x + ux * r, y + uy * r], s = [x - uy * .2 * r, y + ux * .2 * r], t = [x + uy * .2 * r, y - ux * .2 * r], n = uy < 0;
+          poly([[x, y], tip, s], n ? KC.mark : ink); poly([[x, y], tip, t], n ? mixCol(KC.mark, KC.paper, .4) : mixCol(ink, KC.paper, .45)); }
+        ell(x, y, .08 * r, .08 * r, 0, KC.paper);
+      }
       if (M.route) {
         const Pt = M.route.pts, d = Pt.slice(1).map((q, i) => d2(Pt[i], q)); let left = M.route.k * d.reduce((u, v) => u + v, 0); const pts = [Pt[0]];
         for (let i = 0; i < d.length && left > 0; i++) { const u = Math.min(1, left / d[i]); pts.push(lerp2(Pt[i], Pt[i + 1], u)); left -= d[i]; }
@@ -905,6 +917,40 @@ window.ExpStyle = (() => {
             line([[x - .5 * s, y], [x + .4 * s, y - .14 * s]], '#4A3226', .12 * s); line([[x + .5 * s, y], [x - .4 * s, y - .14 * s]], '#5A3A2A', .12 * s);
             poly([[x - .32 * fh, y - .08 * s], [x + sw, y - fh], [x + .32 * fh, y - .08 * s]], '#FF7A2A'); ell(x, y - .2 * fh, .32 * fh, .2 * fh, 0, '#FF7A2A');
             poly([[x - .17 * fh, y - .08 * s], [x + .7 * sw, y - .65 * fh], [x + .17 * fh, y - .08 * s]], '#FFD27A');
+          } else if (o.kind === 'fence') {  // duas travessas e mourões de ponta chanfrada, face clara em cima
+            const wc = tint(KC.wood, f), wd = mixCol(wc, R.shadow, .3), wl = mixCol(wc, R.light, .3), h = o.h;
+            for (const k of [.35, .75]) { c.fillStyle = wd; c.fillRect(o.x0, o.y - k * h, o.x1 - o.x0, 10); c.fillStyle = wl; c.fillRect(o.x0, o.y - k * h, o.x1 - o.x0, 3); }
+            for (let px = o.x0; px <= o.x1 + 1; px += 60) { poly([[px - 7, o.y + 4], [px - 7, o.y - h + 6], [px, o.y - h], [px + 7, o.y - h + 6], [px + 7, o.y + 4]], wc); c.fillStyle = wd; c.fillRect(px + 2, o.y - h + 4, 5, h); }
+          } else if (o.kind === 'bush') {  // copa de círculos em três tons, larga ~1,9·s
+            const lb = tint(KC.leaf, f), BK = { dk: mixCol(lb, R.shadow, .35), base: lb, lt: mixCol(lb, R.light, .3) };
+            const cs = [...Array(6)].map((_, i) => { const u = (i + .5) / 6 * 2 - 1, r = s * (.3 + .1 * hash(o.seed + i)); return [x + u * .55 * s, y - r * (.9 + .5 * (1 - Math.abs(u))) - .05 * s, r]; });
+            for (const [u, v, r] of cs) ell(u + .05 * s, v + .04 * s, r, r, 0, BK.dk);
+            for (const [u, v, r] of cs) ell(u, v, .94 * r, .94 * r, 0, BK.base);
+            for (const [u, v, r] of cs) if (u < x) ell(u - .3 * r, v - .35 * r, .38 * r, .26 * r, -.5, BK.lt);
+          } else if (o.kind === 'post') {  // poste de madeira com lanterna; o vidro acende à noite (o brilho vem de lights)
+            const wc = tint('#3D4756', f), on = K.time === 'dusk' || K.time === 'night', top = y - o.h;
+            c.fillStyle = wc; c.fillRect(x - 5, top, 10, o.h); c.beginPath(); c.roundRect(x - 10, y - 14, 20, 16, 3); c.fill();
+            c.fillRect(x - 11, top - 3, 22, 5); poly([[x - 12, top - 26], [x, top - 38], [x + 12, top - 26]], wc);
+            c.fillStyle = on ? '#FFE7A8' : mixCol(wc, R.light, .35); c.fillRect(x - 8, top - 25, 16, 22);
+            c.fillStyle = wc; c.fillRect(x - 1.5, top - 25, 3, 22);
+          } else if (o.kind === 'cart') {  // carroça: caixa, varal e duas rodas com cubo
+            const wc = tint(KC.wood, f), wd = mixCol(wc, R.shadow, .35), wl = mixCol(wc, R.light, .3);
+            line([[x + .45 * s, y - .72 * s], [x + s, y - .45 * s]], wd, .07 * s);
+            c.fillStyle = wd; c.fillRect(x - s, y - .95 * s, 1.5 * s, .45 * s); c.fillStyle = wc; c.fillRect(x - s, y - .95 * s, 1.5 * s, .36 * s);
+            c.fillStyle = wl; c.fillRect(x - s, y - .95 * s, 1.5 * s, .06 * s); c.fillStyle = wd; for (const u of [-.5, 0]) c.fillRect(x + u * s, y - .95 * s, .04 * s, .45 * s);
+            for (const u of [-.6, .1]) { const wx = x + u * s, wy = y - .3 * s; ell(wx, wy, .3 * s, .3 * s, 0, wd); ell(wx, wy, .21 * s, .21 * s, 0, mixCol(wc, R.shadow, .1)); for (const a of [0, Math.PI / 3, 2 * Math.PI / 3]) line([[wx - .2 * s * Math.cos(a), wy - .2 * s * Math.sin(a)], [wx + .2 * s * Math.cos(a), wy + .2 * s * Math.sin(a)]], wd, .035 * s); ell(wx, wy, .06 * s, .06 * s, 0, wl); }
+          } else if (o.kind === 'boat') {  // barco a remo virado de lado na areia: casco, borda clara e banco
+            const hc = tint(KC.wood, f), hd = mixCol(hc, R.shadow, .35);
+            poly([[x - s / 2, y - .3 * s], [x + s / 2, y - .3 * s], [x + .35 * s, y], [x - .35 * s, y]], hc);
+            poly([[x - .42 * s, y - .15 * s], [x + .42 * s, y - .15 * s], [x + .35 * s, y], [x - .35 * s, y]], hd);
+            c.fillStyle = mixCol(hc, R.light, .35); c.fillRect(x - s / 2, y - .3 * s, s, .04 * s);
+            c.fillStyle = tint('#C9A040', f); c.fillRect(x - .4 * s, y - .245 * s, .8 * s, .035 * s);
+          } else if (o.kind === 'tuft') {  // tufo de três folhas (cor pelo chão: seco na areia, claro na neve) e, às vezes, flor
+            const sf = K.layers.find(q => q.kind === 'ground')?.surface, col = tint(sf === 'sand' ? '#B89A58' : sf === 'snow' ? '#C8D4DC' : '#3E8F4E', f);
+            c.beginPath();
+            for (const a of [-.4, 0, .35]) { const tx = x + s * Math.sin(a), ty = y - s * Math.cos(a) * (a ? .75 : 1); c.moveTo(x - .12 * s, y); c.quadraticCurveTo(x + (tx - x) * .3, y - (y - ty) * .6, tx, ty); c.quadraticCurveTo(x + (tx - x) * .5, y - (y - ty) * .4, x + .12 * s, y); }
+            c.fillStyle = col; c.fill();
+            if (sf === 'grass' && hash(o.seed * 3) > .7) ell(x + .1 * s, y - s, .22 * s, .22 * s, 0, tint(hash(o.seed * 5) > .5 ? '#F2E8D4' : '#E8A83A', f));
           }
         }
       }

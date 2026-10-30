@@ -24,6 +24,12 @@ function drawK(c, F, cam, line, ring) {
     else if (o.kind === 'column') box(x - 14, y - s, 28, s, '#908070');
     else if (o.kind === 'fire') { flame(x, y, s * (.7 + .3 * o.k)); line([[x - s * .5, y], [x + s * .5, y]], WOOD, 3); }
     else if (o.kind === 'rock') oval(x, y, s * 1.1, s, '#707070', Math.PI, TAU);
+    else if (o.kind === 'fence') { for (const k of [.35, .75]) line([[o.x0, o.y - k * o.h], [o.x1, o.y - k * o.h]], WOOD, 2); for (let px = o.x0; px <= o.x1; px += 60) line([[px, o.y], [px, o.y - o.h]], WOOD, 3); }
+    else if (o.kind === 'bush') oval(x, y, s * .8, s, LEAF, Math.PI, TAU);
+    else if (o.kind === 'post') { line([[x, y], [x, y - o.h]], WOOD, 3); box(x - 9, y - o.h - 18, 18, 18, WOOD); }
+    else if (o.kind === 'cart') { box(x - s, y - .95 * s, 1.5 * s, .45 * s, WOOD); for (const d of [-.6, .1]) ring(x + d * s, y - .3 * s, .3 * s, WOOD); line([[x + .5 * s, y - .8 * s], [x + s, y - .5 * s]], WOOD, 2); }
+    else if (o.kind === 'boat') line([[x - s / 2, y - .3 * s], [x + s / 2, y - .3 * s], [x + .35 * s, y], [x - .35 * s, y], [x - s / 2, y - .3 * s]], WOOD, 2);
+    else if (o.kind === 'tuft') line([[x - .4 * s, y - s], [x, y], [x, y - s], [x, y], [x + .4 * s, y - s]], LEAF, 1.5);
   };
   const win = K.interior && K.interior.window, clip = () => { cam(1); c.save(); c.beginPath(); c.rect(win.x, win.y, win.w, win.h); c.clip(); };
   if (win) clip(); else cam(0);  // no interior, céu e clima pela câmera da janela (f = 1), recortados por ela
@@ -55,8 +61,13 @@ function drawK(c, F, cam, line, ring) {
     }
   }
   if (K.map) {
-    const M = K.map; box(M.paper.x, M.paper.y, M.paper.w, M.paper.h, '#a08050', 4, '#efe4c8');
+    const M = K.map, pp = M.paper; box(pp.x, pp.y, pp.w, pp.h, '#a08050', 4, '#efe4c8');
+    if (M.border) box(pp.x + 14, pp.y + 14, pp.w - 28, pp.h - 28, '#a08050', 2);
     for (const co of M.coasts) line([...co, co[0]], '#506070', 2);
+    for (const w of M.waves) line([[w.x - 12, w.y], [w.x - 6, w.y - 5], [w.x, w.y], [w.x + 6, w.y - 5], [w.x + 12, w.y]], '#4a90d0', 1.5);
+    for (const o of M.peaks) line([[o.x - .6 * o.s, o.y], [o.x, o.y - o.s], [o.x + .6 * o.s, o.y]], '#706050', 2);
+    for (const o of M.woods) { ring(o.x, o.y - .6 * o.s, .35 * o.s, LEAF); line([[o.x, o.y], [o.x, o.y - .25 * o.s]], WOOD, 2); }
+    { const { x, y, r } = M.compass; ring(x, y, r, '#506070'); line([[x, y - r], [x, y + r]], '#506070', 2); line([[x - r, y], [x + r, y]], '#506070', 2); line([[x - 8, y - r + 16], [x, y - r], [x + 8, y - r + 16]], '#802020', 3); }
     for (const m of M.marks) ring(m.x, m.y, 10, '#802020', 3);
     if (M.route) {  // trecho da rota até a fração k do comprimento
       const P = M.route.pts, d = P.slice(1).map((q, i) => Math.hypot(q[0] - P[i][0], q[1] - P[i][1])); let left = M.route.k * d.reduce((a, b) => a + b, 0); const pts = [P[0]];

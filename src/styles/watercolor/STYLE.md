@@ -4,6 +4,7 @@
 - Cor: aguadas transparentes que se sobrepõem (cor sobre cor); a borda de cada mancha acumula pigmento e vaza um pouco.
 - Paleta sóbria de livro infantil: céu cerúleo diluído, verdes terrosos, sienas no solo; só a protagonista é laranja vivo.
 - Traço: nanquim sépia leve, quebrado, só onde ajuda a leitura (crista do terreno, rosto, patas); nunca contorno contínuo de vetor.
+- Cabeça do humano: `character.headScale` 1,15, escalada a partir de `headBase` para cima; o pescoço continua ligado e o equipamento da cabeça (chapéu, capuz, capacete) acompanha.
 - Profundidade: o distante é mais claro, frio e sem nanquim; o perto é mais saturado e com mais pigmento na borda.
 - Movimento: a pintura não ferve; a borda irregular é fixa em cada ser (hash do ator), para não tremer por acidente.
 - Ritmo: planos parados respiram; vento leve só no capim.

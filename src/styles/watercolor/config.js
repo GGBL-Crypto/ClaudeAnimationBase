@@ -10,7 +10,8 @@ AnimationPlatform.registerStyle({
       stone: '#A79C8E', ant: '#963F27', hero: '#EE7424', leaf: '#93B54C', fly: '#4C423D', wing: '#C8D6DA',
       skin: '#EDB48E', hair: '#5E3B2A', shirt: '#CFAA5C', pants: '#6E7B5B', hat: '#DCC48E', band: '#7A4A30', pack: '#A9573B', boot: '#5C3C2B', red: '#C8462E',
     },
-    texture: { paper: true }, outline: { weight: 1 }, character: { unit: 40, width: 10, height: 8 }, effects: {},
+    // headScale: a cabeça do humano pintada maior em torno de headBase (cresce para cima; pescoço e chapéu acompanham).
+    texture: { paper: true }, outline: { weight: 1 }, character: { unit: 40, width: 10, height: 8, headScale: 1.15 }, effects: {},
     // Kit de episódio (cena K): rampa por clima de luz: céu de cima e de baixo, longe, meio, perto, chão, luz, sombra,
     // brilho. No interior, longe = parede, meio = lambri, perto = madeira, chão = assoalho.
     moods: {
