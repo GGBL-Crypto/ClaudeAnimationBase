@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { mix, TARGET, PEAK } from '../scripts/mix-audio.mjs';
+import { mix, mixArgs, TARGET, PEAK } from '../scripts/mix-audio.mjs';
 
 // Fala sintética: vogais de 0,4 s com harmônicos e pausas, baixa (−25 dBFS) e com picos altos, como a narração crua.
 test('mix-audio delivers −14 LUFS ± 0.5 with true peak ≤ −1 dBTP', () => {
@@ -17,4 +17,11 @@ test('mix-audio delivers −14 LUFS ± 0.5 with true peak ≤ −1 dBTP', () => 
     assert.ok(Math.abs(m.I - TARGET) <= .5, `${m.I} LUFS`);
     assert.ok(m.TP <= PEAK, `${m.TP} dBTP`);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// Pico do AAC acima do alvo: mix() baixa o teto e o limitador recebe o limite linear novo (-3 dB -> 0.7079).
+test('mixArgs passes a lowered ceiling to the limiter', () => {
+  const f = a => a[a.indexOf('-filter_complex') + 1];
+  assert.match(f(mixArgs({ narration: 'n.wav', duration: 1, out: 'o.m4a', ceil: -3 })), /alimiter=limit=0\.7079:/);
+  assert.match(f(mixArgs({ narration: 'n.wav', duration: 1, out: 'o.m4a' })), /alimiter=limit=0\.7943:/);
 });
