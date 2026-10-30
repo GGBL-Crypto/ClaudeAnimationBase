@@ -1,7 +1,7 @@
 // Cena de fumaça do kit de episódio (só testes e test:visual): 8 planos de 1 s, um por cena de src/episode/kit.js, com
 // as 4 horas, chuva, neve e névoa. Cada plano mostra 1 s do loop de 12 s a partir de 5,5 s (quem anda está no meio da
 // tela). Monta o quadro F da cena K, que os estilos com episodeScenes desenham com ExpStyle.draw. LOOPS.kit = o loop
-// inteiro do campo à noite, com chuva, vaga-lumes e fazenda, para a emenda.
+// inteiro do campo à noite, com chuva, vaga-lumes e fazenda, para a emenda. LOOPS.cast = a prova de elenco (EST.CAST).
 var EST = (() => {
   const L = 12, OFF = 5.5;
   const cast = [
@@ -21,15 +21,31 @@ var EST = (() => {
     { scene: 'mapa', params: { time: 'day', weather: 'clear', seed: 88, framing: 'wide', extras: ['route'] }, actors: [] },
   ].map(s => ({ ...s, cast }));
   const LOOP = { scene: 'campo', params: { time: 'night', weather: 'rain', seed: 11, framing: 'wide', extras: ['fireflies', 'farm'] }, actors: [walk(1), sit('sit', .3, 1)], cast };
+  // Prova de elenco (LOOPS.cast): os 5 corpos com chapéu, mochila, capuz e capacete, 3 por plano de 2 s no campo de dia
+  // (o último à noite), nas ações do kit. CAST = a lista de planos.
+  const crew = [...cast,
+    { id: 'ferreira', body: 'heavy', colors: { skin: '#5a3a28', hair: '#111111', shirt: '#7a5a3a', pants: '#3a3a44' }, gear: ['helmet'] },
+    { id: 'vigia', body: 'thin', colors: { skin: '#e0b48e', hair: '#3a2a1e', shirt: '#6a2e3a', pants: '#2e2a26' }, gear: ['hood'] }];
+  const day = seed => ({ time: 'day', weather: 'clear', seed, framing: 'wide', extras: [] }), A = (c, action, at, dir) => ({ cast: c, action, at, dir });
+  const CAST = [
+    [day(101), [A('viajante', 'stand', .5, 1), A('leitor', 'sit', .2, 1), A('crianca', 'point', .8, -1)]],
+    [day(102), [A('viajante', 'walk', .5, 1), A('ferreira', 'stand', .25, 1), A('vigia', 'look-up', .75, -1)]],
+    [day(103), [A('viajante', 'point', .45, 1), A('leitor', 'read', .2, 1), A('crianca', 'look-up', .78, -1)]],
+    [day(104), [A('viajante', 'look-up', .3, 1), A('ferreira', 'walk', .5, -1), A('vigia', 'point', .75, -1)]],
+    [day(105), [A('viajante', 'stand', .3, -1), A('crianca', 'walk', .5, 1), A('ferreira', 'sit', .8, -1)]],
+    [{ ...day(106), time: 'night' }, [A('viajante', 'walk', .5, -1), A('leitor', 'stand', .25, 1), A('vigia', 'read', .8, -1)]],
+  ].map(([params, actors]) => ({ scene: 'campo', params, actors, cast: crew }));
   // Plano i em [i, i + 1): o loop da cena no tempo OFF + lt; F.t volta a ser o tempo do vídeo.
   function frame(scene, t) {
     const i = Math.min(SHOTS.length - 1, Math.floor(t + 1e-9));
     return { ...kitFrame(SHOTS[i], OFF + t - i, L), t };
   }
-  return { frame, times: {}, specs: {}, SHOTS, LOOP, L };
+  return { frame, times: {}, specs: {}, SHOTS, LOOP, CAST, L, OFF };
 })();
 // Fora do navegador (verificador de movimento) não há timeline.
 if (typeof shotsById === 'function') {
   shotsById(Object.fromEntries(EST.SHOTS.map((s, i) => [s.scene, t => ExpStyle.draw(EST.frame('K', t))])));
   LOOPS.kit = t => ExpStyle.draw(kitFrame(EST.LOOP, t, EST.L)); LOOPS.kit.len = EST.L;
+  // Plano i em [2i, 2i + 2), mostrado do tempo de loop OFF (quem anda passa pelo meio da tela).
+  LOOPS.cast = t => { const i = Math.min(EST.CAST.length - 1, Math.floor(t / 2 + 1e-9)); ExpStyle.draw({ ...kitFrame(EST.CAST[i], EST.OFF + t - 2 * i, EST.L), t }); }; LOOPS.cast.len = EST.L;
 }

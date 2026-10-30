@@ -1,5 +1,5 @@
 AnimationPlatform.registerStyle({
-  id: 'pixel', name: 'Pixel art', backend: 'Canvas2D / 320×180', scripts: ['src/styles/pixel/engine.js', 'src/styles/pixel/draw.js'],
+  id: 'pixel', name: 'Pixel art', backend: 'Canvas2D / 320×180', scripts: ['src/styles/pixel/engine.js', 'src/styles/pixel/sprites.js', 'src/styles/pixel/draw.js'],
   validate(config) {
     if (!Number.isInteger(config.texture.scale) || config.texture.scale < 1 || 1920 % config.texture.scale || 1080 % config.texture.scale) throw new Error('Escala de pixel precisa dividir 1920×1080');
     if (!Number.isInteger(config.outline.weight) || config.outline.weight < 1) throw new Error('Contorno de pixel precisa ter espessura inteira positiva');
