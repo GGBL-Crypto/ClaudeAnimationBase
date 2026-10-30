@@ -921,7 +921,7 @@ window.ExpStyle = (() => {
             const wc = tint(KC.wood, f), wd = mixCol(wc, R.shadow, .3), wl = mixCol(wc, R.light, .3), h = o.h;
             for (const k of [.35, .75]) { c.fillStyle = wd; c.fillRect(o.x0, o.y - k * h, o.x1 - o.x0, 10); c.fillStyle = wl; c.fillRect(o.x0, o.y - k * h, o.x1 - o.x0, 3); }
             for (let px = o.x0; px <= o.x1 + 1; px += 60) { poly([[px - 7, o.y + 4], [px - 7, o.y - h + 6], [px, o.y - h], [px + 7, o.y - h + 6], [px + 7, o.y + 4]], wc); c.fillStyle = wd; c.fillRect(px + 2, o.y - h + 4, 5, h); }
-          } else if (o.kind === 'bush') {  // copa de círculos em três tons, larga ~1,6·s
+          } else if (o.kind === 'bush') {  // copa de círculos em três tons, larga ~1,9·s
             const lb = tint(KC.leaf, f), BK = { dk: mixCol(lb, R.shadow, .35), base: lb, lt: mixCol(lb, R.light, .3) };
             const cs = [...Array(6)].map((_, i) => { const u = (i + .5) / 6 * 2 - 1, r = s * (.3 + .1 * hash(o.seed + i)); return [x + u * .55 * s, y - r * (.9 + .5 * (1 - Math.abs(u))) - .05 * s, r]; });
             for (const [u, v, r] of cs) ell(u + .05 * s, v + .04 * s, r, r, 0, BK.dk);

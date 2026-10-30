@@ -1,4 +1,4 @@
-// Orquestrador do episódio (decisão 12). Uso: node scripts/episode.mjs <pasta> [--steps=narrate,build,loops,segments,mix,assemble,verify]
+// Orquestrador do episódio (decisão 12). Uso: node scripts/episode.mjs <pasta> [--steps=narrate,build,loops,segments,mix,assemble,verify] | --prune-acervo
 // Cada etapa é idempotente; uma linha JSON por evento no stdout ({step, done, total, message}); em falha, {step, error} e código 1.
 // Os filhos rodam com cwd na raiz e recebem caminhos relativos com / (o filtro subtitles do FFmpeg não lida com "C:").
 import { createHash } from 'node:crypto';
@@ -10,6 +10,7 @@ import { episodeProject } from './build-episode.mjs';
 import { validateEpisode, acervoKey, segmentArgs, concatList, assembleArgs, buildAss } from './episode-lib.mjs';
 
 // Limpeza manual do acervo: apaga entradas de outro sourceHash (ou sem ele) e arquivos fora do índice. Sem pasta ou índice, não faz nada.
+// --prune-acervo usa o hash da árvore de trabalho atual: rodado com edições de src/ não commitadas, apaga loops válidos da revisão commitada.
 export function pruneAcervo(dir, sourceHash, { rm = rmSync } = {}) {
   const indexFile = join(dir, 'index.json'), res = { files: 0, bytes: 0 };
   if (!existsSync(dir) || !existsSync(indexFile)) return res;
@@ -117,7 +118,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const r = pruneAcervo(join(ROOT, 'out/acervo'), sourceSnapshot().hash);
     console.log(JSON.stringify({ step: 'prune', files: r.files, mb: +(r.bytes / 1048576).toFixed(1) }));
   } else try {
-    if (!dir || dir.startsWith('--')) throw new Error('Uso: node scripts/episode.mjs <pasta> [--steps=narrate,build,loops,segments,mix,assemble,verify] | --prune-acervo');
+    if (!dir || dir.startsWith('--')) throw new Error('Uso: node scripts/episode.mjs <pasta> [--steps=narrate,build,loops,segments,mix,assemble,verify] | --prune-acervo (hash da árvore de trabalho atual: com src/ editado e não commitado, apaga loops válidos)');
     const a = parseArgs(rest), steps = a.steps ? String(a.steps).split(',') : STEPS;
     for (const k of Object.keys(a)) if (k !== 'steps' && k !== 'workers') throw new Error(`Opção desconhecida: --${k}`);
     for (const s of steps) if (!STEPS.includes(s)) throw new Error(`Etapa desconhecida: ${s} (etapas: ${STEPS.join(', ')})`);

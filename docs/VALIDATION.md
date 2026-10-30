@@ -194,7 +194,7 @@ Limites: revisão de imagens estáticas selecionadas e leitura de código, sem r
 ## 29/10/2026 — acabamento visual do kit (pixel primeiro)
 
 - O que mudou:
-  - Kit: primeiro plano por cena (`fence`, `bush`, `post`, `cart`, `boat`, `tuft`), fora dos `spots` com margem de 120 px.
+  - Kit: primeiro plano por cena (`fence`, `bush`, `post`, `cart`, `boat`, `tuft`), fora dos `spots` com margem de 130 px.
   - `ceu-noturno` composto: pinheiros perto, casa de 180×140 com 1 ou 2 janelas acesas, cerca, céu em cerca de 57% da altura.
   - Mapa com ondas, rosa dos ventos, picos, matas e moldura dupla.
   - Cabeça maior por estilo (`headScale`: pixel 1.7, flat 1.25, watercolor 1.15).
@@ -213,6 +213,8 @@ Limites: revisão de imagens estáticas selecionadas e leitura de código, sem r
     - a casa da noite é menor e mais distante que a casa grande em primeiro plano do story;
     - o olhar para cima depende do olho, da boca e do chapéu, sem inclinar a cabeça;
     - as nuvens do entardecer ainda parecem almofadas lisas de longe.
+- Revisão final do ramo: no pixel, a etiqueta do ator ("Leitor" / "relê os registros") cobria o alto da cabeça e o chapéu inteiro, porque ficava 16 px acima do `headTop` do esqueleto e o pixel desenha a cabeça 1,7× maior e o chapéu ~30 px acima. Conserto: a etiqueta sobe até o alto da cabeça escalada pelo `headScale` do estilo, mais 40 px no pixel (arredondamento e chapéu). Teste em `tests/episode-lib.test.mjs`. O giro do braço do pixel (`reach`) ficou limitado a 1,3 rad, o menor teto que ainda tira a mão do point do idoso do rosto (0,8 rad deixava a mão sobre o rosto no elenco e na demo s5).
 - Não conferido:
-  - corpos `child`, `heavy` e `thin`, capuz e capacete no flat e na aquarela (a ficha do elenco da demo só tem adulto e idoso);
+  - corpos `heavy` e `thin`, capuz e capacete: não renderizados em nenhum estilo, nem no pixel;
+  - corpo `child`: visto só no pixel (interior da smoke-kit), não no flat nem na aquarela;
   - ouvir o áudio inteiro.
