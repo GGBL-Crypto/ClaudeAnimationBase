@@ -7,8 +7,9 @@ import { ROOT, catalog } from './render-lib.mjs';
 import { canonShot } from './build-episode.mjs';
 
 // Fonte, cor de destaque (RGB), tamanhos e largura máxima da legenda (caracteres) por estilo de vídeo (decisão 11). watercolor usa o mesmo que flat.
+// lift: px de tela a mais acima da cabeça escalada para a etiqueta (pixel: arredondamento da cabeça em bloco e copa do chapéu).
 const FACES = {
-  pixel: { font: 'Press Start 2P', hl: 'F4C542', bold: 0, cap: 40, capOl: 4, chapter: 64, hud: 30, place: 34, tag: 26, width: 34 },
+  pixel: { font: 'Press Start 2P', hl: 'F4C542', bold: 0, cap: 40, capOl: 4, chapter: 64, hud: 30, place: 34, tag: 26, width: 34, lift: 40 },
   flat: { font: 'Atkinson Hyperlegible', hl: 'FFD166', bold: -1, cap: 60, chapter: 96, hud: 46, place: 48, tag: 40, width: 44 },
 };
 
@@ -38,10 +39,12 @@ export const tagActorIndex = (shot, ref) => typeof ref === 'string' ? (shot.acto
 
 // Posição da etiqueta na tela de 1920x1080: topo da cabeça do ator no quadro 0 do loop, pela câmera real do plano
 // (tela = (mundo - c) * z + centro). Quem a etiqueta aceita não anda, então o quadro 0 vale para o plano todo.
-function tagPos(shot, episode) {
+// A cabeça é a desenhada: escalada por character.headScale do estilo a partir de headBase, mais o lift do estilo.
+function tagPos(shot, episode, style, lift = 0) {
   const F = kit().kitFrame({ scene: shot.scene.id, params: shot.scene.params, actors: shot.actors, cast: episode.cast }, 0, episode.loopLen ?? 12);
-  const { cx, cy, z } = F.cam, [hx, hy] = F.actors[tagActorIndex(shot, shot.hud.tag.actor)].pose.joints.headTop;
-  return [Math.round(Math.min(1720, Math.max(200, (hx - cx) * z + 960))), Math.round((hy - cy) * z + 540 - 16)];
+  const { cx, cy, z } = F.cam, J = F.actors[tagActorIndex(shot, shot.hud.tag.actor)].pose.joints, hs = catalog().styles[style]?.config.character?.headScale || 1;
+  const [hx, hy] = J.headBase.map((v, i) => v + hs * (J.headTop[i] - v));
+  return [Math.round(Math.min(1720, Math.max(200, (hx - cx) * z + 960))), Math.round((hy - cy) * z + 540 - 16 - lift)];
 }
 
 const cs = t => Math.round(Math.max(0, t) * 100);
@@ -96,7 +99,7 @@ export function buildAss({ timing, episode, style }) {
     if (hud.year || hud.sub) line(sh.start, sh.end, 'Hud', [hud.year, hud.sub].filter(Boolean).map(assEscape).join(' - ')); // uma linha só: BorderStyle 3 desenha uma caixa por linha
     if (hud.place) line(sh.start, sh.end, 'Place', assEscape(hud.place));
     if (hud.tag) {
-      const [x, y] = tagPos(shotsEp[sh.id], episode);
+      const [x, y] = tagPos(shotsEp[sh.id], episode, style, f.lift);
       const sub = hud.tag.sub ? `\\N{\\u0\\fs${Math.round(f.tag * .75)}}${assEscape(hud.tag.sub)}` : '';
       line(sh.start, sh.end, 'Tag', `{\\pos(${x},${y})\\u1}${assEscape(hud.tag.text)}${sub}`);
     }
