@@ -9,11 +9,11 @@ const VIEWS = {
   '#/favoritos': () => import('./views/collections.js').then(m => ({ render: m.renderFavorites })),
   '#/historico': () => import('./views/history.js'), '#/config': () => import('./views/settings.js'),
   '#/nichos': () => import('./views/niches.js'), '#/concorrentes': () => import('./views/competitors.js'), '#/monitor': () => import('./views/monitor.js'),
-  '#/modelar': () => import('./views/model.js'), '#/meus': () => import('./views/mychannels.js'),
+  '#/modelar': () => import('./views/model.js'), '#/meus': () => import('./views/mychannels.js'), '#/gerar': () => import('./views/generate.js'),
 };
 const MENU = [
   ['Visão geral', '#/geral'], ['Minerar canais', '#/minerar'], ['Minerar vídeos', '#/videos'], ['Outliers', '#/outliers'], ['Nichos', '#/nichos'], ['Concorrentes', '#/concorrentes'], ['Modelar', '#/modelar'],
-  ['Coleções', '#/colecoes'], ['Monitoramento', '#/monitor'], ['Favoritos', '#/favoritos'], ['Histórico', '#/historico'], ['Meus canais', '#/meus'], ['Configurações', '#/config'],
+  ['Coleções', '#/colecoes'], ['Monitoramento', '#/monitor'], ['Favoritos', '#/favoritos'], ['Histórico', '#/historico'], ['Meus canais', '#/meus'], ['Gerar vídeo', '#/gerar'], ['Configurações', '#/config'],
 ];
 
 const meter = h('span', { class: 'quota' }, 'cota …');

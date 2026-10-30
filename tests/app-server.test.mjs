@@ -443,6 +443,55 @@ test('voice sample saves wpm and serves wav', async () => {
     assert.equal(m.status, 200); assert.deepEqual(JSON.parse(m.body), { error: 'Kokoro não instalado: veja docs/VOICE.md' });
   } finally { await s4.close(); }
 });
+// Fase 6: produções, cancelar e rota de arquivos.
+const newMy = async name => JSON.parse((await post('/api/mychannels', { name, lang: 'pt', style: 'pixel', voice: 'kokoro:pm_alex', targetMin: 40, toleranceMin: 5 }, ok)).body).id;
+test('productions: create with profile defaults, list, detail, delete', async () => {
+  const my = await newMy('Produções');
+  const p = JSON.parse((await post('/api/productions', { myId: my }, ok)).body);
+  assert.deepEqual([p.myId, p.theme, p.targetMin, p.toleranceMin, p.style], [my, null, 40, 5, 'pixel']);
+  assert.deepEqual(Object.values(p.steps).map(s => s.status), Array(9).fill('pending'));
+  const q = JSON.parse((await post('/api/productions', { myId: my, theme: '  Roma antiga ', targetMin: 20, toleranceMin: 2, style: 'flat' }, ok)).body);
+  assert.deepEqual([q.theme, q.targetMin, q.toleranceMin, q.style], ['Roma antiga', 20, 2, 'flat']);
+  for (const b of [{}, { myId: 'x' }, { myId: my, theme: 'ab' }, { myId: my, theme: 'x'.repeat(201) }, { myId: my, targetMin: 9 }, { myId: my, toleranceMin: 16 }, { myId: my, style: 'stick' }]) assert.equal((await post('/api/productions', b, ok)).status, 400, JSON.stringify(b));
+  assert.equal((await post('/api/productions', { myId: 999999 }, ok)).status, 404);
+  assert.deepEqual(JSON.parse((await get('/api/productions?my=' + my)).body).map(x => x.id), [q.id, p.id]);
+  assert.ok(JSON.parse((await get('/api/productions')).body).length >= 2);
+  assert.equal((await get('/api/productions?my=x')).status, 400);
+  const d = JSON.parse((await get('/api/productions/' + p.id)).body); assert.equal(d.id, p.id); assert.deepEqual(d.active, {});
+  assert.equal((await get('/api/productions/abc')).status, 404); assert.equal((await get('/api/productions/999999')).status, 404);
+  assert.equal((await post(`/api/productions/${q.id}/delete`, {}, ok)).status, 200); assert.equal((await get('/api/productions/' + q.id)).status, 404);
+  assert.equal((await post('/api/productions/999999/delete', {}, ok)).status, 404);
+  assert.equal((await post('/api/jobs/nope/cancel', {}, ok)).status, 404);
+});
+test('file route serves only whitelisted names with Range', async () => {
+  const my = await newMy('Arquivos'), { id } = JSON.parse((await post('/api/productions', { myId: my }, ok)).body);
+  const pd = join(opts.outDir, 'prod', String(id)), ed = join(temp, 'episodes', 'p' + id);
+  await mkdir(join(pd, 'cenas'), { recursive: true }); await mkdir(join(pd, 'thumbs'), { recursive: true }); await mkdir(ed, { recursive: true });
+  await writeFile(join(ed, 'video.mp4'), Buffer.from('0123456789abcdefghij')); await writeFile(join(pd, 'roteiro.md'), '# Roma');
+  await writeFile(join(pd, 'cenas', 's1-a.png'), 'png'); await writeFile(join(pd, 'thumbs', 'thumb-2.png'), 'th'); await writeFile(join(temp, 'secret.txt'), 'no');
+  const f = n => `/api/productions/${id}/files/${n}`;
+  const r = await get(f('video.mp4'), { Range: 'bytes=0-9' });
+  assert.equal(r.status, 206); assert.equal(r.body, '0123456789'); assert.equal(r.headers['content-range'], 'bytes 0-9/20'); assert.equal(r.headers['content-type'], 'video/mp4'); assert.equal(r.headers['accept-ranges'], 'bytes');
+  assert.equal((await get(f('video.mp4'), { Range: 'bytes=15-' })).body, 'fghij');
+  assert.equal((await get(f('video.mp4'), { Range: 'bytes=-3' })).body, 'hij');
+  assert.equal((await get(f('video.mp4'), { Range: 'bytes=30-40' })).status, 416);
+  const full = await get(f('video.mp4')); assert.equal(full.status, 200); assert.equal(full.body.length, 20); assert.equal(full.headers['x-content-type-options'], 'nosniff');
+  const md = await get(f('roteiro.md')); assert.equal(md.body, '# Roma'); assert.match(md.headers['content-type'], /text\/markdown/);
+  assert.equal((await get(f('cena-s1-a.png'))).body, 'png'); assert.equal((await get(f('thumb-2.png'))).headers['content-type'], 'image/png');
+  assert.equal((await get(f('mix.m4a'))).status, 404); assert.equal((await get(f('legendas.srt'))).status, 404);
+  for (const n of ['../secret.txt', '..%2fsecret.txt', '%2e%2e', 'video.mp4x', 'video.mp4/../x', 'secret.txt', 'cena-../x.png', 'cena-A.png', 'production.json']) assert.ok([403, 404].includes((await get(f(n))).status), n);
+  for (const p of ['/api/productions/abc/files/video.mp4', '/api/productions/999999/files/video.mp4', '/api/productions/1e3/files/video.mp4']) assert.ok([403, 404].includes((await get(p)).status), p);
+});
+test('running steps become interrupted on start', async () => {
+  const t = await mkdtemp(join(tmpdir(), 'app-int-')), d = join(t, 'd');
+  let db = openDb(join(d, 'app.db')); const my = db.createMyChannel({ name: 'c', lang: 'pt', style: 'flat', voice: 'kokoro:pm_alex', speed: 1, targetMin: 30, toleranceMin: 3 });
+  const id = db.createProduction({ myId: my, theme: 'Roma', targetMin: 30, toleranceMin: 3, style: 'flat' }); db.setStep(id, 'render', { status: 'running' }); db.close();
+  const sv = await startAppServer({ dataDir: d, appDir: join(t, 'none'), outDir: join(t, 'out'), now: NOW });
+  try {
+    const s = JSON.parse((await get('/api/productions/' + id, {}, sv)).body).steps.render;
+    assert.deepEqual([s.status, s.error], ['error', 'Interrompida (servidor reiniciado)']);
+  } finally { await sv.close(); await rm(t, { recursive: true, force: true }); }
+});
 test('corrupted config.json falls back to defaults', async () => {
   await writeFile(join(dataDir, 'config.json'), '{oops');
   const r = await get('/api/config'); assert.equal(r.status, 200); assert.deepEqual(JSON.parse(r.body).weights, DEFAULTS.weights);

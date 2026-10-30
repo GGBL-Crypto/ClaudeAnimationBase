@@ -118,6 +118,15 @@ function kit() {
   return kitCache = ctx;
 }
 
+// Catálogo do kit para o app (decisão 11): cenas do estilo com extras e exterior, mais as listas do kit e os campos do hud.
+// Cópia em JSON: os arrays do vm são de outro realm.
+export function kitCatalog(style) {
+  const scenes = catalog().styles[style]?.config.episodeScenes;
+  if (!scenes) throw new Error(`Estilo sem cenas de episódio: ${style}`);
+  const { KIT_SCENES, KIT_CATALOG } = kit();
+  return JSON.parse(JSON.stringify({ scenes: Object.fromEntries(scenes.map(id => [id, { extras: KIT_SCENES[id].extras, exterior: KIT_SCENES[id].exterior }])), ...KIT_CATALOG, hud: ['year', 'sub', 'place', 'tag'] }));
+}
+
 const ID = { test: v => typeof v === 'string' && /^[a-z][a-z0-9-]*$/.test(v) }, str = v => typeof v === 'string' && v.trim() !== '';
 const fail = (field, why) => { throw new Error(`${field}: ${why}`); };
 

@@ -156,3 +156,38 @@ test('my channel keeps model link and clears it when the model goes', () => {
   assert.equal(db.myChannel(id).modelId, mid); db.raw.exec('DELETE FROM models'); assert.equal(db.myChannel(id).modelId, null);
 });
 test('voiceWpm default is empty', () => { assert.deepEqual(DEFAULTS.voiceWpm, {}); });
+// Fase 6: produções, etapas e análises de roteiro.
+test('productions: steps default pending, setStep merges, list without result, newest first', () => {
+  const db = openDb(':memory:'), my = db.createMyChannel({ name: 'c', lang: 'pt', style: 'flat', voice: 'kokoro:pm_alex', speed: 1, targetMin: 30, toleranceMin: 3 });
+  const a = db.createProduction({ myId: my, theme: 'Roma', targetMin: 30, toleranceMin: 3, style: 'flat' }), b = db.createProduction({ myId: my, theme: null, targetMin: 20, toleranceMin: 2, style: 'pixel' });
+  const p = db.production(a); assert.deepEqual([p.id, p.myId, p.theme, p.targetMin, p.toleranceMin, p.style], [a, my, 'Roma', 30, 3, 'flat']);
+  assert.equal(Object.keys(p.steps).length, 9); assert.deepEqual(p.steps.pauta, { status: 'pending', startedAt: null, finishedAt: null, ms: null, result: null, error: null });
+  db.setStep(a, 'fontes', { status: 'done', ms: 12, result: { n: [1, 2] } }); db.setStep(a, 'fontes', { error: 'x' });
+  assert.deepEqual(db.production(a).steps.fontes, { status: 'done', startedAt: null, finishedAt: null, ms: 12, result: { n: [1, 2] }, error: 'x' });
+  db.updateProduction(b, { theme: 'Grécia', targetMin: 25, toleranceMin: 4, style: 'flat' }); assert.equal(db.production(b).theme, 'Grécia');
+  const l = db.productions(); assert.deepEqual(l.map(x => x.id), [b, a]); assert.ok(!('result' in l[1].steps.fontes)); assert.equal(l[1].steps.fontes.ms, 12);
+  assert.deepEqual(db.productions({ myId: my + 1 }), []); assert.equal(db.production(999), null);
+  assert.equal(db.deleteProduction(a), true); assert.equal(db.production(a), null);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) n FROM production_steps WHERE prod_id=?').get(a).n, 0);
+});
+test('deleting a my channel cascades productions', () => {
+  const db = openDb(':memory:'), my = db.createMyChannel({ name: 'c', lang: 'pt', style: 'flat', voice: 'kokoro:pm_alex', speed: 1, targetMin: 30, toleranceMin: 3 });
+  const id = db.createProduction({ myId: my, theme: 'Roma', targetMin: 30, toleranceMin: 3, style: 'flat' }); db.setStep(id, 'pauta', { status: 'done' });
+  db.deleteMyChannel(my);
+  assert.equal(db.production(id), null); assert.equal(db.raw.prepare('SELECT COUNT(*) n FROM production_steps').get().n, 0);
+  assert.throws(() => db.createProduction({ myId: 999, theme: 'x', targetMin: 30, toleranceMin: 3, style: 'flat' })); // FK
+});
+test('interruptRunning turns running steps into errors', () => {
+  const db = openDb(':memory:'), my = db.createMyChannel({ name: 'c', lang: 'pt', style: 'flat', voice: 'kokoro:pm_alex', speed: 1, targetMin: 30, toleranceMin: 3 });
+  const id = db.createProduction({ myId: my, theme: 'Roma', targetMin: 30, toleranceMin: 3, style: 'flat' });
+  db.setStep(id, 'render', { status: 'running', startedAt: '2026-10-30T10:00:00Z' }); db.setStep(id, 'cenas', { status: 'done' });
+  assert.equal(db.interruptRunning(), 1);
+  const s = db.production(id).steps; assert.deepEqual([s.render.status, s.render.error, s.cenas.status], ['error', 'Interrompida (servidor reiniciado)', 'done']);
+  assert.equal(db.interruptRunning(), 0);
+});
+test('script analyses are saved per video', () => {
+  const db = openDb(':memory:');
+  assert.equal(db.scriptAnalysis('abcdefghijk'), null);
+  db.saveScriptAnalysis('abcdefghijk', { lang: 'pt', output: { gancho: 'g' } }); db.saveScriptAnalysis('abcdefghijk', { lang: 'en', output: { gancho: 'h' } });
+  const a = db.scriptAnalysis('abcdefghijk'); assert.deepEqual([a.videoId, a.lang, a.output], ['abcdefghijk', 'en', { gancho: 'h' }]); assert.ok(a.at);
+});
