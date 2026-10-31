@@ -255,4 +255,4 @@ Limites: revisão de imagens estáticas selecionadas e leitura de código, sem r
   - Melhor: 6 cabelos e 5 corpos, cor do elenco com o valor preservado, mãos e botas espelhadas, olho sem "E", dedo do `point`, sprites que escalam no `mid`, ações novas, paleta em 122 cores.
   - Pior: o boneco ocupa menos tela que no protótipo (grade 480 contra 320); deitado com rosto fraco e chapéu em pé; copa atrás da cabeça confunde a silhueta; pernas mais longas e menos "chibi" que as referências.
 - `npm test`: 476/476. `npm run test:visual`: PASS. `check-motion` pixel na smoke-kit: 0 violações. `git status --porcelain data/ out/ src/episodes.js`: vazio.
-- Não conferido: ouvir o áudio inteiro; deitado e capa em `flat` e `watercolor` (só o pixel desenha capa e cachecol).
+- Não conferido: ouvir o áudio inteiro; ações novas (run, cheer, talk, kneel, cower, lie) conferidas em `flat` e `watercolor` (out/check/fig/final-*.jpg); capa e cachecol só no pixel.

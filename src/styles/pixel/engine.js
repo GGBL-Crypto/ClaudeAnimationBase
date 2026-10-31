@@ -22,7 +22,7 @@
   window.VisitArt={
     background(t){
       rect(0,0,buffer.width,buffer.height,P.sky);
-      // Coordinate design at 320×180; changing grid scale still preserves world framing.
+      // Coordenadas de projeto em 320×180; a grade atual é 480×270 (texture.scale 4), 6/scale mantém o enquadramento.
       c.save();c.scale(6/scale,6/scale);
       for(const [x,y]of [[34,36],[243,27]]){rect(x-15,y,49,9,P.cloud);rect(x-8,y-5,30,6,P.cloud);rect(x,y-11,12,8,P.cloud);}
       rect(0,141,320,39,P.ground);rect(0,140,68,2,P.foliage);rect(69,139,82,2,P.foliage);rect(152,140,78,2,P.foliage);rect(231,139,89,2,P.foliage);

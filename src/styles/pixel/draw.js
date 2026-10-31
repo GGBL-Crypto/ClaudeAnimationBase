@@ -178,14 +178,12 @@
   function sideOf(F, sx) { const src = (!K.interior && K.sky.celestial) || K.lights[0]; return src ? (sx >= view(F, src.f || 0).x(src.x) ? 1 : -1) : 1; }
   const blit = (L, ox, oy) => L.cells.forEach((q, i) => { if (q) px(i % L.W - L.OX + ox, (i / L.W | 0) - L.OY + oy, q); });
   // Copa em tufos (e tronco) rasterizada pelo núcleo do boneco, na luz do astro, 1 tom abaixo à noite e no interior, luz de borda só
-  // de dia; guardada por (semente, tamanho, clima, lado) só dentro do quadro (tufts é refeito em drawK).
-  let tufts = new Map();
+  // de dia.
   function tuft(parts, seed, hw, hh, x, y) {
     hw = Math.ceil(hw); hh = Math.ceil(hh);
-    const side = sideOf(F0, x), shift = K.mood === 'night' || K.mood === 'interior' ? 1 : 0, key = [seed, hw, hh, K.mood, side].join(), hit = tufts.get(key);
-    const L = hit || figureLayer(parts, { W: 2 * hw, H: hh + 4, OX: hw, OY: hh },
+    const side = sideOf(F0, x), shift = K.mood === 'night' || K.mood === 'interior' ? 1 : 0;
+    const L = figureLayer(parts, { W: 2 * hw, H: hh + 4, OX: hw, OY: hh },
       { ramps: STYLE.ramps, light: [-.55 * side, -.7, .5], rim: lit(), ink: K.mood === 'night' ? P.stoneDk : P.black, shift });
-    if (!hit) tufts.set(key, L);
     blit(L, x, y);
   }
   // Pinheiro serrilhado (camadas que crescem e recuam), árvore larga em bolha (copa em tufos nas camadas de f ≥ .45), palmeira.
@@ -442,7 +440,7 @@
     const O = V0.p(J.pelvis).map(Math.round), loc = q => [(q[0] - O[0]) * fc, q[1] - O[1]], w = n => RO[n] || V.p(J[n]), g = n => loc(w(n)), hand = sd => loc(RO['hand' + sd] || short(w('wrist' + sd), w('hand' + sd)));
     // Rampas do elenco por papel (rampFor: família de familyOf deslocada para guardar o valor da cor pedida).
     const cc = { skin: P.body, hair: P.woodDk, shirt: P.sea, pants: P.ink, accent: P.red2, ...(a.colors || {}) }, fam = { skin: 'skin', hair: 'hair', shirt: 'shirt', pants: 'pants', accent: 'accent' };
-    const R = { ...STYLE.ramps, ...Object.fromEntries(Object.keys(fam).map(m => [m, rampFor(cc[m], m === 'skin' || m === 'hair' ? m : 'cloth', STYLE.ramps)])) };
+    const RR = { ...STYLE.ramps, ...Object.fromEntries(Object.keys(fam).map(m => [m, rampFor(cc[m], m === 'skin' || m === 'hair' ? m : 'cloth', STYLE.ramps)])) };
     const r = x => (x + dr) * s, kind = sd => (a.role === 'point' || a.role === 'talk') && sd === near ? (a.role === 'point' ? 'point' : 'open') : HANDS[a.role] || 'relax';
     const arm = (sd, gr, bias) => { const S0 = g('shoulder' + sd), E = g('elbow' + sd), W0 = g('wrist' + sd), o = { g: gr, bias };
       return [quadPart(S0, E, r(2.4), r(2.1), fam.shirt, o), ellipsePart(E, r(2), r(2), fam.shirt, o), quadPart(E, W0, r(2.1), r(1.8), fam.shirt, o),
@@ -467,24 +465,24 @@
     const fly = a.role === 'run' ? 2.4 : 0, ac = { g: 'tail' }, bk = Tp([-5.4, -23.6 + sw * .8]), tail = Tp([-9.8 - fly, -22.4 - sw * 1.2]);
     const scarf = gear.includes('scarf') ? [capsulePart(Tp([-1, -25]), bk, 2.2 * s, 1.6 * s, fam.accent, ac), capsulePart(bk, tail, 1.6 * s, .8 * s, fam.accent, ac)] : [];
     const cape = gear.includes('cape') ? [polyPart([[1.6, -27.4], [-7.2, -26], [-11 + sw * 1.5 - fly, -7.6], [-3.4 + sw * 1.5 - fly / 2, -6.2]].map(Tp), 1.6 * s, fam.accent, { g: 'cape' })] : [];
-    const c = loc(hb.c), Hd = (dx, dy) => [c[0] + dx * s, c[1] + dy * s], hd = { g: 'head' }, hairMat = hb.map === 'hood' ? fam.shirt : hb.map === 'helmet' ? 'grey' : fam.hair;
+    const hc = loc(hb.c), Hd = (dx, dy) => [hc[0] + dx * s, hc[1] + dy * s], hd = { g: 'head' }, hairMat = hb.map === 'hood' ? fam.shirt : hb.map === 'helmet' ? 'grey' : fam.hair;
     const parts = [...pack, ...cape, ...scarf, ...arm(far, 'armB', -.55), ...leg(far, 'legB', -.55), ...coat(far, -.55), torso, ...leg(near, 'legF', 0), ...coat(near, 0),
       ...(gear.includes('scarf') ? [ellipsePart(Tp([.8, -25.4]), 5.6 * s, 2.3 * s, fam.accent)] : []),
       ellipsePart(Hd(0, 0), 7.8 * s, 7.6 * s, fam.skin, hd), ellipsePart(Hd(1.6, 3.4), 6.2 * s, 4.7 * s, fam.skin, hd), ellipsePart(Hd(7.4, 1.8), 1.2 * s, 1.1 * s, fam.skin, hd),
-      ...(hb.hs ? [spritePart(c, hb.hs, hairMat)] : []), ...(hb.hat ? [spritePart(c, hb.hat, 'leather')] : []), ...(hb.map === 'hood' ? [] : [spritePart(Hd(-3.2, 1.8), sc(S5.ear), fam.skin, hd)]),
+      ...(hb.hs ? [spritePart(hc, hb.hs, hairMat)] : []), ...(hb.hat ? [spritePart(hc, hb.hat, 'leather')] : []), ...(hb.map === 'hood' ? [] : [spritePart(Hd(-3.2, 1.8), sc(S5.ear), fam.skin, hd)]),
       ...arm(near, 'armF', 0)];
     // Caixa simétrica em x em torno de O (o flip não perde nada), com folga para cabelo, mãos e botas.
-    const pts = [...Object.keys(J).map(g), c], pad = Math.ceil(16 * s) + 2, OX = Math.ceil(Math.max(...pts.map(q => Math.abs(q[0])))) + pad, OY = Math.ceil(-Math.min(...pts.map(q => q[1]))) + pad;
+    const pts = [...Object.keys(J).map(g), hc], pad = Math.ceil(16 * s) + 2, OX = Math.ceil(Math.max(...pts.map(q => Math.abs(q[0])))) + pad, OY = Math.ceil(-Math.min(...pts.map(q => q[1]))) + pad;
     // Deitado: grade quadrada de meia largura E (rotateCells exige W = H) em volta da pelve.
     const E = Math.max(OX, OY, Math.ceil(Math.max(...pts.map(q => q[1]))) + pad), box = lying ? { W: 2 * E, H: 2 * E, OX: E, OY: E } : { W: 2 * OX, H: OY + Math.ceil(Math.max(...pts.map(q => q[1]))) + pad, OX, OY };
     // Luz local: L com x vezes side·facing; side = longe da luz. Deitado, a luz de pé é a final girada de volta: [.7, −.55·side·facing].
     // ponytail: figureLayer varre a caixa inteira por peça (~240 ms/quadro no cast contra ~125 do boneco antigo; o memo acima pula
     // os desenhos repetidos, ~metade a 24 fps); caixa por peça em figure.js se ainda pesar.
-    let layer = figureLayer(parts, box, { ramps: R, light: lying ? [.7, -.55 * side * fc, .5] : [-.55 * side * fc, -.7, .5], rim: true, ink: K.mood === 'night' ? P.stoneDk : P.black, shift });
+    let layer = figureLayer(parts, box, { ramps: RR, light: lying ? [.7, -.55 * side * fc, .5] : [-.55 * side * fc, -.7, .5], rim: true, ink: K.mood === 'night' ? P.stoneDk : P.black, shift });
     // Rosto pelo facePlan, pintado só na cabeça e no cabelo (paintFace): o braço de perto continua na frente dele.
     const Fc = a.pose.face || {}, up = hb.v === 'up';
-    paintFace(layer, facePlan({ face: Fc.blink >= .5 ? 'blink' : up && Fc.expression === 'neutral' ? 'curious' : Fc.expression, mouth: Fc.mouth || (up ? 'o' : 'none'), up }, s), c,
-      { K: P.black, W: P.eye, B: R[fam.hair][0], S: R[fam.skin][Math.max(0, 1 - shift)], T: P.red3, P: P.blush });
+    paintFace(layer, facePlan({ face: Fc.blink >= .5 ? 'blink' : up && Fc.expression === 'neutral' ? 'curious' : Fc.expression, mouth: Fc.mouth || (up ? 'o' : 'none'), up }, s), hc,
+      { K: P.black, W: P.eye, B: RR[fam.hair][0], S: RR[fam.skin][Math.max(0, 1 - shift)], T: P.red3, P: P.blush });
     if (lying) layer = rotateCells(layer, -1);  // cabeça para trás (a esquerda do espaço local, que já olha para a direita)
     if (fc < 0) layer = flipCells(layer);
     if (memo.size >= 40) memo.clear();
@@ -510,7 +508,7 @@
   }
 
   function drawK(F) {
-    K = F.world.kit; R = STYLE.moods[K.mood]; F0 = F; clip = null; tufts = new Map();
+    K = F.world.kit; R = STYLE.moods[K.mood]; F0 = F; clip = null;
     const V0 = view(F, 0), V1 = view(F, 1), I = K.interior, win = I && I.window;
     if (K.map) map(V1, K.map);
     else if (I) {
