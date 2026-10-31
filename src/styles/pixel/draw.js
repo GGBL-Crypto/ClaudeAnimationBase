@@ -379,39 +379,61 @@
   // Braço de perto cuja mão cairia dentro da cabeça grande (o point põe o pulso na altura do rosto): o braço inteiro gira no
   // ombro, sem mudar os comprimentos, o menor ângulo (de preferência para baixo, à frente) que tira pulso, mão e dedo 1 px
   // para fora da cabeça, contados o bloco e o contorno. Giro de até 1,3 rad (o menor teto que ainda tira a mão do point do
-  // idoso do rosto); se nada sai, fica o braço sem giro. O point ganha um dedo de 1 px na direção da mão. Devolve os pontos
-  // desenhados em px da grade (S, E, W, H, D → tip do dedo, rot = girou) ou null.
-  function reach(a, V, hb, lw) {
-    const J = a.pose.joints, n = a.pose.facing > 0 ? 'L' : 'R', S0 = V.p(J['shoulder' + n]), pt = a.role === 'point', m = lw / 2 + 2;
+  // idoso do rosto); se nada sai, fica o braço sem giro. A mão erguida (acima de headBase, fora o point: cheer, talk) não gira
+  // para baixo: o pulso e a mão saem de lado e para cima (cotovelo 40%), de 1 px em 1 px, até fora da caixa. O braço de longe
+  // (far) só entra por esse empurrão (a cabeça o cobre nos outros casos). O point ganha um dedo de 1 px na direção da mão.
+  // Devolve os pontos desenhados em px da grade (S, E, W, H, D → tip do dedo, rot = girou ou saiu) ou null.
+  function reach(a, V, hb, lw, n = a.pose.facing > 0 ? 'L' : 'R', far = false) {
+    const J = a.pose.joints, S0 = V.p(J['shoulder' + n]), pt = a.role === 'point' && !far, m = lw / 2 + 2, h0 = V.p(J['hand' + n]), raised = !pt && h0[1] < V.p(J.headBase)[1], sx = Math.sign(h0[0] - hb.x - hb.w / 2) || a.pose.facing;
     const hit = (q, d) => q[0] > hb.x - d && q[0] < hb.x + hb.w + d && q[1] > hb.y - d && q[1] < hb.y + hb.h + d;
-    const arm = t => {
-      const rot = q => { const dx = q[0] - S0[0], dy = q[1] - S0[1], c = Math.cos(t), s = Math.sin(t); return [S0[0] + dx * c - dy * s, S0[1] + dx * s + dy * c]; };
-      const [E, W, H0] = ['elbow', 'wrist', 'hand'].map(k => rot(V.p(J[k + n]))), H = short(W, H0);
+    const arm = (t, pu = 0) => {
+      const rot = q => { const dx = q[0] - S0[0], dy = q[1] - S0[1], c = Math.cos(t), s = Math.sin(t); return [S0[0] + dx * c - dy * s, S0[1] + dx * s + dy * c]; }, out = (q, f) => [q[0] + sx * pu * f, q[1] - pu * f / 2];
+      const [E, W, H0] = ['elbow', 'wrist', 'hand'].map((k, i) => out(rot(V.p(J[k + n])), i ? 1 : .4)), H = short(W, H0);
       const d = Math.hypot(H[0] - W[0], H[1] - W[1]) > .5 ? [H[0] - W[0], H[1] - W[1]] : [W[0] - E[0], W[1] - E[1]], L = Math.hypot(...d) || 1, u = [d[0] / L, d[1] / L];
-      const q = { n, S: S0, E, W, H, rot: t !== 0, ...(pt && { D: [H[0] + u[0] * (lw / 2 + .5), H[1] + u[1] * (lw / 2 + .5)], tip: [H[0] + u[0] * (lw / 2 + 2), H[1] + u[1] * (lw / 2 + 2)] }) };
+      const q = { n, S: S0, E, W, H, rot: t !== 0 || pu > 0, ...(pt && { D: [H[0] + u[0] * (lw / 2 + .5), H[1] + u[1] * (lw / 2 + .5)], tip: [H[0] + u[0] * (lw / 2 + 2), H[1] + u[1] * (lw / 2 + 2)] }) };
       q.clear = !hit(W, m) && !hit(H, m) && !(pt && hit(q.tip, 2.5));  // o braço de cima e o cotovelo podem encostar no queixo
       return q;
     };
     const q0 = arm(0);
     if (q0.clear) return pt ? q0 : null;
+    if (raised) for (let pu = 1; pu <= 20; pu++) { const q = arm(0, pu); if (q.clear) return q; }
+    if (far) return null;
     for (let k = 1; k <= 13; k++) for (const sg of [a.pose.facing, -a.pose.facing]) { const q = arm(sg * k * .1); if (q.clear) return q; }
     return pt ? q0 : null;
   }
+  // Os braços que o reach desenha fora do osso: o de perto e, se erguido, o de longe.
+  const reaches = (a, V, hb) => { const lw = 2 * (2.1 + (BODY[a.pose.body] || [0, 0])[1]) * hb.s, n = a.pose.facing > 0 ? 'L' : 'R'; return [reach(a, V, hb, lw, n), reach(a, V, hb, lw, n === 'L' ? 'R' : 'L', true)].filter(Boolean); };
   // Monta o boneco na ordem do protótipo (braço e perna de longe com viés −.55, tronco, perna de perto, cabeça com queixo e
   // nariz, cabelo, chapéu, orelha, braço de perto), rasteriza, pinta o rosto (facePlan), desce 1 tom à noite e no interior
-  // (shift) e espelha. Rampas do elenco por rampFor (família de familyOf com o valor da cor); bota leather, capacete grey, capuz na da camisa.
-  // Devolve { layer, O (px da grade da origem local), k }.
+  // (shift) e espelha. Rampas do elenco por rampFor (família de familyOf com o valor da cor); bota leather, capacete grey, capuz na da camisa;
+  // cachecol e capa na rampa do accent (padrão red). Deitado (lying), monta o boneco de pé (a pose girada de volta em torno da pelve,
+  // com o eixo pelve → pescoço na vertical) numa grade quadrada e gira a grade 90° (rotateCells, exato); a luz gira junto. Devolve
+  // { layer, O (px da grade da origem local), k }; o resultado é guardado por chave (memo): o engine desenha em 12/s e o mesmo
+  // desenho se repete nos quadros seguintes.
+  const memo = new Map();
   function figureOf(a, F) {
-    const V = view(F, a.layer), J = a.pose.joints, fc = a.pose.facing, hb = headBox(a, V), { s, sc } = hb, [dw, dr] = BODY[a.pose.body] || [0, 0], gear = a.gear || [];
-    const near = fc > 0 ? 'L' : 'R', far = near === 'L' ? 'R' : 'L', rc = reach(a, V, hb, 2 * (2.1 + dr) * s), RO = rc ? { ['elbow' + rc.n]: rc.E, ['wrist' + rc.n]: rc.W, ['hand' + rc.n]: rc.H } : {};
-    const O = V.p(J.pelvis).map(Math.round), loc = q => [(q[0] - O[0]) * fc, q[1] - O[1]], w = n => RO[n] || V.p(J[n]), g = n => loc(w(n)), hand = sd => loc(RO['hand' + sd] || short(w('wrist' + sd), w('hand' + sd)));
+    const V0 = view(F, a.layer), J = a.pose.joints, fc = a.pose.facing, gear = a.gear || [], lying = a.lying === 1;
+    // Luz: o astro (no interior, ou sem astro, a primeira luz; sem nenhuma, à esquerda) e o lado do peito em relação a ele.
+    const src = (!K.interior && K.sky.celestial) || K.lights[0], side = src ? (V0.p(J.chest)[0] >= view(F, src.f || 0).x(src.x) ? 1 : -1) : 1, shift = K.mood === 'night' || K.mood === 'interior' ? 1 : 0;
+    // Ondulação do cachecol e da capa: fase da passada quando anda, senão t/L · round(L / 1,6) (K.phase = t/L).
+    const sw = gear.includes('scarf') || gear.includes('cape') ? sway(a.role === 'walk' || a.role === 'run' ? a.phase : K.phase * Math.max(1, Math.round(K.L / 1.6))) : 0;
+    // Chave: tudo o que muda o desenho (pose, ator, câmera e camada, luz, ondulação); limite de 40 desenhos (os repetidos vêm em sequência).
+    const key = JSON.stringify([a.id, a.role, a.layer, gear, a.colors, a.hair, lying, a.seated, a.phase, J, fc, a.pose.face, a.pose.body, F.cam, K.mood, side, shift, sw]), hit = memo.get(key);
+    if (hit) return hit;
+    // Deitado: V devolve os pontos da pose de pé (girados de volta em torno da pelve até o eixo pelve → pescoço ficar na vertical).
+    const pv0 = V0.p(J.pelvis), nk0 = V0.p(J.neck), th = -Math.PI / 2 - Math.atan2(nk0[1] - pv0[1], nk0[0] - pv0[0]), co = Math.cos(th), si = Math.sin(th);
+    const V = lying ? { ...V0, p: q => { const [x, y] = V0.p(q), dx = x - pv0[0], dy = y - pv0[1]; return [pv0[0] + dx * co - dy * si, pv0[1] + dx * si + dy * co]; } } : V0;
+    const hb = headBox(a, V), { s, sc } = hb, [dw, dr] = BODY[a.pose.body] || [0, 0];
+    const near = fc > 0 ? 'L' : 'R', far = near === 'L' ? 'R' : 'L', RO = {};
+    for (const rc of reaches(a, V, hb)) Object.assign(RO, { ['elbow' + rc.n]: rc.E, ['wrist' + rc.n]: rc.W, ['hand' + rc.n]: rc.H });
+    const O = V0.p(J.pelvis).map(Math.round), loc = q => [(q[0] - O[0]) * fc, q[1] - O[1]], w = n => RO[n] || V.p(J[n]), g = n => loc(w(n)), hand = sd => loc(RO['hand' + sd] || short(w('wrist' + sd), w('hand' + sd)));
     // Rampas do elenco por papel (rampFor: família de familyOf deslocada para guardar o valor da cor pedida).
-    const cc = { skin: P.body, hair: P.woodDk, shirt: P.sea, pants: P.ink, ...(a.colors || {}) }, fam = { skin: 'skin', hair: 'hair', shirt: 'shirt', pants: 'pants' };
-    const R = { ...STYLE.ramps, ...Object.fromEntries(Object.keys(fam).map(m => [m, rampFor(cc[m], m === 'shirt' || m === 'pants' ? 'cloth' : m, STYLE.ramps)])) };
+    const cc = { skin: P.body, hair: P.woodDk, shirt: P.sea, pants: P.ink, accent: P.red2, ...(a.colors || {}) }, fam = { skin: 'skin', hair: 'hair', shirt: 'shirt', pants: 'pants', accent: 'accent' };
+    const R = { ...STYLE.ramps, ...Object.fromEntries(Object.keys(fam).map(m => [m, rampFor(cc[m], m === 'skin' || m === 'hair' ? m : 'cloth', STYLE.ramps)])) };
     const r = x => (x + dr) * s, kind = sd => (a.role === 'point' || a.role === 'talk') && sd === near ? (a.role === 'point' ? 'point' : 'open') : HANDS[a.role] || 'relax';
     const arm = (sd, gr, bias) => { const S0 = g('shoulder' + sd), E = g('elbow' + sd), W0 = g('wrist' + sd), o = { g: gr, bias };
       return [quadPart(S0, E, r(2.4), r(2.1), fam.shirt, o), ellipsePart(E, r(2), r(2), fam.shirt, o), quadPart(E, W0, r(2.1), r(1.8), fam.shirt, o),
-        ellipsePart([lerp(E[0], W0[0], .8), lerp(E[1], W0[1], .8)], 1.7 * s, 1.7 * s, 'cream', { g: gr + 'cuff', bias }), spritePart(hand(sd), sc(S5.hands[kind(sd)]), fam.skin, { bias })]; };
+        ellipsePart([lerp(E[0], W0[0], .8), lerp(E[1], W0[1], .8)], 1.7 * s, 1.7 * s, fam.shirt, { g: gr + 'cuff', bias, tn: (x, y, t) => Math.max(1, Math.min(2, t)) }), spritePart(hand(sd), sc(S5.hands[kind(sd)]), fam.skin, { bias })]; };
     const leg = (sd, gr, bias) => { const Hp = g('hip' + sd), Kn = g('knee' + sd), A = g('ankle' + sd), o = { g: gr, bias };
       return [quadPart(Hp, Kn, r(2.9), r(2.5), fam.pants, o), ellipsePart(Kn, r(2.4), r(2.4), fam.pants, o), quadPart(Kn, A, r(2.5), r(2.2), fam.pants, o), spritePart(A, sc(S5.boot), 'leather', { bias })]; };
     // Casaco longo do idoso: quadrilátero do quadril ao joelho na família da camisa, barra de 1 px no tom 1.
@@ -427,30 +449,46 @@
     const torsoTn = (x0, y0, t) => { const [x, y] = Ti(x0, y0); return !strip(x) && y < -14.8 && (y > -15.8 || (x > 2.8 && x < 3.8) || (x > -4.6 && x < -2 && y > -19.6 && y < -18.8)) ? Math.min(t, 1) : t; };
     const torso = polyPart([[-4.6, -28], [5.2, -28], [6.6, -24.6], [5.8, -17.5], [6.2, -12], [-5.2, -12], [-5.4, -17.5], [-6.2, -24.6]].map(q => Tp(wide(q))), 2.2 * s, torsoMat, { tn: torsoTn });
     const pack = gear.includes('backpack') ? [polyPart([[-9.6, -26.4], [-5.6, -26.4], [-5.6, -17], [-9.6, -17]].map(q => Tp(wide(q))), 1.2 * s, 'brown')] : [];
+    // Cachecol (duas cápsulas da nuca para trás, gola em elipse) e capa (polígono dos ombros aos joelhos, os dois pontos de baixo
+    // deslocados 1,5·s·sway): ondulam com sway; correndo, as pontas voam 2,4 atrás.
+    const fly = a.role === 'run' ? 2.4 : 0, ac = { g: 'tail' }, bk = Tp([-5.4, -23.6 + sw * .8]), tail = Tp([-9.8 - fly, -22.4 - sw * 1.2]);
+    const scarf = gear.includes('scarf') ? [capsulePart(Tp([-1, -25]), bk, 2.2 * s, 1.6 * s, fam.accent, ac), capsulePart(bk, tail, 1.6 * s, .8 * s, fam.accent, ac)] : [];
+    const cape = gear.includes('cape') ? [polyPart([[1.6, -27.4], [-7.2, -26], [-11 + sw * 1.5 - fly, -7.6], [-3.4 + sw * 1.5 - fly / 2, -6.2]].map(Tp), 1.6 * s, fam.accent, { g: 'cape' })] : [];
     const c = loc(hb.c), Hd = (dx, dy) => [c[0] + dx * s, c[1] + dy * s], hd = { g: 'head' }, hairMat = hb.map === 'hood' ? fam.shirt : hb.map === 'helmet' ? 'grey' : fam.hair;
-    const parts = [...pack, ...arm(far, 'armB', -.55), ...leg(far, 'legB', -.55), ...coat(far, -.55), torso, ...leg(near, 'legF', 0), ...coat(near, 0),
+    const parts = [...pack, ...cape, ...scarf, ...arm(far, 'armB', -.55), ...leg(far, 'legB', -.55), ...coat(far, -.55), torso, ...leg(near, 'legF', 0), ...coat(near, 0),
+      ...(gear.includes('scarf') ? [ellipsePart(Tp([.8, -25.4]), 5.6 * s, 2.3 * s, fam.accent)] : []),
       ellipsePart(Hd(0, 0), 7.8 * s, 7.6 * s, fam.skin, hd), ellipsePart(Hd(1.6, 3.4), 6.2 * s, 4.7 * s, fam.skin, hd), ellipsePart(Hd(7.4, 1.8), 1.2 * s, 1.1 * s, fam.skin, hd),
       ...(hb.hs ? [spritePart(c, hb.hs, hairMat)] : []), ...(hb.hat ? [spritePart(c, hb.hat, 'leather')] : []), ...(hb.map === 'hood' ? [] : [spritePart(Hd(-3.2, 1.8), sc(S5.ear), fam.skin, hd)]),
       ...arm(near, 'armF', 0)];
     // Caixa simétrica em x em torno de O (o flip não perde nada), com folga para cabelo, mãos e botas.
     const pts = [...Object.keys(J).map(g), c], pad = Math.ceil(16 * s) + 2, OX = Math.ceil(Math.max(...pts.map(q => Math.abs(q[0])))) + pad, OY = Math.ceil(-Math.min(...pts.map(q => q[1]))) + pad;
-    const box = { W: 2 * OX, H: OY + Math.ceil(Math.max(...pts.map(q => q[1]))) + pad, OX, OY };
-    // Luz local: L com x vezes side·facing; side = longe da luz (o astro; no interior, ou sem astro, a primeira luz; sem nenhuma, à esquerda).
-    const src = (!K.interior && K.sky.celestial) || K.lights[0], side = src ? (V.p(J.chest)[0] >= view(F, src.f || 0).x(src.x) ? 1 : -1) : 1, shift = K.mood === 'night' || K.mood === 'interior' ? 1 : 0;
-    // ponytail: figureLayer varre a caixa inteira por peça (~240 ms/quadro no cast contra ~125 do boneco antigo); caixa por peça em figure.js se pesar.
-    let layer = figureLayer(parts, box, { ramps: R, light: [-.55 * side * fc, -.7, .5], rim: true, ink: K.mood === 'night' ? P.stoneDk : P.black, shift });
+    // Deitado: grade quadrada de meia largura E (rotateCells exige W = H) em volta da pelve.
+    const E = Math.max(OX, OY, Math.ceil(Math.max(...pts.map(q => q[1]))) + pad), box = lying ? { W: 2 * E, H: 2 * E, OX: E, OY: E } : { W: 2 * OX, H: OY + Math.ceil(Math.max(...pts.map(q => q[1]))) + pad, OX, OY };
+    // Luz local: L com x vezes side·facing; side = longe da luz. Deitado, a luz de pé é a final girada de volta: [.7, −.55·side·facing].
+    // ponytail: figureLayer varre a caixa inteira por peça (~240 ms/quadro no cast contra ~125 do boneco antigo; o memo acima pula
+    // os desenhos repetidos, ~metade a 24 fps); caixa por peça em figure.js se ainda pesar.
+    let layer = figureLayer(parts, box, { ramps: R, light: lying ? [.7, -.55 * side * fc, .5] : [-.55 * side * fc, -.7, .5], rim: true, ink: K.mood === 'night' ? P.stoneDk : P.black, shift });
     // Rosto pelo facePlan, pintado só na cabeça e no cabelo (paintFace): o braço de perto continua na frente dele.
     const Fc = a.pose.face || {}, up = hb.v === 'up';
     paintFace(layer, facePlan({ face: Fc.blink >= .5 ? 'blink' : up && Fc.expression === 'neutral' ? 'curious' : Fc.expression, mouth: Fc.mouth || (up ? 'o' : 'none'), up }, s), c,
       { K: P.black, W: P.eye, B: R[fam.hair][0], S: R[fam.skin][Math.max(0, 1 - shift)], T: P.red3, P: P.blush });
+    if (lying) layer = rotateCells(layer, -1);  // cabeça para trás (a esquerda do espaço local, que já olha para a direita)
     if (fc < 0) layer = flipCells(layer);
-    return { layer, O, k: hb.k };
+    if (memo.size >= 40) memo.clear();
+    const out = { layer, O, k: hb.k }; memo.set(key, out);
+    return out;
   }
-  // Sombra de contato (2 linhas de pontilhado 50% em P.ink sob a pelve, 14·s de largura; nem sentado nem deitado), o boneco
-  // na grade (com o recorte atual) e o livro do read por cima, no meio das duas mãos, como antes.
+  // Sombra de contato (2 linhas de pontilhado 50% em P.ink sob a pelve, 14·s de largura; nem sentado nem deitado), a poeira do
+  // run, o boneco na grade (com o recorte atual) e o livro do read por cima, no meio das duas mãos, como antes.
   function doll(F, a) {
     const V = view(F, a.layer), J = a.pose.joints, { layer: L, O, k } = figureOf(a, F), s = k * 1.25;
     if (!a.seated && !a.lying) { const gy = Math.round(V.y(a.ground(J.pelvis[0]))), hw = Math.round(7 * s); for (let y = gy; y < gy + 2; y++) for (let x = O[0] - hw; x < O[0] + hw; x++) if (bay(x, y) < .5) px(x, y, P.ink); }
+    // Poeira: a cada passo do run (a fase perto de 0 e de .5) o pé que pousa levanta 4, 3 e 2 px nos 3 desenhos do passo, atrás do
+    // calcanhar (5 px atrás do tornozelo), na areia (snowShade na neve); presos ao chão (o pé apoiado não anda; hash pela posição no mundo) e só com o pé no chão.
+    if (a.role === 'run') {
+      const age = Math.min(2, Math.floor(a.phase * 2 % 1 * 3)), ak = J.ankleL[1] > J.ankleR[1] ? J.ankleL : J.ankleR, gd = a.ground(ak[0]), snow = ((K.layers.find(l => l.kind === 'ground') || {}).surface) === 'snow';
+      if (gd - ak[1] < 16) for (let i = 0; i < 4 - age; i++) px(V.x(ak[0]) - a.pose.facing * (5 + 2 * i + Math.floor(2 * hash(Math.round(ak[0] / 24) * 3.7 + i))), V.y(gd) - 1 - (i + age) % 2, snow ? P.snowShade : P.sand);
+    }
     L.cells.forEach((q, i) => { if (q) px(i % L.W - L.OX + O[0], (i / L.W | 0) - L.OY + O[1], q); });
     if (a.holds === 'book') {
       const [hL, hR] = ['L', 'R'].map(sd => short(V.p(J['wrist' + sd]), V.p(J['hand' + sd]))), x = (hL[0] + hR[0]) / 2, y = (hL[1] + hR[1]) / 2, ink = K.mood === 'night' ? P.stoneDk : P.black;
@@ -508,14 +546,15 @@
       const J = a.pose.joints, z = F.cam.z; if (!J) return [];
       // Com reach, o braço desenhado é o girado: o braço de cima sai do ombro com o mesmo comprimento; antebraço e mão (mais o
       // dedo do point) vão como traço do ombro pelos pontos desenhados (to = null: já não estão sobre o osso).
-      const V = view(F, a.layer), hb = headBox(a, V), rc = reach(a, V, hb, 2 * (2.1 + (BODY[a.pose.body] || [0, 0])[1]) * hb.s), w = q => [V.wx(q[0]), V.wy(q[1])];
+      const V = view(F, a.layer), hb = headBox(a, V), rcs = reaches(a, V, hb), w = q => [V.wx(q[0]), V.wy(q[1])];
       const out = pieces(a).map(([name, from, to, r]) => {
         const p = { actor: a.id, name, from, to, pts: [J[from], name.startsWith('hand') ? w(short(V.p(J[from]), V.p(J[to]))) : J[to]], r: r * hb.s * S / z, cap: 'butt' };
-        if (!rc) return p;
-        const sh = 'shoulder' + rc.n, path = [J[sh], w(rc.E), w(rc.W)];
-        if (rc.rot && name === 'upperArm' + rc.n) p.pts = [J[sh], w(rc.E)];
-        if (rc.rot && name === 'forearm' + rc.n) Object.assign(p, { from: sh, to: null, pts: path });
-        if ((rc.rot || rc.tip) && name === 'hand' + rc.n) Object.assign(p, { from: sh, to: null, pts: [...path, w(rc.H), ...(rc.tip ? [w(rc.tip)] : [])] });
+        for (const rc of rcs) {
+          const sh = 'shoulder' + rc.n, path = [J[sh], w(rc.E), w(rc.W)];
+          if (rc.rot && name === 'upperArm' + rc.n) p.pts = [J[sh], w(rc.E)];
+          if (rc.rot && name === 'forearm' + rc.n) Object.assign(p, { from: sh, to: null, pts: path });
+          if ((rc.rot || rc.tip) && name === 'hand' + rc.n) Object.assign(p, { from: sh, to: null, pts: [...path, w(rc.H), ...(rc.tip ? [w(rc.tip)] : [])] });
+        }
         return p;
       });
       return [...out, { actor: a.id, name: 'head', from: 'headBase', to: null, pts: [J.headBase, hb.top], r: hb.w * S / z / 2, cap: 'round' }];

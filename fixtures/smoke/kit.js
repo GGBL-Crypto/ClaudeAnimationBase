@@ -22,7 +22,7 @@ var EST = (() => {
   ].map(s => ({ ...s, cast }));
   const LOOP = { scene: 'campo', params: { time: 'night', weather: 'rain', seed: 11, framing: 'wide', extras: ['fireflies', 'farm'] }, actors: [walk(1), sit('sit', .3, 1)], cast };
   // Prova de elenco (LOOPS.cast): os 5 corpos com chapéu, mochila, capuz e capacete, 3 por plano de 2 s no campo de dia
-  // (o último à noite), nas ações do kit. CAST = a lista de planos.
+  // (o sexto à noite; o último repete cheer, run e lie no outro sentido), nas ações do kit. CAST = a lista de planos.
   const crew = [...cast,
     { id: 'ferreira', body: 'heavy', colors: { skin: '#5a3a28', hair: '#111111', shirt: '#7a5a3a', pants: '#3a3a44' }, gear: ['helmet'], hair: 'bun' },
     { id: 'vigia', body: 'thin', colors: { skin: '#e0b48e', hair: '#3a2a1e', shirt: '#6a2e3a', pants: '#2e2a26', accent: '#d8b040' }, gear: ['hood', 'cape'], hair: 'long' }];
@@ -36,6 +36,7 @@ var EST = (() => {
     [{ ...day(106), time: 'night' }, [A('viajante', 'walk', .5, -1), A('leitor', 'stand', .25, 1), A('vigia', 'read', .8, -1)]],
     [day(107), [A('viajante', 'run', .5, 1), A('crianca', 'cheer', .25, 1), A('leitor', 'talk', .85, -1)]],
     [day(108), [A('ferreira', 'kneel', .25, 1), A('vigia', 'cower', .5, 1), A('leitor', 'lie', .75, -1)]],
+    [day(109), [A('crianca', 'cheer', .2, -1), A('viajante', 'run', .5, -1), A('vigia', 'lie', .8, 1)]],
   ].map(([params, actors]) => ({ scene: 'campo', params, actors, cast: crew }));
   // Plano i em [i, i + 1): o loop da cena no tempo OFF + lt; F.t volta a ser o tempo do vídeo.
   function frame(scene, t) {

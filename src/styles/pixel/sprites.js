@@ -153,17 +153,18 @@ var PIXEL_SPRITES5 = (() => {
   const hands = {
     fist: { ax: 2, ay: 2, rows: ['.343.', '34432', '33321', '32211', '.211.'] },
     relax: { ax: 2, ay: 1, rows: ['.43.', '4332', '3332', '3321', '2321', '.21.'] },
-    point: { ax: 2, ay: 2, rows: ['.343.......', '34434444432', '33322222221', '3321.......', '.211.......'] },
+    point: { ax: 2, ay: 2, rows: ['.343.....', '344344432', '333222221', '3321.....', '.211.....'] },
     open: { ax: 3, ay: 3, rows: ['.4.4.4', '.3.3.3', '.3.3.3', '433332', '333321', '.2221.'] },
     hold: { ax: 1, ay: 2, rows: ['.3443.', '342211', '32....', '32....', '332221', '.2211.'] },
   };
-  // Bota v5: cano dobrado claro, vinco, bico com brilho e sola; âncora no tornozelo. Orelha v5: âncora no meio.
+  // Bota v5: cano dobrado claro, vinco, bico com brilho e sola; âncora no tornozelo. Orelha: âncora no meio, núcleo no tom 1 (na
+  // cabeça, sem linha interna; sob luz de lado fica um côncavo escuro nos dois sentidos).
   const boot = { ax: 2, ay: 3, rows: ['.4443.....', '.1111.....', '.3322.....', '.33221....', '4332222331', '3222222221', '0000000000'] };
-  const ear = { ax: 1, ay: 2, rows: ['.43.', '4321', '3211', '321.', '.21.'] };
+  const ear = { ax: 1, ay: 2, rows: ['.21.', '2111', '2111', '211.', '.11.'] };
   // Olhos: neutral e blink da v4; happy em arco (os cantos descem), dy desce o olho, brow sobe (−) a sobrancelha.
   const eyes = {
-    neutral: { near: ['.KK', 'WKW', 'WKK', '.KK'], far: ['K', 'K', 'K', 'K'], brow: 0, blush: true },
-    curious: { near: ['.KK', 'WKK', 'WWW', '.WW'], far: ['K', 'K', 'W', '.'], brow: -1, blush: true },
+    neutral: { near: ['.KK', 'WKK', 'WKK', '.KK'], far: ['K', 'K', 'K', 'K'], brow: 0, blush: true },
+    curious: { near: ['.KK', '.KK', 'WWW', '.WW'], far: ['K', 'K', 'W', '.'], brow: -1, blush: true },
     surprised: { near: ['.WW.', 'WKKW', 'WKKW', '.WW.'], far: ['K', 'K', 'K', 'K'], brow: -1 },
     happy: { near: ['.KK.', 'K..K'], far: ['K.', '.K'], brow: -1, dy: 1, blush: true },
     blink: { near: ['....', '....', 'KKK.', '....'], far: ['.', '.', 'K', '.'], brow: 0, blush: true },
@@ -224,3 +225,6 @@ function hairOf(a) {
   const n = [...a.id].reduce((s, c) => (s * 31 + c.charCodeAt(0)) % 9973, 7), old = a.pose && a.pose.body === 'elder';
   return old ? ['bald', 'short'][n % 2] : ['short', 'long', 'spiky'][n % 3];
 }
+
+// Movimento secundário (cachecol e capa): senoide de período 1 na fase da passada (ou t/L · round(L / 1,6) parado, periódico em L).
+function sway(phase) { return Math.sin(2 * Math.PI * (phase - .15)); }

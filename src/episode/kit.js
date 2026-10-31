@@ -287,7 +287,7 @@ var { KIT_SCENES, KIT_DEFAULTS, KIT_CATALOG, kitFrame, castActor } = (() => {
     }
     if (rocks.length) kit.layers.push({ kind: 'props', f: 1, items: rocks });
     kit.layers.sort((a, b) => a.f - b.f);  // estável: dentro do mesmo f, a ordem de montagem
-    return { scene: 'K', shot: scene, t: lt, lt, cam, under: null, world: { ground, kit: { mood: scene === 'interior-vela' ? 'interior' : p.time, time: p.time, seed: p.seed, phase, ...kit } }, actors: list, texts: [] };
+    return { scene: 'K', shot: scene, t: lt, lt, cam, under: null, world: { ground, kit: { mood: scene === 'interior-vela' ? 'interior' : p.time, time: p.time, seed: p.seed, phase, L, ...kit } }, actors: list, texts: [] };
   }
   return { KIT_SCENES, KIT_DEFAULTS: DEFAULTS, KIT_CATALOG: { times: TIMES, weathers: WEATHERS, framings: FRAMINGS, actions: ACTIONS, gear: GEAR, bodies: Object.keys(HEIGHT), colors: COLORS, hairs: HAIRS }, kitFrame, castActor };
 })();

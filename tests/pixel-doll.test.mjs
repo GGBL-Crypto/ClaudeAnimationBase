@@ -31,3 +31,9 @@ test('face glyphs paint only on the head, never on the near arm in front of it',
   L.cells.forEach((c, k) => { if (onArm(k)) assert.equal(c, before[k]); });
   assert.ok(L.cells.includes('#k00000'));
 });
+test('secondary motion is periodic in L', () => {
+  const sway = vm.runInContext('typeof sway === "function" ? sway : null', ctx);
+  assert.ok(Math.abs(sway(0) - sway(1)) < 1e-9);
+  const ph = t => t / 12 * Math.round(12 / 1.6);
+  assert.ok(Math.abs(sway(ph(0)) - sway(ph(12))) < 1e-9);
+});
