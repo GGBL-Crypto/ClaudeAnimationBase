@@ -101,6 +101,15 @@ function rampOf(hex, colors) {
   return [tone(mix(hex, '#000010', .35), q => lum(q) < lum(m)), m, tone(mix(hex, '#FFF4E0', .3), q => lum(q) > lum(m))];
 }
 
+// Família de rampa mais próxima (distância RGB até o tom mais próximo) entre as permitidas pelo papel: pele só skin*, cabelo só hair* e grey, roupa o resto.
+function familyOf(hex, role, ramps) {
+  const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)), c = rgb(hex), d = h => rgb(h).reduce((s, v, i) => s + (v - c[i]) ** 2, 0);
+  const ok = f => role === 'skin' ? /^skin/.test(f) : role === 'hair' ? /^hair|^grey$/.test(f) : !/^skin|^hair/.test(f);
+  let best = null, bd = Infinity;
+  for (const f in ramps) if (ok(f)) { const q = Math.min(...ramps[f].map(d)); if (q < bd) { bd = q; best = f; } }
+  return best;
+}
+
 // Variante da cabeça pela inclinação (+ para baixo, − para cima).
 function headVariant(tilt) { return tilt < -.25 ? 'up' : tilt > .25 ? 'down' : 'level'; }
 
