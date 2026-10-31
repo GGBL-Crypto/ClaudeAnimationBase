@@ -7,7 +7,7 @@ const ramps = {
   cream: ['#5a4a6a', '#9a8aa0', '#cfc3b8', '#ece2cc', '#fff8e8'], brown: ['#24162e', '#43263a', '#643a3c', '#8a5644', '#ad7650'], leather: ['#1c1022', '#3a1e28', '#5c3230', '#80503a', '#a66e48'],
 };
 AnimationPlatform.registerStyle({
-  id: 'pixel', name: 'Pixel art', backend: 'Canvas2D / 480×270', scripts: ['src/styles/pixel/engine.js', 'src/styles/pixel/sprites.js', 'src/styles/pixel/draw.js'],
+  id: 'pixel', name: 'Pixel art', backend: 'Canvas2D / 480×270', scripts: ['src/styles/pixel/engine.js', 'src/styles/pixel/sprites.js', 'src/styles/pixel/figure.js', 'src/styles/pixel/draw.js'],
   validate(config) {
     if (!Number.isInteger(config.texture.scale) || config.texture.scale < 1 || 1920 % config.texture.scale || 1080 % config.texture.scale) throw new Error('Escala de pixel precisa dividir 1920×1080');
     if (!Number.isInteger(config.outline.weight) || config.outline.weight < 1) throw new Error('Contorno de pixel precisa ter espessura inteira positiva');
