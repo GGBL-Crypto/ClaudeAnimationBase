@@ -1,4 +1,5 @@
 # Pixel sprites v2 (bonecos de pixel art por código) Implementation Plan
+> **Substituído (30/10/2026):** a Task 1 (spike) foi feita; as Tasks 2 a 5 saem e dão lugar a `docs/superpowers/plans/2026-10-30-pixel-figura-v5.md`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
