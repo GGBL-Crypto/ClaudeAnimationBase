@@ -1,6 +1,7 @@
 // Servidor local do webapp: estáticos de app/ e API JSON. Só 127.0.0.1, Host exato, POST com Origin + X-App-Token.
 import { createServer } from 'node:http';
-import { readFile, readdir, realpath } from 'node:fs/promises';
+import { spawn as nodeSpawn } from 'node:child_process';
+import { readFile, readdir, realpath, mkdir } from 'node:fs/promises';
 import { resolve, dirname, relative, isAbsolute, join, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
@@ -19,6 +20,13 @@ import { subtopics, modelPrompt, validateModel, modelViews } from './app/modelin
 import { EPISODE_STYLES, styleNames, VOICES, validateProfile, profileFromConcept } from './app/profiles.mjs';
 import { fetchThumbs } from './app/thumbs.mjs';
 import { sampleVoice } from './app/voice.mjs';
+import { STEPS, prodDir, runStep, runCancellable } from './app/production.mjs';
+import routesProduction from './app/routes-production.mjs';
+import routesSources from './app/routes-sources.mjs';
+import routesAnalysis from './app/routes-analysis.mjs';
+import routesRoteiro from './app/routes-roteiro.mjs';
+import routesRender from './app/routes-render.mjs';
+import routesPackage from './app/routes-package.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const LIMIT = 64 * 1024, ID = /^UC[A-Za-z0-9_-]{22}$/;
@@ -77,12 +85,15 @@ const num = (s, msg) => /^\d{1,9}$/.test(s) ? Number(s) : no(msg);
 const myOut = r => ({ ...r, titleTemplates: r.titleTemplates ?? [] });
 
 export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app', outDir = 'out/app', fetch, now = Date.now, claude = prompt => runClaude(prompt).then(validateSummary), subniches = prompt => runClaude(prompt).then(validateSubniches), monitorEveryMs = 3600e3,
-  modeler = (prompt, images) => runClaudeImages(prompt, images), thumbFetch = globalThis.fetch, voiceSpawn, voiceExists } = {}) {
+  modeler = (prompt, images) => runClaudeImages(prompt, images), thumbFetch = globalThis.fetch, voiceSpawn, voiceExists,
+  claudeLong = (prompt, { signal } = {}) => runClaude(prompt, { timeoutMs: 600e3, signal }), claudeImages = (prompt, images, { signal } = {}) => runClaudeImages(prompt, images, { timeoutMs: 600e3, signal }), spawnProc = nodeSpawn,
+  runEpisodeFn = (dir, o) => import('./episode.mjs').then(m => m.runEpisode(dir, o)), ytdlp = (args, { signal } = {}) => runCancellable(signal, { spawn: spawnProc })('yt-dlp', args) } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Porta inválida');
   dataDir = resolve(ROOT, dataDir); appDir = resolve(ROOT, appDir); outDir = resolve(ROOT, outDir);
   const thumbsDir = join(outDir, 'thumbs'), samplesDir = join(outDir, 'samples');
   const token = randomBytes(24).toString('hex'), tokenBuf = Buffer.from(token);
   const db = openDb(join(dataDir, 'app.db')), jobs = createJobs(db);
+  db.interruptRunning(); // etapa que estava rodando quando o servidor caiu
   const cfg = () => loadConfig(dataDir);
   const at = () => new Date(now()).toISOString();
   const template = await readFile(join(ROOT, 'prompts', 'analise-canal.md'), 'utf8'), subTemplate = await readFile(join(ROOT, 'prompts', 'subnichos.md'), 'utf8');
@@ -135,6 +146,21 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
   // Perfil validado; modelId precisa existir (o banco lançaria em FK).
   const profile = b => { const p = validateProfile(b); if (p.modelId != null && !db.model(p.modelId)) no('Modelagem não encontrada'); return p; };
   const fail409 = () => { throw fail(409, 'Já existe um canal com esse nome'); };
+  // Fase 6: cada routes-*.mjs recebe este ctx. step roda runStep num job (kind prod:<id>:<etapa>); uma etapa por produção de cada vez.
+  const prod = id => (/^\d{1,9}$/.test(String(id)) && db.production(Number(id))) || nf('Produção não encontrada');
+  const active = id => Object.fromEntries(jobs.list().filter(j => j.kind.startsWith(`prod:${id}:`) && (j.status === 'queued' || j.status === 'running')).map(j => [j.kind.split(':')[2], j.id]));
+  const step = (id, name, fn) => {
+    if (!STEPS.includes(name)) throw new Error('Etapa desconhecida: ' + name);
+    if (Object.keys(active(id)).length) throw fail(409, 'Produção com etapa em andamento');
+    // Ordem: narração, cenas e render só com a etapa anterior feita (roteiro editado deixa a narração stale).
+    const prev = { narracao: ['roteiro', 'Roteiro'], cenas: ['narracao', 'Narração'], render: ['cenas', 'Cenas'] }[name];
+    if (prev && db.production(id).steps[prev[0]].status !== 'done') throw fail(409, `Etapa ${prev[1]} precisa estar feita`);
+    const dir = prodDir(outDir, id);
+    return jobs.start(`prod:${id}:${name}`, (report, signal) => runStep({ db, id, step: name, signal, report }, async x => { await mkdir(dir, { recursive: true }); return fn({ ...x, dir }); }));
+  };
+  // saveWpm: a narração grava o ritmo real da voz; o config inteiro não sai daqui.
+  const saveWpm = (key, wpm) => { saveConfig(dataDir, { voiceWpm: { ...cfg().voiceWpm, [key]: wpm } }); };
+  const ctx = { db, cfg, now, no, nf, fail, readJson, job, jobs, outDir, ROOT, prod, active, step, saveWpm, inject: { claudeLong, claudeImages, spawnProc, runEpisodeFn, ytdlp, fetch: fetch ?? globalThis.fetch } };
 
   const ROUTES = [
     ['GET', /^\/api\/config$/, () => publicConfig(cfg())],
@@ -330,15 +356,16 @@ export async function startAppServer({ port = 0, dataDir = 'data', appDir = 'app
       let r; // curto: fora da fila de jobs
       try { r = await sampleVoice({ voice, speed, lang }, samplesDir, { spawn: voiceSpawn, exists: voiceExists, root: ROOT }); }
       catch (e) { if (/^Kokoro não instalado/.test(e?.message)) return { error: e.message }; throw fail(502, 'Kokoro falhou ao gerar a amostra'); } // outras mensagens podem ter caminhos
-      saveConfig(dataDir, { voiceWpm: { ...cfg().voiceWpm, [`${voice}|${speed}`]: r.wpm } });
+      saveWpm(`${voice}|${speed}`, r.wpm);
       return { url: '/api/samples/' + r.name, seconds: r.seconds, wpm: r.wpm };
     }],
-    // Única rota de /api/ que não responde JSON: nome estrito, sem caminho vindo de fora.
+    // Rota de /api/ que não responde JSON (como a de arquivos da produção): nome estrito, sem caminho vindo de fora.
     ['GET', /^\/api\/samples\/([^/]+)$/, async (m, req, res) => {
       if (!/^[0-9a-f]{40}\.wav$/.test(m[1])) no('Amostra inválida');
       const bytes = await readFile(join(samplesDir, m[1])).catch(e => { throw e.code === 'ENOENT' ? fail(404, 'Amostra não encontrada') : e; });
       res.writeHead(200, { ...BASE, 'Content-Type': 'audio/wav', 'Content-Length': bytes.length }); res.end(bytes);
     }],
+    ...[routesProduction, routesSources, routesAnalysis, routesRoteiro, routesRender, routesPackage].flatMap(r => r(ctx)),
   ];
 
   // Inventário fixo de app/ na partida (como walk no estúdio); arquivo novo pede reinício.

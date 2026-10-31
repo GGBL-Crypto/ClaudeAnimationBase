@@ -2,6 +2,7 @@
 import { h, fmt } from '../dom.js';
 import { api } from '../api.js';
 import { avatar, subsText } from './channel.js';
+import { prodItem } from './generate.js';
 
 const enc = encodeURIComponent;
 const LANGS = [['pt', 'Português'], ['en', 'Inglês']];
@@ -106,7 +107,16 @@ function form(root, p, voices, saved, styles) {
       h('fieldset', {}, h('legend', {}, 'Moldes de título (até 10)'), tpl, addTpl),
       h('label', {}, 'Modelo de descrição', desc, h('small', { class: 'dim' }, 'Use {fontes} e {capitulos}')),
       h('div', { class: 'row' }, save_, saved ? del : null), status));
-  if (saved) root.append(competitors(id, p.competitors ?? []));
+  if (saved) root.append(competitors(id, p.competitors ?? []), productions(id));
+}
+
+// Produções do canal, do mais novo ao mais antigo.
+function productions(id) {
+  const box = h('section', { class: 'comp' }, h('h2', {}, 'Produções deste canal'), h('p', {}, h('a', { href: '#/gerar' }, 'Gerar vídeo')));
+  api.get('/api/productions?my=' + enc(id))
+    .then(rows => box.append(rows.length ? h('ul', { class: 'hist prods' }, rows.map(r => prodItem(r))) : h('p', { class: 'empty' }, 'Nenhuma produção ainda.')))
+    .catch(e => box.append(h('p', { class: 'err' }, e.message)));
+  return box;
 }
 
 // Concorrentes ligados a este canal; cada mudança grava a lista inteira.

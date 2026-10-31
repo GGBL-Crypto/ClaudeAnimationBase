@@ -5,7 +5,7 @@ import { oneLine } from './llm.mjs';
 const BAD_FORMAT = 'Resposta do Claude fora do formato';
 const median = a => { const s = a.map(v => v.views).sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2); };
 const sum = a => a.reduce((s, v) => s + (Number.isFinite(v.views) ? v.views : 0), 0);
-const norm = s => String(s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N} ]/gu, '').replace(/\s+/g, ' ').trim();
+export const norm = s => String(s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N} ]/gu, '').replace(/\s+/g, ' ').trim();
 
 // Vídeo vai para a palavra mais frequente do canal (>= 2 vídeos, top 15) que ele contém; sem palavra: "outros". Até 8 subtemas.
 export function subtopics(videos) {

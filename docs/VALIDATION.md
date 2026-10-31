@@ -218,3 +218,28 @@ Limites: revisão de imagens estáticas selecionadas e leitura de código, sem r
   - corpos `heavy` e `thin`, capuz e capacete: não renderizados em nenhum estilo, nem no pixel;
   - corpo `child`: visto só no pixel (interior da smoke-kit), não no flat nem na aquarela;
   - ouvir o áudio inteiro.
+
+## 30/10/2026 — webapp fase 6 (gerar vídeo e embalagem)
+
+- Aceite no app, banco real. Meu canal criado para o aceite (não havia nenhum): "Roma Sem Limites em Pixel" (pt, pixel, `kokoro:pm_alex`, 10 ± 2 min), do conceito 0 da modelagem 1, com 8 concorrentes de história.
+- Tema: "A caçada ao couraçado Bismarck em 1941", reescrito do outlier "Hunting The Bismarck" (12,1×). 4 fontes da Wikipedia pt.
+- Tempo por etapa (o que a tela mostra):
+  - pauta 0,02 s; fontes 1,9 s;
+  - análise: pulada. O yt-dlp tomou HTTP 429 nas legendas (`pt` e `en`) e avisou que falta alvo de impersonation (`curl_cffi`);
+  - roteiro 299,5 s (7 chamadas do Claude, 5 capítulos, 10 planos, 1647 palavras na meta 1408–2112);
+  - narração 550,2 s na primeira vez (733,5 s de áudio, fora da tolerância), 22,3 s na segunda;
+  - cenas 3,7 s (refeita depois da troca: 3,6 s);
+  - render 534 s na primeira tentativa, com falha na mixagem (loops: 10 novos em ~277 s); 475 s na segunda (loops 0,06 s, segmentos 0,004 s, mix 218 s, montagem 103 s, verify 154 s);
+  - revisão aprovada; embalagem 45,3 s; exportar: na hora.
+- Duração: 733,5 s na primeira narração (alvo 600 ± 120). O ritmo medido da voz (176 ppm) ficou acima do real (~135 ppm). Enxuguei 2 planos (~70 palavras) pela edição de plano do app: 695,6 s, dentro da tolerância.
+- Troca de cena: `c4-s1` de `mar` para `mapa`. A narração continuou `done`.
+- Mixagem: −0,4 dBTP na primeira tentativa (limite −1). O AAC passou 1,6 dB acima do teto de −2 dBFS. Conserto em `scripts/mix-audio.mjs` (`00709c2`): o laço baixa o teto pelo excesso medido. Resultado: −14,2 LUFS, −2,6 dBTP.
+- `verify`: 1920×1080, 24 fps, 16694 quadros, 695,58 s, AAC. Abertos: `decoded-sheet.png`, `detail-2.png` e 2 thumbs (2 e 4), legíveis.
+- `roteiro.md` lido inteiro. Toda frase com fato tem `[n]`. Os números conferem com a fonte citada (112 t de cordite, 1 419 homens, 2 091 tripulantes, 600 km, 764 t, 1 000 t, 12 500 m, 251 m, 2 200 homens, 10h36, 19h22, 1989, 2001).
+- `export/`: os 7 arquivos. A descrição traz capítulos de 0:00 a 9:24 e as 4 fontes. A legenda tem 289 blocos, lida pelo FFmpeg, e os tempos batem com `timing.json`.
+- `npm test`: 443/443. `npm run test:visual`: PASS. `git status --porcelain data/ out/ src/episodes.js`: vazio. Chave da API e e-mail: ausentes do repositório e do histórico da branch.
+- Limites vistos:
+  - o kit não tem navio de guerra (o mar mostra um veleiro);
+  - os moldes de título do perfil (Roma) não serviram ao tema, então os 15 títulos vieram sem molde;
+  - a tela mostra só o tempo da última execução de cada etapa (o roteiro mostra 0 s depois de uma edição de plano).
+- Não conferido: ouvir o áudio inteiro; a análise de outlier com legenda real.
