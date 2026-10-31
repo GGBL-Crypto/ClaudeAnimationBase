@@ -20,3 +20,14 @@ test('cast ramps keep the value of the cast colour', () => {
   assert.equal(rampFor('#3a3a44', 'cloth', R)[3], R.grey[1]); assert.equal(rampFor('#c8c8d0', 'cloth', R)[3], R.grey[4]);
   assert.deepEqual([...rampFor('#d08a65', 'skin', R)], [...R.skinM]);
 });
+test('face glyphs paint only on the head, never on the near arm in front of it', () => {
+  const [ellipsePart, quadPart, figureLayer, paintFace] = vm.runInContext('[ellipsePart, quadPart, figureLayer, typeof paintFace === "function" ? paintFace : null]', ctx);
+  const R = { m: ['#000001', '#000002', '#000003', '#000004', '#000005'] }, box = { W: 40, H: 40, OX: 20, OY: 20 };
+  const L = figureLayer([ellipsePart([0, 0], 9.75, 9.5, 'm', { g: 'head' }), quadPart([1, -6], [5, 6], 1.5, 1.5, 'm', { g: 'armF' })], box, { ramps: R, ink: '#ffffff' });
+  const plan = facePlan({ face: 'neutral', mouth: 'm' }, 1.25), col = { K: '#k00000', W: '#w00000', B: '#b00000', S: '#s00000', P: '#p00000', T: '#t00000' }, before = [...L.cells];
+  paintFace(L, plan, [0, 0], col);
+  const onArm = k => L.groups[k] === 'armF';
+  assert.ok(before.some((c, k) => onArm(k) && plan.eyeNear.x0 <= k % 40 - 20 && k % 40 - 20 <= plan.eyeNear.x1 && plan.eyeNear.y0 <= (k / 40 | 0) - 20 && (k / 40 | 0) - 20 <= plan.eyeNear.y1), 'o braço cobre o olho de perto');
+  L.cells.forEach((c, k) => { if (onArm(k)) assert.equal(c, before[k]); });
+  assert.ok(L.cells.includes('#k00000'));
+});

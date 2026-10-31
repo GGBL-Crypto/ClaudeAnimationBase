@@ -437,15 +437,12 @@
     const box = { W: 2 * OX, H: OY + Math.ceil(Math.max(...pts.map(q => q[1]))) + pad, OX, OY };
     // Luz local: L com x vezes side·facing; side = longe da luz (o astro; no interior, ou sem astro, a primeira luz; sem nenhuma, à esquerda).
     const src = (!K.interior && K.sky.celestial) || K.lights[0], side = src ? (V.p(J.chest)[0] >= view(F, src.f || 0).x(src.x) ? 1 : -1) : 1, shift = K.mood === 'night' || K.mood === 'interior' ? 1 : 0;
+    // ponytail: figureLayer varre a caixa inteira por peça (~240 ms/quadro no cast contra ~125 do boneco antigo); caixa por peça em figure.js se pesar.
     let layer = figureLayer(parts, box, { ramps: R, light: [-.55 * side * fc, -.7, .5], rim: true, ink: K.mood === 'night' ? P.stoneDk : P.black, shift });
-    // Rosto pelo facePlan no px do centro da cabeça, só sobre o boneco e fora da mão de perto (que fica na frente).
-    const Fc = a.pose.face || {}, up = hb.v === 'up', cx = Math.floor(c[0]), cy = Math.floor(c[1]), hn = hand(near);
-    const plan = facePlan({ face: Fc.blink >= .5 ? 'blink' : up && Fc.expression === 'neutral' ? 'curious' : Fc.expression, mouth: Fc.mouth || (up ? 'o' : 'none'), up, hands: [[hn[0] - cx, hn[1] - cy, kind(near)]] }, s);
-    const col = { K: P.black, W: P.eye, B: R[fam.hair][0], S: R[fam.skin][Math.max(0, 1 - shift)], T: P.red3, P: P.blush }, cells = layer.cells;
-    for (const q of [plan.browNear, plan.browFar, plan.eyeNear, plan.eyeFar, ...plan.blush, plan.mouth]) q.rows.forEach((row, j) => [...row].forEach((ch, i) => {
-      const x = q.x0 + i, y = q.y0 + j, at = (cy + y + OY) * box.W + cx + x + OX;
-      if (col[ch] && cells[at] && !plan.hands.some(h => x >= h.x0 && x <= h.x1 && y >= h.y0 && y <= h.y1)) cells[at] = col[ch];
-    }));
+    // Rosto pelo facePlan, pintado só na cabeça e no cabelo (paintFace): o braço de perto continua na frente dele.
+    const Fc = a.pose.face || {}, up = hb.v === 'up';
+    paintFace(layer, facePlan({ face: Fc.blink >= .5 ? 'blink' : up && Fc.expression === 'neutral' ? 'curious' : Fc.expression, mouth: Fc.mouth || (up ? 'o' : 'none'), up }, s), c,
+      { K: P.black, W: P.eye, B: R[fam.hair][0], S: R[fam.skin][Math.max(0, 1 - shift)], T: P.red3, P: P.blush });
     if (fc < 0) layer = flipCells(layer);
     return { layer, O, k: hb.k };
   }

@@ -71,7 +71,7 @@ function spriteFill(s, i, cell, W, H, OX, OY) {
 }
 
 // Pinta as peças em ordem (depois = na frente) e devolve { W, H, OX, OY, cells } com cores de opts.ramps[mat][t] ou
-// opts.ink. Passes: limpeza de tom isolado, linha interna (peça de trás encostada numa da frente de outro grupo: mesmo
+// opts.ink, mais groups (o grupo g de cada célula, para o rosto pintar só na cabeça; flip e rotate não o acompanham). Passes: limpeza de tom isolado, linha interna (peça de trás encostada numa da frente de outro grupo: mesmo
 // material −2 tons, outro material tom 0), luz de borda (rim: tom ≤ 1 com vazio do lado oposto à luz e cheio do outro
 // vira 2), shift (desce tons: noite e interior) e contorno seletivo (outline: false nas nuvens).
 function figureLayer(parts, { W, H, OX, OY }, { ramps, light = [-.55, -.7, .5], rim = false, outline = true, ink, shift = 0 }) {
@@ -115,7 +115,7 @@ function figureLayer(parts, { W, H, OX, OY }, { ramps, light = [-.55, -.7, .5], 
     const lit = at(x + 1, y) || at(x, y + 1), dark = at(x - 1, y) || at(x, y - 1);
     return dark ? ink : lit ? ramps[lit.mat][0] : null;
   });
-  return { W, H, OX, OY, cells };
+  return { W, H, OX, OY, cells, groups: cell.map(c => c && c.g) };
 }
 
 // Amplia por vizinho mais próximo para round(w·k) × round(h·k).

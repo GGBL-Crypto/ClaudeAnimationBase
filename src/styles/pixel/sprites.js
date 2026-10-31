@@ -175,13 +175,13 @@ var PIXEL_SPRITES5 = (() => {
 
 // Rosto e mãos em px locais (olhando para a direita), relativos ao px do centro da cabeça: posições do protótipo (paintFace,
 // s = 1,25) vezes k = s / 1,25, glifos sem escala; happy desce o olho 1 px, up sobe o rosto 1 px. P = { face, mouth, up?,
-// hands: [[x, y, mão = 'open']] } (mão no px local da âncora, retângulo pelo tamanho do sprite, escalado como no boneco).
+// hands: [[x, y, mão = 'open']] } (mão na âncora, com floor como o spritePart, retângulo pelo tamanho do sprite, escalado como no boneco).
 // Retângulos { x0, y0, x1, y1 } com x1 e y1 inclusos; os do rosto levam rows (glifos de PIXEL_SPRITES5) para pintar.
 function facePlan(P, s) {
   const S5 = PIXEL_SPRITES5, k = s / 1.25, E = S5.eyes[P.face] || S5.eyes.neutral, M = S5.mouths[P.mouth] || S5.mouths.none, up = P.up ? -1 : 0;
   const at = (x, y, rows, dy = 0) => { const x0 = Math.round(x * k), y0 = Math.round(y * k) + dy + up; return { x0, y0, x1: x0 + Math.max(...rows.map(r => r.length)) - 1, y1: y0 + rows.length - 1, rows }; };
   const sc = Math.abs(k - 1) > .1 ? k : 1, hands = (P.hands || []).map(([x, y, kind = 'open']) => {
-    const h = S5.hands[kind] || S5.hands.open, x0 = Math.round(x) - Math.round(h.ax * sc), y0 = Math.round(y) - Math.round(h.ay * sc);
+    const h = S5.hands[kind] || S5.hands.open, x0 = Math.floor(x) - Math.round(h.ax * sc), y0 = Math.floor(y) - Math.round(h.ay * sc);
     return { x0, y0, x1: x0 + Math.round(h.rows[0].length * sc) - 1, y1: y0 + Math.round(h.rows.length * sc) - 1 };
   });
   return { eyeNear: at(2.4, 0, E.near, E.dy), eyeFar: at(7.2, 0, E.far, E.dy), browNear: at(2.4, -2, ['BBB'], E.brow), browFar: at(7.2, -2, ['B'], E.brow),
@@ -195,6 +195,16 @@ function familyOf(hex, role, ramps) {
   let best = null, bd = Infinity;
   for (const f in ramps) if (ok(f)) { const q = Math.min(...ramps[f].map(d)); if (q < bd) { bd = q; best = f; } }
   return best;
+}
+
+// Pinta o rosto do facePlan na camada de figureLayer (antes do flip), com o centro da cabeça em c (px locais) e col = cor
+// por glifo: só nas células da cabeça (grupo 'head') e do cabelo ou chapéu ('lock…'); braço, punho e mão por cima ficam.
+function paintFace(L, plan, c, col) {
+  const cx = Math.floor(c[0]) + L.OX, cy = Math.floor(c[1]) + L.OY;
+  for (const q of [plan.browNear, plan.browFar, plan.eyeNear, plan.eyeFar, ...plan.blush, plan.mouth]) q.rows.forEach((row, j) => [...row].forEach((ch, i) => {
+    const x = cx + q.x0 + i, y = cy + q.y0 + j, g = x >= 0 && y >= 0 && x < L.W && y < L.H && L.groups[y * L.W + x];
+    if (col[ch] && (g === 'head' || typeof g === 'string' && g.startsWith('lock'))) L.cells[y * L.W + x] = col[ch];
+  }));
 }
 
 // Rampa do elenco: a família de familyOf deslocada para guardar o valor da cor pedida. d = (índice do tom da família mais

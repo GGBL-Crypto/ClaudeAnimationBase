@@ -9,8 +9,8 @@ import { encodeRgb } from './png-rgba.mjs';
 
 const ctx = vm.createContext({ hash: i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }, AnimationPlatform: { registerStyle: s => (ctx.style = s) } });
 for (const f of ['config', 'sprites', 'figure']) vm.runInContext(readFileSync(`src/styles/pixel/${f}.js`, 'utf8'), ctx);
-vm.runInContext('this.X = { PIXEL_SPRITES5, facePlan, figureLayer, spritePart, ellipsePart, polyPart, flipCells }', ctx);
-const { PIXEL_SPRITES5: S5, facePlan, figureLayer, spritePart, ellipsePart, polyPart, flipCells } = ctx.X, { ramps, palette: P } = ctx.style.config;
+vm.runInContext('this.X = { PIXEL_SPRITES5, facePlan, paintFace, figureLayer, spritePart, ellipsePart, polyPart, flipCells }', ctx);
+const { PIXEL_SPRITES5: S5, facePlan, paintFace, figureLayer, spritePart, ellipsePart, polyPart, flipCells } = ctx.X, { ramps, palette: P } = ctx.style.config;
 const ink = P.black, opts = { ramps, rim: true, ink }, HEAD = { W: 32, H: 38, OX: 15, OY: 20 }, SMALL = { W: 32, H: 16, OX: 15, OY: 8 };
 const HAIR_MAT = { hood: 'blue', helmet: 'grey' };
 
@@ -22,7 +22,7 @@ function head(hair, { eye = 'neutral', mouth = 'm', hat = false } = {}) {
     spritePart(c, S5.hair[hair], mat), ...(hair === 'hood' ? [] : [spritePart(at(-4, 2.25), S5.ear, 'skinM', { g: 'head' })]), ...(hat ? [spritePart(c, S5.hat, 'leather')] : [])];
   const L = figureLayer(parts, HEAD, opts), plan = facePlan({ face: eye, mouth }, 1.25);
   const col = { K: ink, W: P.eye, B: ramps.hairBrown[0], S: ramps.skinM[1], T: P.red3, P: P.blush };
-  for (const q of [plan.browNear, plan.browFar, plan.eyeNear, plan.eyeFar, ...plan.blush, plan.mouth]) q.rows.forEach((r, j) => [...r].forEach((ch, i) => { if (col[ch]) L.cells[(Math.floor(c[1]) + q.y0 + j + HEAD.OY) * HEAD.W + Math.floor(c[0]) + q.x0 + i + HEAD.OX] = col[ch]; }));
+  paintFace(L, plan, c, col);
   return L;
 }
 const piece = (s, mat) => figureLayer([spritePart([0, 0], s, mat)], SMALL, opts);
