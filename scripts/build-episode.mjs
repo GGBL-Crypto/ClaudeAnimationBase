@@ -18,7 +18,7 @@ export const canonParams = p => canon({ ...DEFAULTS, ...p, extras: [...(p?.extra
 export const canonShot = (params, actors = [], cast = []) => {
   const used = actors.map(a => a.cast);
   return [canonParams(params),
-    actors.map(a => canon({ ...a, at: a.action === 'walk' ? undefined : a.at ?? .5, dir: a.dir ?? 1 })),  // walk ignora at
+    actors.map(a => canon({ ...a, at: a.action === 'walk' || a.action === 'run' ? undefined : a.at ?? .5, dir: a.dir ?? 1 })),  // walk e run ignoram at
     cast.filter(m => used.includes(m.id)).sort((a, b) => a.id < b.id ? -1 : 1).map(m => canon({ ...m, gear: [...(m.gear ?? [])].sort(), colors: m.colors ?? null }))];
 };
 

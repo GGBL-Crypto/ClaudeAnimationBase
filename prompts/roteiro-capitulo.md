@@ -33,7 +33,7 @@ Regras da cena de cada plano (catálogo do estilo; use só o que está aqui):
 - "cena.id" é uma destas cenas:
 {{cenas}}
 - "cena.params" pode ter "time" ({{times}}), "weather" ({{weathers}}), "framing" ({{framings}}) e "extras" (só os extras da cena escolhida, sem repetir). Escolha a cena que melhor ilustra a narração.
-- "atores": de 0 a 3 itens {"cast": id do elenco, "action": uma de {{acoes}}, "at": posição de 0 a 1 na tela, "dir": 1 ou -1}. A ação walk só vale em cena de exterior. A cena mapa não tem atores.
+- "atores": de 0 a 3 itens {"cast": id do elenco, "action": uma de {{acoes}}, "at": posição de 0 a 1 na tela, "dir": 1 ou -1}. As ações walk e run só valem em cena de exterior. A cena mapa não tem atores.
 - "hud" é opcional: {"year": "texto curto", "sub": "texto curto", "place": "texto curto"}, cada um com até 40 caracteres, e os números só das fontes. Use em datas e lugares marcantes, não em todo plano.
 - Dois planos seguidos não repetem a mesma cena com os mesmos params.
 

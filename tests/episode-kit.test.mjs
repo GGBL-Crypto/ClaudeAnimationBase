@@ -12,7 +12,7 @@ const close = (a, b, eps) => typeof a === 'number' ? typeof b === 'number' && Ma
   : a && typeof a === 'object' ? !!b && typeof b === 'object' && Object.keys(a).length === Object.keys(b).length && Object.keys(a).every(k => close(a[k], b[k], eps)) : a === b;
 
 test('every scene and action is periodic in L', () => {
-  for (const id of Object.keys(KIT_SCENES)) for (const action of KIT_SCENES[id].exterior ? ['walk', 'stand', 'point'] : ['read', 'sit']) {
+  for (const id of Object.keys(KIT_SCENES)) for (const action of KIT_SCENES[id].exterior ? ['walk', 'stand', 'point', 'run', 'cheer', 'talk', 'kneel', 'cower', 'lie'] : ['read', 'sit']) {
     const spec = { scene: id, params: { time: 'night', weather: 'rain', seed: 7, framing: 'wide', extras: [] }, cast: [{ id: 'a', body: 'adult' }], actors: id === 'mapa' ? [] : [{ cast: 'a', action, at: .4, dir: 1 }] };
     for (const t of [0, 3.1, 11.99]) assert.ok(close(strip(kitFrame(spec, t, 12)), strip(kitFrame(spec, t + 12, 12)), 1e-6), `${id}/${action}@${t}`);
   }
@@ -115,4 +115,30 @@ test('night sky is composed: near trees, a lit house, sky about 60% of height', 
 test('map carries waves, compass, peaks and woods', () => {
   const M = kitFrame({ scene: 'mapa', params: { ...P, extras: ['route'] } }, 1, 12).world.kit.map;
   assert.ok(M.waves.length >= 12 && M.compass.r > 0 && M.peaks.length >= 3 && M.woods.length >= 3 && M.border === true);
+});
+
+const one = (action, t = 3, extra = {}) => kitFrame({ scene: 'campo', params: P, cast: [{ id: 'a', body: 'adult', ...extra }], actors: [{ cast: 'a', action, at: .5, dir: 1 }] }, t, 12).actors[0];
+test('new actions have their shape', () => {
+  const J = one('run').pose.joints; assert.ok(J.neck[0] - J.pelvis[0] > 0, 'tronco inclinado para a frente');
+  const ch = one('cheer').pose.joints; assert.ok(ch.handL[1] < ch.headBase[1] && ch.handR[1] < ch.headBase[1], 'mãos acima do pescoço');
+  const lie = one('lie'); assert.equal(lie.lying, 1); assert.ok(Math.abs(lie.pose.joints.headTop[1] - lie.pose.joints.pelvis[1]) < 40);
+  const k = one('kneel').pose.joints; assert.ok(Math.min(k.kneeL[1], k.kneeR[1]) > k.pelvis[1] + 30);
+  assert.ok(['a', 'o', 'm'].includes(one('talk', 1.2).pose.face.mouth));
+  const ph = one('walk').phase; assert.ok(ph >= 0 && ph < 1);
+});
+test('head is seamless at the loop seam', () => {
+  const [a, b] = [one('stand', 0), one('stand', 12 - 1e-6)].map(x => x.pose.joints.headTop);
+  assert.ok(Math.hypot(a[0] - b[0], a[1] - b[1]) < .5);
+});
+test('hair, accent and new gear pass through and are validated', () => {
+  const a = one('stand', 1, { hair: 'bun', gear: ['scarf'], colors: { accent: '#b82e30' } });
+  assert.equal(a.hair, 'bun'); assert.deepEqual([...a.gear], ['scarf']); assert.equal(a.colors.accent, '#b82e30');
+  assert.throws(() => one('stand', 1, { hair: 'mohawk' }));
+});
+test('runners start and end off screen; kneel and lie stay within ~half a body (.6 BL) of the spot (props keep 120 px)', () => {
+  const r = t => one('run', t).track.x; assert.ok(r(0) < -100 && r(11.999) > 2020);
+  for (const body of ['adult', 'child', 'elder', 'heavy', 'thin']) for (const action of ['kneel', 'lie']) for (const dir of [1, -1]) {
+    const a = kitFrame({ scene: 'campo', params: P, cast: [{ id: 'a', body }], actors: [{ cast: 'a', action, at: .5, dir }] }, 3, 12).actors[0];
+    const half = Math.max(...Object.values(a.pose.joints).map(([x]) => Math.abs(x - 960))); assert.ok(half <= .6 * a.pose.size && half < 120, `${body}/${action}/${dir}: ${half.toFixed(0)} px`);
+  }
 });
