@@ -125,7 +125,7 @@ test('prompts wrap third-party text as data', async () => {
     outlinePrompt(await readFile('prompts/roteiro-esboco.md', 'utf8'), { theme: evil, lang: 'pt', targetMin: 10, budget, sources: src, analyses, catalog }),
     chapterPrompt(await readFile('prompts/roteiro-capitulo.md', 'utf8'), { theme: evil, lang: 'pt', outline: o, index: 1, prev: evil, budget, sources: src, analyses, catalog }),
   ];
-  for (const p of prompts) {
+  for (const p of prompts.map(s => s.replace(/\r\n/g, '\n'))) {  // checkout com autocrlf deixa os prompts em CRLF
     const a = p.indexOf('<<<DADOS\n'), b = p.lastIndexOf('\nDADOS>>>'); // o cabeçalho do prompt cita os marcadores na mesma linha
     assert.ok(a >= 0 && b > a);
     assert.equal(p.split('DADOS>>>').length, 3); // a citação e o fecho: o texto de terceiros não fecha o bloco
