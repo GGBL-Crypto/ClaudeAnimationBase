@@ -18,7 +18,7 @@ actor = {id, kind, role, layer, depth, pose (creaturePose: joints, bones, limbs,
 
 kind:
 - ant: formiga (`crowdActors` em `src/nature/actors.js`); pose.carry = folha {x, y, w, h, angle}. fly: forídea, voa (pose.wings).
-- human: pose.body = adult | child | elder | heavy | thin; rosto em pose.face {expression: neutral | curious | surprised | happy, blink 0..1, mouth: null | m | e | a | o} e pose.emote; pose.limbs.armX.hand = open | point | fist. gear? (hat, backpack). actor.front = membros desenhados depois dos outros corpos; actor.seated 0..1; actor.holds = 'item'.
+- human: pose.body = adult | child | elder | heavy | thin; rosto em pose.face {expression: neutral | curious | surprised | happy, blink 0..1, mouth: null | m | e | a | o} e pose.emote; pose.limbs.armX.hand = open | point | fist. gear? (hat, backpack, hood, helmet, scarf, cape; scarf e cape só o pixel desenha). actor.front = membros desenhados depois dos outros corpos; actor.seated 0..1; actor.holds = 'item'.
 - dog: cão ou raposa (pescoço longo, pose.limits); pose.face.expression neutral | surprised.
 - fish: salta (air sempre; hidden = corpo todo sob a água). Desenhe a água por cima da parte abaixo de lake.waterY.
 - bird: voa (air, pose.wings.open = 1, phase 0..1) e pousa; no chão saltita (wings.open = 0).
@@ -40,7 +40,7 @@ F = { scene: 'K', shot: <id da cena>, t, lt, cam: {cx, cy, z}, under: null, worl
 kit = {
   mood: 'dawn' | 'day' | 'dusk' | 'night' | 'interior',  // rampa de cores do estilo
   time: 'dawn' | 'day' | 'dusk' | 'night',                // o param time da cena; no interior (mood 'interior') é a hora da janela: use a rampa STYLE.moods[time] nela, sem adivinhar pelo astro
-  seed, phase,                                            // phase = (lt mod L) / L
+  seed, phase, L,                                         // phase = (lt mod L) / L; L = duração do loop em s
   sky: { stars: [{x, y, r, tw}], celestial: {kind: 'sun'|'moon', x, y, r, glow} | null, clouds: [{x, y, w, h, seed}], meteor?: {x0, y0, x1, y1, k} | null },
   layers: [ // de trás para a frente; f = paralaxe (0 longe .. 1 chão)
     {kind: 'ridge', f, prof: x => y}, {kind: 'dunes', f, prof},
@@ -73,4 +73,4 @@ kit = {
 - Nuvens balançam no lugar: x = x0 + até 40 px · sen(2πφ + fase da nuvem); não dão a volta no quadro.
 - `fog` 0..1: névoa (clima `fog`) ou neblina baixa (extra `mist`). Gotas e flocos: a posição já se move; a chuva cai na vertical (o estilo escolhe o traço).
 - Tudo é periódico em L: F(t) = F(t + L). Não acrescente movimento que não feche no loop (sem ruído de t no desenho; use `phase` com frequência inteira).
-- Atores: `kind: 'human'` pelo quadro F de sempre, mais `colors: {skin, hair, shirt, pants} | null` (as cores do elenco, no lugar da roupa padrão do estilo), `gear` (hat, backpack, hood, helmet), `seated` 0..1 e `holds: 'book'` (entre as mãos, `joints.handL/handR`). Quem senta ganha assento no kit (cadeira no interior, pedra `rock` fora). Adulto de pé: 180 px; criança 160, idoso 174, pesado 178, magro 186.
+- Atores: `kind: 'human'` pelo quadro F de sempre, mais `colors: {skin, hair, shirt, pants, accent} | null` (as cores do elenco, no lugar da roupa padrão do estilo; accent = lenço e capa), `hair` (short | long | spiky | bun | bald | null: o penteado do elenco; null = o do estilo), `gear` (hat, backpack, hood, helmet, scarf, cape; scarf e cape só o pixel desenha), `role` = a ação (stand, walk, sit, read, point, look-up, run, cheer, talk, kneel, cower, lie), `seated` 0..1, `lying` 0 | 1 (lie: as juntas já vêm giradas em torno da pelve, de costas, cabeça atrás, pelve no chão), `phase` 0..1 (a fase da passada de walk e run; 0 nas outras) e `holds: 'book'` (entre as mãos, `joints.handL/handR`). run atravessa a tela com o dobro da velocidade do walk, inclinado à frente; cheer pula 28 px e ergue as mãos para fora da cabeça (rosto happy); talk gesticula com o braço da câmera e muda a boca a 6/s; kneel tem os dois joelhos no chão; cower está de cócoras, cabeça baixa, mãos sobre ela (rosto surprised); lie dorme (olhos fechados) e respira. Em kneel e lie o corpo ocupa até ~.6 BL para cada lado do x do ator (cabe nos 120 px livres do primeiro plano). Quem senta ganha assento no kit (cadeira no interior, pedra `rock` fora). Adulto de pé: 180 px; criança 160, idoso 174, pesado 178, magro 186.

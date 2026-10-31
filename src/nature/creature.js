@@ -81,6 +81,8 @@ function creaturePose(spec, o) {
   const gait = flying ? null : typeof gaitName === 'string' ? GAITS[gaitName] : gaitName;
   if (typeof gaitName === 'string' && !flying && !gait) throw new Error(`Marcha desconhecida: ${gaitName}`);
   const sv = view === 'side', air = flying || !!spec.swimmer, life = clamp(o.alive ?? 1), dead = 1 - life, ageK = 1 - .5 * clamp(age);
+  // o.loop (s): o tempo do ruído (micro-ajuste da cabeça, apêndices, pairar) passa a fechar em t = loop: P(f) mistura f(t) com f(t − loop) por t / loop.
+  const lp = o.loop, tl = lp ? (t % lp + lp) % lp : t, mix = (a, b, w) => Array.isArray(a) ? a.map((v, i) => mix(v, b[i], w)) : lerp(a, b, w), P = f => lp ? mix(f(tl), f(tl - lp), tl / lp) : f(t);
   const sB = s - .1 * flinch;  // o susto recua o corpo; os pés plantados ficam onde estão
   // Vida orgânica: fase da marcha gp (ciclos, com a variação por passada), beat = 1 em cada contato (2 por ciclo).
   const org = { ...ORGANIC, ...spec.organic }, walk = sv && !air, m = moving * ageK * life;
@@ -97,7 +99,7 @@ function creaturePose(spec, o) {
   const local = (p, a, dx, dy) => sv ? [p[0] + dir * dx * size, p[1] + dy * size]
     : [p[0] + (Math.cos(a) * dx - Math.sin(a) * dy) * size, p[1] + (Math.sin(a) * dx + Math.cos(a) * dy) * size];
   // Pairar: no voo, o corpo inteiro deriva até flyer.hover BL em torno do caminho, por ruído (parado no ar, não fica fixo).
-  const hv = flying && spec.flyer.hover ? [noise1(seed + 71, t * .9), noise1(seed + 72, t * 1.3)].map(v => v * spec.flyer.hover * size) : [0, 0];
+  const hv = flying && spec.flyer.hover ? P(t => [noise1(seed + 71, t * .9), noise1(seed + 72, t * 1.3)]).map(v => v * spec.flyer.hover * size) : [0, 0];
   // O tronco inclina à frente (mais quanto mais alto o segmento); os ombros (attach 0) giram contra os quadris.
   const place = (back, h) => { const p = at((sB - back) * size), gy = groundAt(p); return { x: p.x + hv[0] + (lean ? dir * lean * size * (h - low + .1) : 0), y: (sv && !air ? gy - h * size : p.y) + hv[1], a: p.angle, gy }; };
   // Raiz do membro; na lateral o deslocamento (along, h) gira com o segmento (r: rotação do segmento desde o repouso).
@@ -165,7 +167,7 @@ function creaturePose(spec, o) {
   // direção base do pescoço → centro, a cabeça continua o pescoço; humano −PI/2: para cima). Centro = headBase + r · eixo;
   // headTop = headBase + 2r · eixo. pose.head.angle segue sendo para onde a cara olha (0 = à frente na lateral).
   const hd = spec.head, hq = place(hd.offset, hd.h || 0);
-  const micro = org.idle * life * noise1(seed * 7 + 3, Math.floor(t * .8) + ease(frac(t * .8) * 4)), tilt = -.35 * flinch + .7 * dead + micro;  // tilt < 0 ergue
+  const micro = org.idle * life * P(t => noise1(seed * 7 + 3, Math.floor(t * .8) + ease(frac(t * .8) * 4))), tilt = -.35 * flinch + .7 * dead + micro;  // tilt < 0 ergue
   const s0 = spine[0], F = sv ? 0 : s0.angle, fw = (dx, dy) => sv ? [dir * dx * size, dy * size] : turn([dx * size, 0], F), R = hd.r * size;
   const na = spec.neck?.at || [0, 0], nOff = fw(na[0], na[1]), hc = fw(G[0].offset - hd.offset, (G[0].h || 0) - (hd.h || 0));
   const axW = sv && hd.axis !== undefined ? (dir > 0 ? hd.axis : Math.PI - hd.axis) : Math.atan2(hc[1] - nOff[1], hc[0] - nOff[0]), ax = sv ? (dir > 0 ? axW : Math.PI - axW) : 0;
@@ -243,9 +245,9 @@ function creaturePose(spec, o) {
     const m = ap.motion, k = life * ageK, sd = seed * 13 + i + 1, len = ap.lengths.map(l => l * size);
     let pts;
     if (typeof m === 'function') {
-      const flip = !sv && side === 1 ? -1 : 1; let a = a0, x = 0, y = 0; pts = [[0, 0]];
-      m(t, sd, o, k).forEach((da, j) => { a += da * flip; x += len[j] * Math.cos(a); y += len[j] * Math.sin(a); pts.push([x, y]); });
-    } else pts = chain([0, 0], a0, len, t, sd, { ...m, amp: (m.amp ?? .35) * k, gravity: sv ? (m.gravity || 0) * (1 - .6 * flinch) : 0 });
+      const flip = !sv && side === 1 ? -1 : 1;
+      pts = P(t => { let a = a0, x = 0, y = 0; const q = [[0, 0]]; m(t, sd, o, k).forEach((da, j) => { a += da * flip; x += len[j] * Math.cos(a); y += len[j] * Math.sin(a); q.push([x, y]); }); return q; });
+    } else pts = P(t => chain([0, 0], a0, len, t, sd, { ...m, amp: (m.amp ?? .35) * k, gravity: sv ? (m.gravity || 0) * (1 - .6 * flinch) : 0 }));
     const c = Math.cos(anc.angle), si = Math.sin(anc.angle);
     appendages[ap.name] = pts.map(([x, y]) => sv ? [base[0] + dir * x, base[1] + y] : [base[0] + c * x - si * y, base[1] + si * x + c * y]);
   });

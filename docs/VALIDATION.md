@@ -243,3 +243,17 @@ Limites: revisão de imagens estáticas selecionadas e leitura de código, sem r
   - os moldes de título do perfil (Roma) não serviram ao tema, então os 15 títulos vieram sem molde;
   - a tela mostra só o tempo da última execução de cada etapa (o roteiro mostra 0 s depois de uma edição de plano).
 - Não conferido: ouvir o áudio inteiro; a análise de outlier com legenda real.
+
+## 31/10/2026 — pixel figura v5 (aceite)
+
+- Plano `docs/superpowers/plans/2026-10-30-pixel-figura-v5.md`, commits `d2b0e60..e592a72` mais este. Boneco do `pixel` em volumes sombreados (rampas de 5 tons), cabelo em mechas desenhadas, mãos, bota e rosto em sprite, luz de borda, contorno seletivo; elenco inteiro, ações novas do kit (`run`, `cheer`, `talk`, `kneel`, `cower`, `lie`), cachecol e capa com mola, poeira da corrida; copas e arbustos em tufos.
+- Demo (`fixtures/episodes/demo`) com `talk` (s2), `cheer` (s4, segundo ator), `run` (s6) e `walk`. `scripts/episode.mjs`: `verify` 1920×1080, 24 fps, 1883 quadros, 78,46 s, AAC; −14,2 LUFS, −1,9 dBTP. `decoded-sheet.png` aberto e uma tira de s5/s6: o corredor aparece em cerca de 6 dos 10 s do plano.
+- Etapa `loops` da demo com acervo vazio (8 loops, um Chrome): antes 197 s (boneco antigo, 3 min 17 s); depois 303 s (boneco novo com memo do `figureOf`), 1,54×, abaixo do teto de 2×.
+- Render por quadro: cerca de 125 ms antes; 240 ms com o boneco novo sem memo; 137 ms com o memo (`--loop=cast`); copas em tufos +15% na folha da smoke-kit.
+- `out/check/fig/compare.png`: protótipo v5, `images.jpg` e `m8ehkzge45361.png` em cima; elenco real em `point`, `cheer`, `run` e `lie` embaixo, ampliados sem suavizar.
+  - Igual: volumes, rampas, contorno seletivo, luz de borda, mechas, bota, cachecol.
+  - Melhor: 6 cabelos e 5 corpos, cor do elenco com o valor preservado, mãos e botas espelhadas, olho sem "E", dedo do `point`, sprites que escalam no `mid`, ações novas, paleta em 122 cores.
+  - Pior: o boneco ocupa menos tela que no protótipo (grade 480 contra 320); deitado com rosto fraco e chapéu em pé; copa atrás da cabeça confunde a silhueta; pernas mais longas e menos "chibi" que as referências.
+- `npm test`: 476/476. `npm run test:visual`: PASS. `check-motion` pixel na smoke-kit: 0 violações. `git status --porcelain data/ out/ src/episodes.js`: vazio.
+- `node scripts/episode.mjs --prune-acervo` depois do último commit de `src/` (`47a8587`): 64 arquivos, 71,7 MB removidos (o acervo inteiro, inclusive os 8 loops da demo feitos antes das limpezas da revisão final).
+- Não conferido: ouvir o áudio inteiro; ações novas (run, cheer, talk, kneel, cower, lie) conferidas em `flat` e `watercolor` (out/check/fig/final-*.jpg); capa e cachecol só no pixel.

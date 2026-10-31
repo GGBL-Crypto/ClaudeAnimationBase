@@ -22,7 +22,7 @@
         "actors": [{ "cast": "leitor", "action": "look-up", "at": 0.35, "dir": 1 }] },
       { "id": "s2", "narration": "Ele é equipado com um potente aparelho ótico, com fontes de luz e espelhos refletores. Com instalação elétrica adequada, a energia gerada é conduzida para a lanterna.",
         "scene": { "id": "mar", "params": { "time": "dusk", "weather": "clear", "seed": 102, "framing": "wide", "extras": ["lighthouse", "ship"] } },
-        "actors": [{ "cast": "viajante", "action": "stand", "at": 0.3, "dir": 1 }],
+        "actors": [{ "cast": "viajante", "action": "talk", "at": 0.3, "dir": 1 }],
         "hud": { "place": "Um farol" } },
       { "id": "s3", "hold": 3,
         "scene": { "id": "floresta", "params": { "time": "night", "weather": "clear", "seed": 103, "framing": "mid", "extras": ["campfire"] } },
@@ -31,14 +31,14 @@
     { "id": "c2", "title": "Luzes na Antiguidade", "shots": [
       { "id": "s4", "narration": "Os faróis são usados desde a Antiguidade. Naquela época, eram acesas fogueiras ou grandes luzes de azeite.",
         "scene": { "id": "campo", "params": { "time": "dawn", "weather": "clear", "seed": 104, "framing": "wide", "extras": ["farm"] } },
-        "actors": [{ "cast": "viajante", "action": "walk", "dir": 1 }] },
+        "actors": [{ "cast": "viajante", "action": "walk", "dir": 1 }, { "cast": "leitor", "action": "cheer", "at": 0.75, "dir": -1 }] },
       { "id": "s5", "narration": "O primeiro farol de que se tem registro é o farol de Alexandria. Ele foi construído em 280 a.C.",
         "scene": { "id": "deserto", "params": { "time": "day", "weather": "clear", "seed": 105, "framing": "wide", "extras": ["ruins"] } },
         "actors": [{ "cast": "leitor", "action": "point", "at": 0.7, "dir": -1 }],
         "hud": { "year": "280 a.C.", "sub": "Alexandria" } },
       { "id": "s6", "narration": "Ele ficava na ilha de Faros, na margem ocidental do Delta do Nilo. Foi construído entre 280 e 247 a.C., na cidade de Alexandria.",
         "scene": { "id": "cidade-antiga", "params": { "time": "day", "weather": "clear", "seed": 106, "framing": "wide", "extras": ["temple"] } },
-        "actors": [{ "cast": "viajante", "action": "walk", "dir": -1 }] }
+        "actors": [{ "cast": "viajante", "action": "run", "dir": -1 }] }
     ] },
     { "id": "c3", "title": "O fim do farol antigo", "shots": [
       { "id": "s7", "narration": "Em 956, um terremoto danificou gravemente a estrutura. Outros terremotos vieram em 1303 e 1323.",

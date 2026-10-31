@@ -132,3 +132,7 @@ test('the fly hovers without a gait: no feet, wings beating, the body drifts at 
   assert.ok(range(ys) > 2 && range(xs) > 2 && range(ys) < .7 * 120, `deriva ${range(xs)} ${range(ys)}`);
   assert.ok(new Set(ps.map(p => p.wings.phase.toFixed(3))).size > 2, 'asas batendo');
 });
+test('o.loop makes the head and hair periodic in the loop', () => {
+  const loop = 9, spec = { ...ctx.SPECS.human, organic: { breath: 0 } }, at = t => ctx.creaturePose(spec, { path: P, s: 3, size: 120, view: 'side', ground: flat, t, seed: 1, loop, moving: 0 }), d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  for (const t of [0, 2.2]) { const a = at(t), b = at(t + loop - 1e-6); assert.ok(d(a.joints.headTop, b.joints.headTop) < .5); for (const k of Object.keys(a.appendages)) assert.ok(d(a.appendages[k].at(-1), b.appendages[k].at(-1)) < .5, k); }
+});

@@ -4,11 +4,12 @@
 // Depende de motion.js e de src/nature/ (noise, path, gait, creature, specs, skeleton).
 var { KIT_SCENES, KIT_DEFAULTS, KIT_CATALOG, kitFrame, castActor } = (() => {
   const TIMES = ['dawn', 'day', 'dusk', 'night'], WEATHERS = ['clear', 'rain', 'snow', 'fog'], FRAMINGS = ['wide', 'mid'];
-  const ACTIONS = ['stand', 'walk', 'sit', 'read', 'point', 'look-up'], GEAR = ['hat', 'backpack', 'hood', 'helmet'], COLORS = ['skin', 'hair', 'shirt', 'pants'];
+  const ACTIONS = ['stand', 'walk', 'sit', 'read', 'point', 'look-up', 'run', 'cheer', 'talk', 'kneel', 'cower', 'lie'], GEAR = ['hat', 'backpack', 'hood', 'helmet', 'scarf', 'cape'];
+  const COLORS = ['skin', 'hair', 'shirt', 'pants', 'accent'], HAIRS = ['short', 'long', 'spiky', 'bun', 'bald'];
   const DEFAULTS = { time: 'day', weather: 'clear', seed: 0, framing: 'wide', extras: [] };
   // Altura de pé (px = BL) por corpo: adulto 180 (30 px na grade 6 do pixel); todos entre 156 e 204 (26 a 34 na grade).
   const HEIGHT = { adult: 180, child: 160, elder: 174, heavy: 178, thin: 186 };
-  const SEAT = .25, PELVIS = .33;  // sentado: altura do assento e do centro da pelve (BL acima do chão)
+  const SEAT = .25, PELVIS = .33, KNEEL = .3, COWER = .24;  // sentado: altura do assento e do centro da pelve; ajoelhado e encolhido: só a pelve (BL acima do chão)
   const rnd = (s, i) => hash(s * 13.37 + i * .7071 + .123);
   const cyc = (phase, m, h = 0) => Math.sin(TAU * (m * phase + h));  // m inteiro: período L / m
   const per = (L, sec) => Math.max(1, Math.round(L / sec));          // ciclos inteiros por loop, período perto de sec s
@@ -188,6 +189,7 @@ var { KIT_SCENES, KIT_DEFAULTS, KIT_CATALOG, kitFrame, castActor } = (() => {
     for (const m of cast) {
       if (!m || typeof m.id !== 'string' || !m.id || !HEIGHT[m.body] || cast.filter(x => x.id === m.id).length > 1) throw new Error(`Elenco inválido: ${m && m.id} (id único, body ${Object.keys(HEIGHT).join('|')})`);
       if (m.gear && (!Array.isArray(m.gear) || m.gear.some(x => !GEAR.includes(x)))) throw new Error(`Elenco inválido: gear de ${m.id}`);
+      if (m.hair && !HAIRS.includes(m.hair)) throw new Error(`Elenco inválido: hair de ${m.id} (${HAIRS.join('|')})`);
       if (m.colors && Object.entries(m.colors).some(([k, v]) => !COLORS.includes(k) || !/^#[\da-f]{6}$/i.test(v))) throw new Error(`Elenco inválido: colors de ${m.id}`);
     }
   }
@@ -199,19 +201,27 @@ var { KIT_SCENES, KIT_DEFAULTS, KIT_CATALOG, kitFrame, castActor } = (() => {
     const g = GAITS[spec.gait], vary = { ...ORGANIC, ...spec.organic }.vary, h = g.duty / 2 - g.offsets.L;
     return gaitDist(Math.round(gaitPhase(s, spec.stride, vary, seed + 501) - h) + h, spec.stride, vary, seed + 501);
   }
+  // Deitar: gira a pose pronta (juntas, coluna, membros, apêndices, cabeça) em torno de c por r rad e desce dy; os ossos não esticam.
+  function spinPose(p, c, r, dy) {
+    const co = Math.cos(r), si = Math.sin(r), f = ([x, y]) => [c[0] + (x - c[0]) * co - (y - c[1]) * si, c[1] + (x - c[0]) * si + (y - c[1]) * co + dy];
+    for (const k in p.joints) p.joints[k] = f(p.joints[k]);
+    p.spine = p.spine.map(q => { const [x, y] = f([q.x, q.y]); return { ...q, x, y, angle: q.angle + r }; });
+    for (const l of Object.values(p.limbs)) { for (const k of ['root', 'mid', 'end', 'toe']) if (l[k]) l[k] = f(l[k]); l.stance = false; }
+    for (const k in p.appendages) p.appendages[k] = p.appendages[k].map(f);
+    const [x, y] = f([p.head.x, p.head.y]); p.head = { x, y, angle: p.head.angle + r };
+  }
   function castActor(member, action, at, dir, phase, L, ground, t) {
-    const spec0 = humanSpec(member.body), size = HEIGHT[member.body], seed = [...member.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7);
-    const X = action === 'walk' ? (dir > 0 ? lerp(-200, 2120, phase) : lerp(2120, -200, phase)) : at * 1920;
+    const run = action === 'run', go = run || action === 'walk', spec0 = humanSpec(member.body), size = HEIGHT[member.body], seed = [...member.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7);
+    // Corre com passada 1,4× e período .7×: o dobro da velocidade da caminhada, então atravessa 2× a faixa (fora da tela nas duas pontas).
+    const [xa, xb] = run ? [-1360, 3280] : [-200, 2120], X = go ? (dir > 0 ? lerp(xa, xb, phase) : lerp(xb, xa, phase)) : at * 1920, w0 = run ? 3000 : 1200;
     // Parado: a passada em s = X/size deixaria os pés abertos conforme o x. Uso o s mais próximo em que o pé L está no meio do apoio
     // (âncora = s) e o R no meio do balanço (desce sob a raiz): pés juntos em qualquer at. O caminho começa onde esse s cai em X.
-    const s = action === 'walk' ? (dir > 0 ? X + 1200 : 3200 - X) / size : stillS((dir > 0 ? X + 1200 : 3200 - X) / size, spec0, seed);
-    const x0 = X - dir * s * size, path = makePath([[x0, 0], [x0 + dir * 4400, 0]]);
-    // ponytail: o micro-ajuste da cabeça e o cabelo de creaturePose usam noise1(t) e não fecham em φ = 1 (salto de ~1 px no topo da cabeça
-    // na emenda); para zerar, dar a creaturePose um tempo periódico (o.loop) em src/nature/creature.js.
-    const Pb = 3 + hash(seed * 3.7 + 1), tp = phase * per(L, Pb) * Pb;  // creaturePose respira com período Pb: tp fecha o ciclo em φ = 1
-    const o = { path, s, size, ground, t: tp, seed, moving: action === 'walk' ? 1 : 0, blink: blink(t, seed, L / per(L, 3.6)) };
-    const seated = action === 'sit' || action === 'read';
-    let spec = spec0, pose;
+    const s = go ? (dir > 0 ? X + w0 : w0 + 2000 - X) / size : stillS((dir > 0 ? X + w0 : w0 + 2000 - X) / size, spec0, seed);
+    const x0 = X - dir * s * size, path = makePath([[x0, 0], [x0 + dir * (run ? 8000 : 4400), 0]]);
+    const Pb = 3 + hash(seed * 3.7 + 1), np = per(L, Pb), tp = phase * np * Pb;  // creaturePose respira com período Pb: tp fecha o ciclo em φ = 1 (loop: o ruído também)
+    const o = { path, s, size, ground, t: tp, loop: np * Pb, seed, moving: go ? 1 : 0, blink: blink(t, seed, L / per(L, 3.6)), ...(run && { lean: .15 / ORGANIC.lean }) };
+    const seated = action === 'sit' || action === 'read', arm = dir > 0 ? 'armL' : 'armR';  // arm: o braço do lado da câmera
+    let spec = run ? { ...spec0, gait: 'bipedRun', stride: spec0.stride * 1.4, lift: spec0.lift * 1.4 } : spec0, pose;
     if (seated) {
       // Pelve no assento; pés à frente (gesto das pernas, k = 1: continuam apoiados); mãos nos joelhos ou no livro.
       spec = lowered(spec0, spec0.spine[1].h - PELVIS);
@@ -222,15 +232,34 @@ var { KIT_SCENES, KIT_DEFAULTS, KIT_CATALOG, kitFrame, castActor } = (() => {
       });
       pose = creaturePose(spec, { ...o, gesture: [...legs, ...arms] });
       if (action === 'read') turnHead(pose, .35, .25);
-    } else if (action === 'point') {
-      const p0 = creaturePose(spec, o), limb = dir > 0 ? 'armL' : 'armR', r = p0.limbs[limb].root;  // o braço do lado da câmera
-      const M = [r[0] + dir * .36 * size, r[1] - (.14 + .01 * cyc(phase, per(L, 4))) * size];
-      pose = creaturePose(spec, { ...o, gesture: [{ limb, target: handTo(p0, spec, limb, M), k: 1, hand: 'point' }] });
+    } else if (action === 'point' || action === 'talk') {
+      // Aponta, ou fala: gesto aberto do mesmo braço e uma forma de boca a 6/s.
+      const pt = action === 'point', oo = pt ? o : { ...o, mouth: ['a', 'm', 'o', 'e', 'm'][Math.floor(t * 6) % 5] }, p0 = creaturePose(spec, oo), r = p0.limbs[arm].root;
+      const M = pt ? [r[0] + dir * .36 * size, r[1] - (.14 + .01 * cyc(phase, per(L, 4))) * size] : [r[0] + dir * (.27 + .05 * cyc(phase, per(L, 1.3))) * size, r[1] - (.08 + .08 * cyc(phase, per(L, .9), .25)) * size];
+      pose = creaturePose(spec, { ...oo, gesture: [{ limb: arm, target: handTo(p0, spec, arm, M), k: 1, ...(pt && { hand: 'point' }) }] });
+    } else if (action === 'cheer') {
+      // Pula h = 28·|sin πu| px por .7 s (7 células da grade de 480) (o chão sob os pés sobe) e ergue as mãos para cima e para fora da cabeça.
+      const hop = 28 * Math.abs(Math.sin(Math.PI * phase * per(L, .7))), oc = { ...o, ground: x => ground(x) - hop, expression: 'happy', mouth: 'a' }, p0 = creaturePose(spec, oc);
+      const arms = ['armL', 'armR'].map((limb, i) => { const r = p0.limbs[limb].root; return { limb, k: 1, target: handTo(p0, spec, limb, [r[0] + dir * (i ? 1 : -1) * (.26 + .015 * cyc(phase, per(L, .45), i / 2)) * size, r[1] - .2 * size]) }; });
+      pose = creaturePose(spec, { ...oc, gesture: arms });
+    } else if (action === 'kneel' || action === 'cower') {
+      // Ajoelhado: pés atrás, joelhos no chão. Encolhido: de cócoras, cabeça baixa, as mãos sobre ela, tremendo.
+      const kn = action === 'kneel', ox = kn ? o : { ...o, expression: 'surprised' }, down = p => kn ? p : turnHead(p, .5, .4);
+      spec = lowered(spec0, spec0.spine[1].h - (kn ? KNEEL : COWER));
+      const legs = ['legL', 'legR'].map((limb, i) => stepTo({ size }, spec, limb, X + dir * (kn ? -.27 - .03 * i : .08 + .05 * i) * size, ground, 1, 0)), p1 = down(creaturePose(spec, { ...ox, gesture: legs }));
+      const arms = kn ? [] : ['armL', 'armR'].map((limb, i) => ({ limb, k: 1, target: handTo(p1, spec, limb, [p1.joints.head[0] + dir * (.02 + .04 * i) * size, p1.joints.head[1] - (.1 - .03 * i) * size + .006 * size * cyc(phase, per(L, .3), i / 3)]) }));
+      pose = down(creaturePose(spec, { ...ox, gesture: [...legs, ...arms] }));
+    } else if (action === 'lie') {
+      // Deitado de costas, cabeça atrás: gira a pose de pé em torno da pelve até o chão; a respiração ergue o peito (até .03 rad).
+      pose = creaturePose(spec, { ...o, blink: 1 });
+      const c = pose.joints.pelvis, e = .03 * (.5 + .5 * Math.sin(TAU * tp / Pb));
+      spinPose(pose, c, dir * (e - Math.PI / 2), ground(X) - pose.spine[1].r - c[1]);
     } else {
       pose = creaturePose(spec, o);
       if (action === 'look-up') turnHead(pose, -.6, -.5);
     }
-    return { id: member.id, kind: 'human', role: action, layer: 1, depth: 0, pose, track: path.at(s * size), ground, gear: member.gear || [], colors: member.colors || null, seated: seated ? 1 : 0, ...(action === 'read' && { holds: 'book' }) };
+    return { id: member.id, kind: 'human', role: action, layer: 1, depth: 0, pose, track: path.at(s * size), ground, gear: member.gear || [], colors: member.colors || null, hair: member.hair || null, seated: seated ? 1 : 0, lying: action === 'lie' ? 1 : 0,
+      phase: go ? frac(gaitPhase(s, spec.stride, { ...ORGANIC, ...spec.organic }.vary, seed + 501)) : 0, ...(action === 'read' && { holds: 'book' }) };
   }
 
   // Quadro F da cena K no tempo de loop t (F.t = F.lt = t mod L; quem monta o vídeo pode trocar F.t pelo tempo do vídeo).
@@ -244,7 +273,7 @@ var { KIT_SCENES, KIT_DEFAULTS, KIT_CATALOG, kitFrame, castActor } = (() => {
     for (const a of actors) {
       if (!cast.some(m => m.id === a.cast)) throw new Error(`Elenco sem ${a.cast}`);
       if (!ACTIONS.includes(a.action)) throw new Error(`Ação inválida em ${scene}: ${a.action}`);
-      if (a.action === 'walk' && !K.exterior) throw new Error(`A ação walk só vale em cena de exterior, não em ${scene}`);
+      if ((a.action === 'walk' || a.action === 'run') && !K.exterior) throw new Error(`A ação ${a.action} só vale em cena de exterior, não em ${scene}`);
       if (a.at !== undefined && !(a.at >= 0 && a.at <= 1) || a.dir !== undefined && a.dir !== 1 && a.dir !== -1) throw new Error(`Ator inválido em ${scene}: ${a.cast} (at 0..1, dir 1|-1)`);
       if (actors.filter(b => b.cast === a.cast).length > 1) throw new Error(`Ator repetido em ${scene}: ${a.cast}`);
     }
@@ -258,7 +287,7 @@ var { KIT_SCENES, KIT_DEFAULTS, KIT_CATALOG, kitFrame, castActor } = (() => {
     }
     if (rocks.length) kit.layers.push({ kind: 'props', f: 1, items: rocks });
     kit.layers.sort((a, b) => a.f - b.f);  // estável: dentro do mesmo f, a ordem de montagem
-    return { scene: 'K', shot: scene, t: lt, lt, cam, under: null, world: { ground, kit: { mood: scene === 'interior-vela' ? 'interior' : p.time, time: p.time, seed: p.seed, phase, ...kit } }, actors: list, texts: [] };
+    return { scene: 'K', shot: scene, t: lt, lt, cam, under: null, world: { ground, kit: { mood: scene === 'interior-vela' ? 'interior' : p.time, time: p.time, seed: p.seed, phase, L, ...kit } }, actors: list, texts: [] };
   }
-  return { KIT_SCENES, KIT_DEFAULTS: DEFAULTS, KIT_CATALOG: { times: TIMES, weathers: WEATHERS, framings: FRAMINGS, actions: ACTIONS, gear: GEAR, bodies: Object.keys(HEIGHT) }, kitFrame, castActor };
+  return { KIT_SCENES, KIT_DEFAULTS: DEFAULTS, KIT_CATALOG: { times: TIMES, weathers: WEATHERS, framings: FRAMINGS, actions: ACTIONS, gear: GEAR, bodies: Object.keys(HEIGHT), colors: COLORS, hairs: HAIRS }, kitFrame, castActor };
 })();

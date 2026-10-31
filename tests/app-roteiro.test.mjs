@@ -40,10 +40,16 @@ test('validateOutline sums words within budget', () => {
   bad(x => { x.capitulos.pop(); }, /capitulos de 3 a 30/);
   bad(x => { x.elenco = Array.from({ length: 5 }, (_, i) => ({ id: 'p' + i, body: 'adult' })); }, /elenco de 1 a 4/);
   bad(x => { x.elenco[0].body = 'giant'; }, /body/);
-  bad(x => { x.elenco[0].gear = ['cape']; }, /gear/);
+  bad(x => { x.elenco[0].gear = ['crown']; }, /gear/);
+  bad(x => { x.elenco[0].hair = 'mohawk'; }, /hair.*short, long, spiky, bun, bald/);
   bad(x => { x.elenco[0].id = 'Viajante'; }, /id/);
   bad(x => { x.titulo = 'x'.repeat(101); }, /titulo/);
   bad(x => { x.capitulos[1].resumo = 'Em 1999 tudo mudou.'; }, /número fora das fontes: 1999/);
+});
+
+test('validateOutline accepts hair, accent and the new gear', () => {
+  const x = outline(); Object.assign(x.elenco[0], { hair: 'bun', gear: ['scarf', 'cape'], colors: { accent: '#b82e30' } });
+  assert.deepEqual(validateOutline(x, { catalog, budget }).elenco[0], { id: 'viajante', body: 'adult', colors: { accent: '#b82e30' }, gear: ['scarf', 'cape'], hair: 'bun' });
 });
 
 test('validateChapter enforces catalog, cites and 30-120 s shots', () => {

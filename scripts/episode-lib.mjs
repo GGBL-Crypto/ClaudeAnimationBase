@@ -175,7 +175,7 @@ export function validateEpisode(ep) {
       if (hud.tag.sub !== undefined && !str(hud.tag.sub)) at('hud.tag.sub: texto');
       const a = (s.actors || [])[tagActorIndex(s, hud.tag.actor)];
       if (!a) at('hud.tag.actor: índice ou id de elenco de um ator do plano');
-      if (a.action === 'walk') at('hud.tag.actor: ator com walk anda pela tela, a etiqueta não o acompanha');
+      if (a.action === 'walk' || a.action === 'run') at('hud.tag.actor: ator com walk ou run anda pela tela, a etiqueta não o acompanha');
     }
   }
 

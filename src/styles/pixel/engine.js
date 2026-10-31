@@ -9,9 +9,10 @@
     const n=Math.max(1,Math.ceil(Math.max(Math.abs(x1-x0),Math.abs(y1-y0))));
     for(let i=0;i<=n;i++)rect(lerp(x0,x1,i/n),lerp(y0,y1,i/n),w,w,col);
   }
+  const memo=new Map(); // cor → cor da paleta (função pura, vale entre quadros)
   function quantize() {
     const frame=c.getImageData(0,0,buffer.width,buffer.height), d=frame.data;
-    for(let i=0;i<d.length;i+=4){ let best=rgb[0],dist=Infinity; for(const color of rgb){const q=(d[i]-color[0])**2+(d[i+1]-color[1])**2+(d[i+2]-color[2])**2;if(q<dist){dist=q;best=color;}} d[i]=best[0];d[i+1]=best[1];d[i+2]=best[2];d[i+3]=255; }
+    for(let i=0;i<d.length;i+=4){ const key=d[i]<<16|d[i+1]<<8|d[i+2]; let best=memo.get(key); if(!best){ let dist=Infinity; for(const color of rgb){const q=(d[i]-color[0])**2+(d[i+1]-color[1])**2+(d[i+2]-color[2])**2;if(q<dist){dist=q;best=color;}} memo.set(key,best); } d[i]=best[0];d[i+1]=best[1];d[i+2]=best[2];d[i+3]=255; }
     c.putImageData(frame,0,0);
   }
   window.animationEngine={
@@ -21,7 +22,7 @@
   window.VisitArt={
     background(t){
       rect(0,0,buffer.width,buffer.height,P.sky);
-      // Coordinate design at 320×180; changing grid scale still preserves world framing.
+      // Coordenadas de projeto em 320×180; a grade atual é 480×270 (texture.scale 4), 6/scale mantém o enquadramento.
       c.save();c.scale(6/scale,6/scale);
       for(const [x,y]of [[34,36],[243,27]]){rect(x-15,y,49,9,P.cloud);rect(x-8,y-5,30,6,P.cloud);rect(x,y-11,12,8,P.cloud);}
       rect(0,141,320,39,P.ground);rect(0,140,68,2,P.foliage);rect(69,139,82,2,P.foliage);rect(152,140,78,2,P.foliage);rect(231,139,89,2,P.foliage);

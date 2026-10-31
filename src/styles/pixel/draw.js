@@ -1,14 +1,13 @@
-// Pixel art no quadro F: a cena K (kit de episódio, src/episode/kit.js) desenhada direto na grade do engine.js (320×180).
+// Pixel art no quadro F: a cena K (kit de episódio, src/episode/kit.js) desenhada direto na grade do engine.js (480×270).
 // Só retângulos inteiros em cores da paleta; degradê por pontilhado Bayer 4×4 entre duas cores; luz e névoa trocam cada
-// cor pela vizinha da rampa (sem mistura). A câmera de cada camada é arredondada à grade antes do desenho. As cores do
-// elenco viram a cor mais próxima da paleta; o quantizador do engine.js continua no fim. A pose chega a 12/s (o engine
-// passa onTwos(t)).
+// cor pela vizinha da rampa (sem mistura). A câmera de cada camada é arredondada à grade antes do desenho. Os bonecos são
+// volumes sombreados e sprites (figure.js, sprites.js) nas famílias de 5 tons (familyOf); o quantizador do engine.js
+// continua no fim. A pose chega a 12/s (o engine passa onTwos(t)).
 (() => {
   const c = animationEngine.context, S = STYLE.texture.scale, P = STYLE.palette, GW = W / S, GH = H / S;
   const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5], bay = (x, y) => (BAYER[(y & 3) * 4 + (x & 3)] + .5) / 16;
   const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)), key = (r, g, b) => r << 16 | g << 8 | b;
-  const COLORS = [...new Set(Object.values(P).map(x => x.toUpperCase()))], lum = h => { const [r, g, b] = rgb(h); return .3 * r + .59 * g + .11 * b; };
-  const nearest = (hex, ok = () => true) => { const [r, g, b] = rgb(hex); let best = null, d = Infinity; for (const q of COLORS) { if (!ok(q)) continue; const [x, y, z] = rgb(q), e = (x - r) ** 2 + (y - g) ** 2 + (z - b) ** 2; if (e < d) { d = e; best = q; } } return best; };
+  const COLORS = [...new Set(Object.values(P).map(x => x.toUpperCase()))];
   // Mapa de troca de cor da paleta (int → [r, g, b]).
   const shiftMap = to => Object.fromEntries(COLORS.map(h => [key(...rgb(h)), rgb(to(h) || h)]));
   // Luz: cada cor sobe um degrau da sua rampa (escuro → claro, puxando para o quente).
@@ -175,8 +174,20 @@
     }
     if (l.surface === 'grass') for (let gx = 0; gx < GW; gx++) if (hash((gx - ox) * 3.7 + K.seed) < .22) px(gx, top[gx] - 1, dark);  // tufos da borda
   }
-  // Pinheiro serrilhado (camadas que crescem e recuam), árvore larga em bolha, palmeira.
-  function tree(V, t, color) {
+  // Lado da luz de um objeto em sx (px da tela): 1 se está à direita do astro (no interior, ou sem astro, a primeira luz; sem nenhuma, 1).
+  function sideOf(F, sx) { const src = (!K.interior && K.sky.celestial) || K.lights[0]; return src ? (sx >= view(F, src.f || 0).x(src.x) ? 1 : -1) : 1; }
+  const blit = (L, ox, oy) => L.cells.forEach((q, i) => { if (q) px(i % L.W - L.OX + ox, (i / L.W | 0) - L.OY + oy, q); });
+  // Copa em tufos (e tronco) rasterizada pelo núcleo do boneco, na luz do astro, 1 tom abaixo à noite e no interior, luz de borda só
+  // de dia.
+  function tuft(parts, seed, hw, hh, x, y) {
+    hw = Math.ceil(hw); hh = Math.ceil(hh);
+    const side = sideOf(F0, x), shift = K.mood === 'night' || K.mood === 'interior' ? 1 : 0;
+    const L = figureLayer(parts, { W: 2 * hw, H: hh + 4, OX: hw, OY: hh },
+      { ramps: STYLE.ramps, light: [-.55 * side, -.7, .5], rim: lit(), ink: K.mood === 'night' ? P.stoneDk : P.black, shift });
+    blit(L, x, y);
+  }
+  // Pinheiro serrilhado (camadas que crescem e recuam), árvore larga em bolha (copa em tufos nas camadas de f ≥ .45), palmeira.
+  function tree(V, t, color, f) {
     const x = Math.round(V.x(t.x)), y = Math.round(V.y(t.y)), h = Math.max(4, Math.round(t.h * V.k));
     if (t.kind === 'pine') {
       const hw = h * .3, tier = Math.max(3, Math.round(h / 4));
@@ -185,6 +196,8 @@
     } else if (t.kind === 'palm') {
       seg([x, y], [x + h * .15, y - h], 1, color, 0);
       for (const a of [-2.6, -2, -1.1, -.5]) seg([x + h * .15, y - h], [x + h * .15 + Math.cos(a) * h * .35, y - h - Math.sin(-a) * h * .12 + h * .1], 1, color, 0);
+    } else if (f >= .45) {
+      tuft([capsulePart([0, 0], [0, -h * .55], Math.max(1.5, h * .05), Math.max(1, h * .035), 'leather'), ...canopyParts(Math.round(h / 2), t.seed, h * .3, h * .18, -h * .62)], t.seed, h * .3 + 8, h * .8 + 8, x, y);
     } else { rect(x, y - h * .4, 1, h * .4, color); disc(x, y - h * .62, h * .3, color); disc(x - h * .18, y - h * .5, h * .2, color); disc(x + h * .18, y - h * .52, h * .22, color); }
   }
   const woods = () => K.mood === 'night' ? [P.woodDk, P.black] : [P.wood, P.woodDk];  // madeira do primeiro plano
@@ -253,12 +266,9 @@
       const [wc, wd] = woods(), x0 = Math.round(V.x(o.x0)), x1 = Math.round(V.x(o.x1)), h = Math.max(4, Math.round(o.h * V.k));
       for (const k of [.35, .75]) { const ry = y - Math.round(k * h); rect(x0, ry, x1 - x0, 1, wc); rect(x0, ry + 1, x1 - x0, 1, wd); }
       for (let wx = o.x0; wx <= o.x1 + 1e-6; wx += 60) { const p0 = Math.round(V.x(wx)) - 1; rect(p0, y - h, 2, h, wc); rect(p0 + 1, y - h + 1, 1, h - 1, wd); }
-    } else if (o.kind === 'bush') {  // tufos em disco com a calota de cima clara, do mais baixo ao mais alto; sombra de 1 px no pé
-      const [base, hi, dk] = lit() ? [P.foliage, P.ground, P.ink] : [col('near'), col('far'), P.black];  // far: a calota não some no morro do meio atrás
-      // 5 tufos de alturas pela semente sobre uma base cheia (sem vão embaixo entre os tufos de fora).
-      const L = [0, 1, 2, 3, 4].map(i => { const r = s * (.26 + .1 * hash(o.seed * 3 + i)); return { x: x + (i - 2) * s * .27 + (hash(o.seed * 5 + i) - .5) * 2, r, y: y - r - (i % 4 ? s * (.12 + .25 * hash(o.seed * 7 + i)) : 0) }; });
-      rect(x - s * .6, y - s * .45, s * 1.2, s * .45, base);
-      L.sort((a, b) => b.y - a.y).forEach(l => disc(l.x, l.y, l.r, dy => dy < -l.r * .55 ? hi : base));
+    } else if (o.kind === 'bush') {  // tufos da copa sobre o chão, sombra de 1 px no pé
+      const k = s / 22;
+      tuft(canopyParts(14, o.seed, 9 * k, 5 * k, -7 * k), o.seed, 9 * k + 8, 16 * k + 8, x, y);
       rect(x - s * .7, y - 1, s * 1.4, 1, dk);
     } else if (o.kind === 'post') {  // poste de 2 px e lanterna 4 × 6 com telhado; o vidro acende ao entardecer e à noite
       const h = Math.round(o.h * V.k), pc = lit() ? P.ink : P.black, on = K.time === 'dusk' || K.time === 'night', yl = y - h;
@@ -348,95 +358,153 @@
   }
 
   // ---------- bonecos ----------
-  // Peças do boneco em ordem de desenho (o lado longe da câmera antes do corpo, o perto depois), w em px da grade.
-  const TORSO = { adult: 7, child: 6, elder: 7, heavy: 8, thin: 6 };  // largura em px da grade a z = 1 (1 px a mais de cada lado que na fase 5: tronco largo como o do story)
-  const HS = STYLE.character.headScale || 1;
-  function pieces(a, z) {
-    const P0 = a.pose, far = P0.facing > 0 ? 'R' : 'L', near = far === 'R' ? 'L' : 'R', lw = Math.max(3, Math.round((P0.body === 'heavy' ? 4 : 3) * z)), tw = Math.round(TORSO[P0.body] * z);
-    const leg = s => [['thigh' + s, 'hip' + s, 'knee' + s, lw, 'pants'], ['shin' + s, 'knee' + s, 'ankle' + s, lw, 'pants'], ['foot' + s, 'ankle' + s, 'toe' + s, lw, 'shoe']];
-    const arm = s => [['upperArm' + s, 'shoulder' + s, 'elbow' + s, lw, 'shirt'], ['forearm' + s, 'elbow' + s, 'wrist' + s, lw, 'shirt'], ['hand' + s, 'wrist' + s, 'hand' + s, lw, 'skin']];
-    return [arm(far), leg(far), [['spine', 'pelvis', 'chest', tw, 'shirt'], ['upperSpine', 'chest', 'neck', tw, 'shirt']], leg(near), arm(near)];
+  // Boneco do ramo v5 do protótipo (scripts/pixel-demo.mjs): volumes sombreados (figure.js) e sprites desenhados
+  // (PIXEL_SPRITES5), montado olhando para a direita no espaço local x' = (x − O.x)·facing, O = pelve arredondada, e
+  // espelhado pronto (flipCells). Unidade s = |pescoço − pelve| / 11 em px da grade; sprites em k = s / 1,25 (scaleRows
+  // quando |k − 1| > .1). Corpos: largura do tronco e raio dos membros a mais (heavy, thin); o idoso ganha casaco longo.
+  const S5 = PIXEL_SPRITES5, BODY = { heavy: [1.6, .4], thin: [-1, -.3] };
+  const HANDS = { walk: 'fist', run: 'fist', cower: 'fist', read: 'hold', cheer: 'open' };  // as outras ações: relax; point e talk mudam a mão de perto
+  // Traços do boneco para o check-motion: [nome, de, até, raio em s] (raios da v5; tronco pela meia largura do polígono).
+  function pieces(a) {
+    const [dw, dr] = BODY[a.pose.body] || [0, 0];
+    const leg = s => [['thigh' + s, 'hip' + s, 'knee' + s, 2.9 + dr], ['shin' + s, 'knee' + s, 'ankle' + s, 2.5 + dr], ['foot' + s, 'ankle' + s, 'toe' + s, 2.2 + dr]];
+    const arm = s => [['upperArm' + s, 'shoulder' + s, 'elbow' + s, 2.4 + dr], ['forearm' + s, 'elbow' + s, 'wrist' + s, 2.1 + dr], ['hand' + s, 'wrist' + s, 'hand' + s, 2]];
+    return [...arm('L'), ...arm('R'), ...leg('L'), ...leg('R'), ['spine', 'pelvis', 'chest', 6 + dw / 2], ['upperSpine', 'chest', 'neck', 6 + dw / 2]];
   }
-  // Cabeça em bloco escalada por headScale e crescendo para cima pelo eixo headBase → headTop: o pé dela fica 1,5 px abaixo
-  // de headBase como na escala 1, e o pescoço continua ligado. top = o alto da cabeça em px do mundo (para o check-motion).
+  // Cabeça: centro c = pescoço + n̂·9·s (n̂ = headBase → headTop), em px da grade; cabelo (capuz e capacete no lugar dele) e
+  // chapéu já escalados (sc). Caixa = cabeça mais o mapa de cabelo ou chapéu, para o reach; top = o alto do mapa em px do
+  // mundo, sobre headBase (check-motion). v = variante da inclinação (tilt: + para baixo, − para cima).
   function headBox(a, V) {
-    const J = a.pose.joints, b = V.p(J.headBase), t = V.p(J.headTop), L = Math.hypot(t[0] - b[0], t[1] - b[1]) || 1, u = [(t[0] - b[0]) / L, (t[1] - b[1]) / L];
-    const hh = Math.max(4, Math.round(L * HS + 3)), hw = hh - (a.pose.body === 'thin' ? 2 : 1), k = hh / 2 - 1.5, f = (hh - 1.5) / L;
-    // A inclinação desloca só 40% em x (a cabeça grande não sai de cima do pescoço); tilt (+ para baixo, − para cima) vai para o olho.
-    return { x: Math.round(b[0] + u[0] * k * .4 - hw / 2), y: Math.round(b[1] + u[1] * k - hh / 2), w: hw, h: hh, tilt: u[0] * a.pose.facing, top: J.headBase.map((v, i) => v + (J.headTop[i] - v) * f) };
+    const J = a.pose.joints, nk = V.p(J.neck), pv = V.p(J.pelvis), b = V.p(J.headBase), t = V.p(J.headTop), L = Math.hypot(t[0] - b[0], t[1] - b[1]) || 1, fc = a.pose.facing;
+    // n̂ a no máximo .3 rad do eixo pelve → pescoço: o look-up e o read giram a cabeça ~1 rad, e a cabeça grande cairia atrás do ombro.
+    const Ls = Math.hypot(nk[0] - pv[0], nk[1] - pv[1]) || 1, s = Ls / 11, k = s / 1.25, ua = Math.atan2(nk[1] - pv[1], nk[0] - pv[0]), na = Math.atan2(t[1] - b[1], t[0] - b[0]);
+    const ang = ua + clamp(Math.atan2(Math.sin(na - ua), Math.cos(na - ua)), -.3, .3), c = [nk[0] + Math.cos(ang) * 9 * s, nk[1] + Math.sin(ang) * 9 * s], gear = a.gear || [];
+    const sc = sp => Math.abs(k - 1) > .1 ? { ...sp, rows: scaleRows(sp.rows, k), ax: Math.round(sp.ax * k), ay: Math.round(sp.ay * k) } : sp;
+    const map = gear.includes('hood') ? 'hood' : gear.includes('helmet') ? 'helmet' : hairOf(a), hs = S5.hair[map] && sc(S5.hair[map]), hat = gear.includes('hat') && sc(S5.hat), ms = [hs, hat].filter(Boolean);
+    const lo = Math.min(-7.8 * s, ...ms.map(q => -q.ax)), hi = Math.max(8.6 * s, ...ms.map(q => q.rows[0].length - q.ax)), up = Math.max(7.6 * s, ...ms.map(q => q.ay));
+    const x = fc > 0 ? c[0] + lo : c[0] - hi, y = c[1] - up, tilt = (t[0] - b[0]) / L * fc;
+    return { s, k, c, sc, map, hs, hat, x, y, w: hi - lo, h: up + 8.1 * s, v: headVariant(tilt), top: [J.headBase[0], V.wy(y)] };
   }
   // Mão desenhada no máximo 1 px além do pulso (em px da grade): a mão caída do look-up não vira uma faixa de pele no tronco.
   const short = (W, H) => { const dx = H[0] - W[0], dy = H[1] - W[1], L = Math.hypot(dx, dy); return L > 1 ? [W[0] + dx / L, W[1] + dy / L] : H; };
   // Braço de perto cuja mão cairia dentro da cabeça grande (o point põe o pulso na altura do rosto): o braço inteiro gira no
   // ombro, sem mudar os comprimentos, o menor ângulo (de preferência para baixo, à frente) que tira pulso, mão e dedo 1 px
   // para fora da cabeça, contados o bloco e o contorno. Giro de até 1,3 rad (o menor teto que ainda tira a mão do point do
-  // idoso do rosto); se nada sai, fica o braço sem giro. O point ganha um dedo de 1 px na direção da mão. Devolve os pontos
-  // desenhados em px da grade (S, E, W, H, D → tip do dedo, rot = girou) ou null.
-  function reach(a, V, hb, lw) {
-    const J = a.pose.joints, n = a.pose.facing > 0 ? 'L' : 'R', S0 = V.p(J['shoulder' + n]), pt = a.role === 'point', m = lw / 2 + 2;
+  // idoso do rosto); se nada sai, fica o braço sem giro. A mão erguida (acima de headBase, fora o point: cheer, talk) não gira
+  // para baixo: o pulso e a mão saem de lado e para cima (cotovelo 40%), de 1 px em 1 px, até fora da caixa. O braço de longe
+  // (far) só entra por esse empurrão (a cabeça o cobre nos outros casos). O point ganha um dedo de 1 px na direção da mão.
+  // Devolve os pontos desenhados em px da grade (S, E, W, H, D → tip do dedo, rot = girou ou saiu) ou null.
+  function reach(a, V, hb, lw, n = a.pose.facing > 0 ? 'L' : 'R', far = false) {
+    const J = a.pose.joints, S0 = V.p(J['shoulder' + n]), pt = a.role === 'point' && !far, m = lw / 2 + 2, h0 = V.p(J['hand' + n]), raised = !pt && h0[1] < V.p(J.headBase)[1], sx = Math.sign(h0[0] - hb.x - hb.w / 2) || a.pose.facing;
     const hit = (q, d) => q[0] > hb.x - d && q[0] < hb.x + hb.w + d && q[1] > hb.y - d && q[1] < hb.y + hb.h + d;
-    const arm = t => {
-      const rot = q => { const dx = q[0] - S0[0], dy = q[1] - S0[1], c = Math.cos(t), s = Math.sin(t); return [S0[0] + dx * c - dy * s, S0[1] + dx * s + dy * c]; };
-      const [E, W, H0] = ['elbow', 'wrist', 'hand'].map(k => rot(V.p(J[k + n]))), H = short(W, H0);
+    const arm = (t, pu = 0) => {
+      const rot = q => { const dx = q[0] - S0[0], dy = q[1] - S0[1], c = Math.cos(t), s = Math.sin(t); return [S0[0] + dx * c - dy * s, S0[1] + dx * s + dy * c]; }, out = (q, f) => [q[0] + sx * pu * f, q[1] - pu * f / 2];
+      const [E, W, H0] = ['elbow', 'wrist', 'hand'].map((k, i) => out(rot(V.p(J[k + n])), i ? 1 : .4)), H = short(W, H0);
       const d = Math.hypot(H[0] - W[0], H[1] - W[1]) > .5 ? [H[0] - W[0], H[1] - W[1]] : [W[0] - E[0], W[1] - E[1]], L = Math.hypot(...d) || 1, u = [d[0] / L, d[1] / L];
-      const q = { n, S: S0, E, W, H, rot: t !== 0, ...(pt && { D: [H[0] + u[0] * (lw / 2 + .5), H[1] + u[1] * (lw / 2 + .5)], tip: [H[0] + u[0] * (lw / 2 + 2), H[1] + u[1] * (lw / 2 + 2)] }) };
+      const q = { n, S: S0, E, W, H, rot: t !== 0 || pu > 0, ...(pt && { D: [H[0] + u[0] * (lw / 2 + .5), H[1] + u[1] * (lw / 2 + .5)], tip: [H[0] + u[0] * (lw / 2 + 2), H[1] + u[1] * (lw / 2 + 2)] }) };
       q.clear = !hit(W, m) && !hit(H, m) && !(pt && hit(q.tip, 2.5));  // o braço de cima e o cotovelo podem encostar no queixo
       return q;
     };
     const q0 = arm(0);
     if (q0.clear) return pt ? q0 : null;
+    if (raised) for (let pu = 1; pu <= 20; pu++) { const q = arm(0, pu); if (q.clear) return q; }
+    if (far) return null;
     for (let k = 1; k <= 13; k++) for (const sg of [a.pose.facing, -a.pose.facing]) { const q = arm(sg * k * .1); if (q.clear) return q; }
     return pt ? q0 : null;
   }
-  // Cores do elenco levadas à paleta aqui (o engine.js quantiza de novo, sem mudança) e o tom de sombra de cada uma
-  // (a cor mais próxima da versão escura, mais escura que ela), para o braço e a perna do lado de longe.
-  const pal = hex => nearest(hex), dim = q => nearest(mixCol(q, '#000010', .35), x => x !== q && lum(x) < lum(q)) || q;
+  // Os braços que o reach desenha fora do osso: o de perto e, se erguido, o de longe.
+  const reaches = (a, V, hb) => { const lw = 2 * (2.1 + (BODY[a.pose.body] || [0, 0])[1]) * hb.s, n = a.pose.facing > 0 ? 'L' : 'R'; return [reach(a, V, hb, lw, n), reach(a, V, hb, lw, n === 'L' ? 'R' : 'L', true)].filter(Boolean); };
+  // Monta o boneco na ordem do protótipo (braço e perna de longe com viés −.55, tronco, perna de perto, cabeça com queixo e
+  // nariz, cabelo, chapéu, orelha, braço de perto), rasteriza, pinta o rosto (facePlan), desce 1 tom à noite e no interior
+  // (shift) e espelha. Rampas do elenco por rampFor (família de familyOf com o valor da cor); bota leather, capacete grey, capuz na da camisa;
+  // cachecol e capa na rampa do accent (padrão red). Deitado (lying), monta o boneco de pé (a pose girada de volta em torno da pelve,
+  // com o eixo pelve → pescoço na vertical) numa grade quadrada e gira a grade 90° (rotateCells, exato); a luz gira junto. Devolve
+  // { layer, O (px da grade da origem local), k }; o resultado é guardado por chave (memo): o engine desenha em 12/s e o mesmo
+  // desenho se repete nos quadros seguintes.
+  const memo = new Map();
+  function figureOf(a, F) {
+    const V0 = view(F, a.layer), J = a.pose.joints, fc = a.pose.facing, gear = a.gear || [], lying = a.lying === 1;
+    // Luz: o astro (no interior, ou sem astro, a primeira luz; sem nenhuma, à esquerda) e o lado do peito em relação a ele.
+    const side = sideOf(F, V0.p(J.chest)[0]), shift = K.mood === 'night' || K.mood === 'interior' ? 1 : 0;
+    // Ondulação do cachecol e da capa: fase da passada quando anda, senão t/L · round(L / 1,6) (K.phase = t/L).
+    const sw = gear.includes('scarf') || gear.includes('cape') ? sway(a.role === 'walk' || a.role === 'run' ? a.phase : K.phase * Math.max(1, Math.round(K.L / 1.6))) : 0;
+    // Chave: tudo o que muda o desenho (pose, ator, câmera e camada, luz, ondulação); limite de 40 desenhos (os repetidos vêm em sequência).
+    const key = JSON.stringify([a.id, a.role, a.layer, gear, a.colors, a.hair, lying, a.seated, a.phase, J, fc, a.pose.face, a.pose.body, F.cam, K.mood, side, shift, sw]), hit = memo.get(key);
+    if (hit) return hit;
+    // Deitado: V devolve os pontos da pose de pé (girados de volta em torno da pelve até o eixo pelve → pescoço ficar na vertical).
+    const pv0 = V0.p(J.pelvis), nk0 = V0.p(J.neck), th = -Math.PI / 2 - Math.atan2(nk0[1] - pv0[1], nk0[0] - pv0[0]), co = Math.cos(th), si = Math.sin(th);
+    const V = lying ? { ...V0, p: q => { const [x, y] = V0.p(q), dx = x - pv0[0], dy = y - pv0[1]; return [pv0[0] + dx * co - dy * si, pv0[1] + dx * si + dy * co]; } } : V0;
+    const hb = headBox(a, V), { s, sc } = hb, [dw, dr] = BODY[a.pose.body] || [0, 0];
+    const near = fc > 0 ? 'L' : 'R', far = near === 'L' ? 'R' : 'L', RO = {};
+    for (const rc of reaches(a, V, hb)) Object.assign(RO, { ['elbow' + rc.n]: rc.E, ['wrist' + rc.n]: rc.W, ['hand' + rc.n]: rc.H });
+    const O = V0.p(J.pelvis).map(Math.round), loc = q => [(q[0] - O[0]) * fc, q[1] - O[1]], w = n => RO[n] || V.p(J[n]), g = n => loc(w(n)), hand = sd => loc(RO['hand' + sd] || short(w('wrist' + sd), w('hand' + sd)));
+    // Rampas do elenco por papel (rampFor: família de familyOf deslocada para guardar o valor da cor pedida).
+    const cc = { skin: P.body, hair: P.woodDk, shirt: P.sea, pants: P.ink, accent: P.red2, ...(a.colors || {}) }, fam = { skin: 'skin', hair: 'hair', shirt: 'shirt', pants: 'pants', accent: 'accent' };
+    const RR = { ...STYLE.ramps, ...Object.fromEntries(Object.keys(fam).map(m => [m, rampFor(cc[m], m === 'skin' || m === 'hair' ? m : 'cloth', STYLE.ramps)])) };
+    const r = x => (x + dr) * s, kind = sd => (a.role === 'point' || a.role === 'talk') && sd === near ? (a.role === 'point' ? 'point' : 'open') : HANDS[a.role] || 'relax';
+    const arm = (sd, gr, bias) => { const S0 = g('shoulder' + sd), E = g('elbow' + sd), W0 = g('wrist' + sd), o = { g: gr, bias };
+      return [quadPart(S0, E, r(2.4), r(2.1), fam.shirt, o), ellipsePart(E, r(2), r(2), fam.shirt, o), quadPart(E, W0, r(2.1), r(1.8), fam.shirt, o),
+        ellipsePart([lerp(E[0], W0[0], .8), lerp(E[1], W0[1], .8)], 1.7 * s, 1.7 * s, fam.shirt, { g: gr + 'cuff', bias, tn: (x, y, t) => Math.max(1, Math.min(2, t)) }), spritePart(hand(sd), sc(S5.hands[kind(sd)]), fam.skin, { bias })]; };
+    const leg = (sd, gr, bias) => { const Hp = g('hip' + sd), Kn = g('knee' + sd), A = g('ankle' + sd), o = { g: gr, bias };
+      return [quadPart(Hp, Kn, r(2.9), r(2.5), fam.pants, o), ellipsePart(Kn, r(2.4), r(2.4), fam.pants, o), quadPart(Kn, A, r(2.5), r(2.2), fam.pants, o), spritePart(A, sc(S5.boot), 'leather', { bias })]; };
+    // Casaco longo do idoso: quadrilátero do quadril ao joelho na família da camisa, barra de 1 px no tom 1.
+    const coat = (sd, bias) => { if (a.pose.body !== 'elder') return []; const Hp = g('hip' + sd), Kn = g('knee' + sd), L = Math.hypot(Kn[0] - Hp[0], Kn[1] - Hp[1]) || 1, u = [(Kn[0] - Hp[0]) / L, (Kn[1] - Hp[1]) / L], end = L + .6 * r(3.1);
+      return [quadPart(Hp, Kn, r(3.3), r(3.1), fam.shirt, { g: 'coat' + sd, bias, tn: (x, y, t) => (x - Hp[0]) * u[0] + (y - Hp[1]) * u[1] > end - 1 ? 1 : t })]; };
+    // Tronco no referencial do protótipo (pelve em (0, −14), y ao longo de pescoço → pelve): Tp leva para o local, Ti volta.
+    const pv = g('pelvis'), nk = g('neck'), Ls = Math.hypot(nk[0] - pv[0], nk[1] - pv[1]) || 1, u = [(nk[0] - pv[0]) / Ls, (nk[1] - pv[1]) / Ls], pr = [-u[1], u[0]];
+    const Tp = ([x, y]) => [pv[0] + s * (x * pr[0] - (y + 14) * u[0]), pv[1] + s * (x * pr[1] - (y + 14) * u[1])];
+    const Ti = (x, y) => { const dx = x - pv[0], dy = y - pv[1]; return [(dx * pr[0] + dy * pr[1]) / s, -(dx * u[0] + dy * u[1]) / s - 14]; };
+    // v4: faixa da camisa (cream) na abertura da jaqueta, cinto leather com fivela yellow, calça embaixo; barra, lapela e bolso no tom ≤ 1.
+    const strip = x => x > .3 && x < 2.8, wide = ([x, y]) => [x + Math.sign(x) * dw / 2, y];
+    const torsoMat = (x0, y0) => { const [x, y] = Ti(x0, y0); return strip(x) ? (y < -17.6 ? 'cream' : y < -16 ? (x > .6 && x < 2.4 ? 'yellow' : 'leather') : fam.pants) : y < -14.8 ? fam.shirt : fam.pants; };
+    const torsoTn = (x0, y0, t) => { const [x, y] = Ti(x0, y0); return !strip(x) && y < -14.8 && (y > -15.8 || (x > 2.8 && x < 3.8) || (x > -4.6 && x < -2 && y > -19.6 && y < -18.8)) ? Math.min(t, 1) : t; };
+    const torso = polyPart([[-4.6, -28], [5.2, -28], [6.6, -24.6], [5.8, -17.5], [6.2, -12], [-5.2, -12], [-5.4, -17.5], [-6.2, -24.6]].map(q => Tp(wide(q))), 2.2 * s, torsoMat, { tn: torsoTn });
+    const pack = gear.includes('backpack') ? [polyPart([[-9.6, -26.4], [-5.6, -26.4], [-5.6, -17], [-9.6, -17]].map(q => Tp(wide(q))), 1.2 * s, 'brown')] : [];
+    // Cachecol (duas cápsulas da nuca para trás, gola em elipse) e capa (polígono dos ombros aos joelhos, os dois pontos de baixo
+    // deslocados 1,5·s·sway): ondulam com sway; correndo, as pontas voam 2,4 atrás.
+    const fly = a.role === 'run' ? 2.4 : 0, ac = { g: 'tail' }, bk = Tp([-5.4, -23.6 + sw * .8]), tail = Tp([-9.8 - fly, -22.4 - sw * 1.2]);
+    const scarf = gear.includes('scarf') ? [capsulePart(Tp([-1, -25]), bk, 2.2 * s, 1.6 * s, fam.accent, ac), capsulePart(bk, tail, 1.6 * s, .8 * s, fam.accent, ac)] : [];
+    const cape = gear.includes('cape') ? [polyPart([[1.6, -27.4], [-7.2, -26], [-11 + sw * 1.5 - fly, -7.6], [-3.4 + sw * 1.5 - fly / 2, -6.2]].map(Tp), 1.6 * s, fam.accent, { g: 'cape' })] : [];
+    const hc = loc(hb.c), Hd = (dx, dy) => [hc[0] + dx * s, hc[1] + dy * s], hd = { g: 'head' }, hairMat = hb.map === 'hood' ? fam.shirt : hb.map === 'helmet' ? 'grey' : fam.hair;
+    const parts = [...pack, ...cape, ...scarf, ...arm(far, 'armB', -.55), ...leg(far, 'legB', -.55), ...coat(far, -.55), torso, ...leg(near, 'legF', 0), ...coat(near, 0),
+      ...(gear.includes('scarf') ? [ellipsePart(Tp([.8, -25.4]), 5.6 * s, 2.3 * s, fam.accent)] : []),
+      ellipsePart(Hd(0, 0), 7.8 * s, 7.6 * s, fam.skin, hd), ellipsePart(Hd(1.6, 3.4), 6.2 * s, 4.7 * s, fam.skin, hd), ellipsePart(Hd(7.4, 1.8), 1.2 * s, 1.1 * s, fam.skin, hd),
+      ...(hb.hs ? [spritePart(hc, hb.hs, hairMat)] : []), ...(hb.hat ? [spritePart(hc, hb.hat, 'leather')] : []), ...(hb.map === 'hood' ? [] : [spritePart(Hd(-3.2, 1.8), sc(S5.ear), fam.skin, hd)]),
+      ...arm(near, 'armF', 0)];
+    // Caixa simétrica em x em torno de O (o flip não perde nada), com folga para cabelo, mãos e botas.
+    const pts = [...Object.keys(J).map(g), hc], pad = Math.ceil(16 * s) + 2, OX = Math.ceil(Math.max(...pts.map(q => Math.abs(q[0])))) + pad, OY = Math.ceil(-Math.min(...pts.map(q => q[1]))) + pad;
+    // Deitado: grade quadrada de meia largura E (rotateCells exige W = H) em volta da pelve.
+    const E = Math.max(OX, OY, Math.ceil(Math.max(...pts.map(q => q[1]))) + pad), box = lying ? { W: 2 * E, H: 2 * E, OX: E, OY: E } : { W: 2 * OX, H: OY + Math.ceil(Math.max(...pts.map(q => q[1]))) + pad, OX, OY };
+    // Luz local: L com x vezes side·facing; side = longe da luz. Deitado, a luz de pé é a final girada de volta: [.7, −.55·side·facing].
+    // ponytail: figureLayer varre a caixa inteira por peça (~240 ms/quadro no cast contra ~125 do boneco antigo; o memo acima pula
+    // os desenhos repetidos, ~metade a 24 fps); caixa por peça em figure.js se ainda pesar.
+    let layer = figureLayer(parts, box, { ramps: RR, light: lying ? [.7, -.55 * side * fc, .5] : [-.55 * side * fc, -.7, .5], rim: true, ink: K.mood === 'night' ? P.stoneDk : P.black, shift });
+    // Rosto pelo facePlan, pintado só na cabeça e no cabelo (paintFace): o braço de perto continua na frente dele.
+    const Fc = a.pose.face || {}, up = hb.v === 'up';
+    paintFace(layer, facePlan({ face: Fc.blink >= .5 ? 'blink' : up && Fc.expression === 'neutral' ? 'curious' : Fc.expression, mouth: Fc.mouth || (up ? 'o' : 'none'), up }, s), hc,
+      { K: P.black, W: P.eye, B: RR[fam.hair][0], S: RR[fam.skin][Math.max(0, 1 - shift)], T: P.red3, P: P.blush });
+    if (lying) layer = rotateCells(layer, -1);  // cabeça para trás (a esquerda do espaço local, que já olha para a direita)
+    if (fc < 0) layer = flipCells(layer);
+    if (memo.size >= 40) memo.clear();
+    const out = { layer, O, k: hb.k }; memo.set(key, out);
+    return out;
+  }
+  // Sombra de contato (2 linhas de pontilhado 50% em P.ink sob a pelve, 14·s de largura; nem sentado nem deitado), a poeira do
+  // run, o boneco na grade (com o recorte atual) e o livro do read por cima, no meio das duas mãos, como antes.
   function doll(F, a) {
-    // Contorno em ink; à noite em stoneDk, um tom mais claro que o fundo (ink some nos morros e no chão escuros).
-    const V = view(F, a.layer), J = a.pose.joints, ink = K.mood === 'night' ? P.stoneDk : P.ink, z = F.cam.z, cc = { skin: P.body, hair: P.woodDk, shirt: P.sea, pants: P.ink, ...(a.colors || {}) };
-    // Cabelo: a cor da paleta mais próxima que fique longe da pele e não seja bem mais saturada que a pedida (cabelo branco
-    // vira cinza-azulado, não creme sobre pele clara nem azul-céu).
-    const dist = (p, q) => { const [r, g, b] = rgb(p), [x, y, w] = rgb(q); return Math.hypot(r - x, g - y, b - w); }, sat = h => (Math.max(...rgb(h)) - Math.min(...rgb(h))) / 255, skin = pal(cc.skin);
-    const C = { skin, hair: nearest(cc.hair, q => dist(q, skin) > 70 && sat(q) - sat(cc.hair) < .15) || pal(cc.hair), shirt: pal(cc.shirt), pants: pal(cc.pants), shoe: P.black };
-    Object.assign(C, { shirtDk: dim(C.shirt), pantsDk: dim(C.pants), skinDk: dim(C.skin), hairDk: dim(C.hair) });
-    const fc = a.pose.facing, gear = a.gear || [], groups = pieces(a, z), hb = headBox(a, V), back = fc > 0 ? hb.x : hb.x + hb.w - 1, rc = reach(a, V, hb, groups[4][0][3]);
-    const O = rc ? { ['elbow' + rc.n]: rc.E, ['wrist' + rc.n]: rc.W, ['hand' + rc.n]: rc.H } : {}, g = n => O[n] || V.p(J[n]);
-    for (const s of 'LR') O['hand' + s] = short(g('wrist' + s), g('hand' + s));  // mão curta: o bloco não vira uma faixa de pele no tronco
-    const finger = out => rc && rc.D && seg(rc.D, rc.tip, out ? 3 : 1, out ? ink : C.skin, out ? -1.5 : -.5);  // dedo de 1 px (2 de comprido) do point
-    const ch = g('chest'), pw = Math.max(2, Math.round(3 * z)), ph = Math.round(7 * z), bx = Math.round(ch[0] - fc * (groups[2][0][3] / 2 + pw / 2 + .5)) - (pw >> 1), hat = gear.includes('hat');
-    const draw = (list, out, dk) => { for (const [name, j0, j1, w, part] of list) seg(g(j0), g(j1), w + (out ? 2 : 0), out ? ink : C[part + (dk && part !== 'shoe' ? 'Dk' : '')], name.startsWith('foot') ? -w - (out ? 1 : 0) : undefined); };
-    // Contorno de 1 px da silhueta inteira primeiro; depois o recheio do longe para o perto (por dentro, só o braço de perto).
-    groups.slice(0, 4).forEach(list => draw(list, true));  // o do braço de perto vem depois do tronco (uma vez só)
-    rect(hb.x - 1, hb.y, hb.w + 2, hb.h, ink); rect(hb.x, hb.y - 1, hb.w, hb.h + 2, ink);  // contorno sem os cantos: cabeça menos quadrada
-    if (gear.includes('backpack')) rect(bx - 1, ch[1] - 1, pw + 2, ph + 2, ink);
-    const up = hb.tilt < -.25, hx = up ? -fc : 0, hy = up ? -1 : 0;  // olhando para cima: o chapéu vai 1 px para trás e para cima
-    if (hat) { const cr = hb.h >= 10 ? 3 : 2, d = hb.h >= 10 ? 1 : 0; rect(hb.x - 3 + hx, hb.y - 2 + hy, hb.w + 6, 3, ink); rect(hb.x - 1 + d + hx, hb.y - 2 - cr + hy, hb.w + 2 - 2 * d, cr + 1, ink); }
-    draw(groups[0], false, true); draw(groups[1], false, true);
-    if (gear.includes('backpack')) { rect(bx, ch[1], pw, ph, P.wood); rect(bx, ch[1] + ph - 1, pw, 1, P.woodDk); }
-    draw(groups[3], false); draw(groups[2], false);  // perna de perto antes do tronco: a camisa cobre o alto da coxa
-    // Sombra de 1 px no lado do tronco longe da luz (o astro; no interior, ou sem astro, a primeira luz; sem nenhuma, luz à esquerda).
-    const src = (!K.interior && K.sky.celestial) || K.lights[0], side = src ? (ch[0] >= view(F, src.f || 0).x(src.x) ? 1 : -1) : 1;
-    for (const [, j0, j1, w] of groups[2]) { const [x0, y0] = g(j0), [x1, y1] = g(j1), n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)))); for (let i = 0; i <= n; i++) rect(Math.round(lerp(x0, x1, i / n) - w / 2) + (side > 0 ? w - 1 : 0), Math.round(lerp(y0, y1, i / n) - w / 2), 1, w, C.shirtDk); }
-    // Cabeça em bloco, cabelo em cima e atrás (mais grosso na cabeça grande), olho do lado para onde olha (fecha quando pisca).
-    // Contorno do braço de perto (e do dedo) sobre o tronco; o braço não entra na cabeça (reach). À noite, no tom escuro da
-    // manga: o contorno claro da silhueta, por dentro do corpo, viraria fios de cabelo.
-    if (K.mood === 'night') { for (const [, j0, j1, w, part] of groups[4]) seg(g(j0), g(j1), w + 2, part === 'skin' ? C.skinDk : C.shirtDk); } else draw(groups[4], true);
-    finger(true);
-    rect(hb.x, hb.y, hb.w, hb.h, C.skin);
-    const hood = gear.includes('hood'), helmet = gear.includes('helmet'), hairC = hood ? C.shirt : helmet ? P.stone : C.hair, big = hb.h >= 10, hr = Math.max(2, Math.round(hb.h * .22));
-    const bw = big ? 2 : 1, bx0 = fc > 0 ? back : back - bw + 1, bh = hood ? hb.h : Math.round(hb.h * .7);
-    rect(hb.x, hb.y, hb.w, helmet ? hr + 1 : hr, hairC); rect(bx0, hb.y, bw, bh, hairC);
-    // Cabelo de tom perto da pele: 1 px do tom escuro dele onde encontra o rosto (embaixo da franja e na frente da nuca).
-    if (!hood && !helmet && Math.abs(lum(C.hair) - lum(C.skin)) < 50) { const fx = fc > 0 ? bx0 + bw : hb.x; rect(fx, hb.y + hr - 1, hb.w - bw, 1, C.hairDk); rect(fc > 0 ? bx0 + bw - 1 : bx0, hb.y + hr, 1, bh - hr, C.hairDk); }
-    if (hood) rect(hb.x - 1, hb.y - 1, hb.w + 2, 1, C.shirt);
-    if (helmet) rect(hb.x, hb.y + hr, hb.w, 1, P.stoneDk);
-    if (hat) { const cr = big ? 3 : 2; rect(hb.x - 2 + hx, hb.y - 1 + hy, hb.w + 4, 1, P.woodDk); rect(hb.x + (big ? 1 : 0) + hx, hb.y - 1 - cr + hy, hb.w - (big ? 2 : 0), cr, P.sandDk); }
-    draw(groups[4], false); finger(false);  // braço de perto por cima, com o contorno próprio (lê sobre o tronco)
-    if (a.holds === 'book') { const [x, y] = [(g('handL')[0] + g('handR')[0]) / 2, (g('handL')[1] + g('handR')[1]) / 2]; rect(x - 3, y - 3, 6, 4, ink); rect(x - 2, y - 2, 4, 2, P.shadow); rect(x - 2, y - 2, 4, 1, P.cloud); }
-    // Olho em black por último (nada o cobre), sobe quando olha para cima; olhando para cima, a boca abre (2 px na frente, embaixo).
-    const ex = fc > 0 ? hb.x + hb.w - (big ? 3 : 2) : hb.x + (big ? 2 : 1);
-    if (a.pose.face.blink < .5) rect(ex, Math.max(hb.y + hr, hb.y + Math.round(hb.h * (.5 + .45 * hb.tilt)) - (big ? 1 : 0)), 1, big ? 2 : 1, P.black);
-    if (up && big) rect(fc > 0 ? hb.x + hb.w - 2 : hb.x, hb.y + Math.round(hb.h * .7), 2, 1, P.black);
+    const V = view(F, a.layer), J = a.pose.joints, { layer: L, O, k } = figureOf(a, F), s = k * 1.25;
+    if (!a.seated && !a.lying) { const gy = Math.round(V.y(a.ground(J.pelvis[0]))), hw = Math.round(7 * s); for (let y = gy; y < gy + 2; y++) for (let x = O[0] - hw; x < O[0] + hw; x++) if (bay(x, y) < .5) px(x, y, P.ink); }
+    // Poeira: a cada passo do run (a fase perto de 0 e de .5) o pé que pousa levanta 4, 3 e 2 px nos 3 desenhos do passo, atrás do
+    // calcanhar (5 px atrás do tornozelo), na areia (snowShade na neve); presos ao chão (o pé apoiado não anda; hash pela posição no mundo) e só com o pé no chão.
+    if (a.role === 'run') {
+      const age = Math.min(2, Math.floor(a.phase * 2 % 1 * 3)), ak = J.ankleL[1] > J.ankleR[1] ? J.ankleL : J.ankleR, gd = a.ground(ak[0]), snow = ((K.layers.find(l => l.kind === 'ground') || {}).surface) === 'snow';
+      if (gd - ak[1] < 16) for (let i = 0; i < 4 - age; i++) px(V.x(ak[0]) - a.pose.facing * (5 + 2 * i + Math.floor(2 * hash(Math.round(ak[0] / 24) * 3.7 + i))), V.y(gd) - 1 - (i + age) % 2, snow ? P.snowShade : P.sand);
+    }
+    blit(L, O[0], O[1]);
+    if (a.holds === 'book') {
+      const [hL, hR] = ['L', 'R'].map(sd => short(V.p(J['wrist' + sd]), V.p(J['hand' + sd]))), x = (hL[0] + hR[0]) / 2, y = (hL[1] + hR[1]) / 2, ink = K.mood === 'night' ? P.stoneDk : P.black;
+      rect(x - 3, y - 3, 6, 4, ink); rect(x - 2, y - 2, 4, 2, P.shadow); rect(x - 2, y - 2, 4, 1, P.cloud);
+    }
   }
 
   function drawK(F) {
@@ -461,7 +529,7 @@
       while (fogAt.length && l.f >= fogAt[0]) { fogAt.shift(); shiftPass(LIFT, () => 1); }
       const V = view(F, l.f);
       if (l.kind === 'ridge') profile(V, l.prof, col(step()));
-      else if (l.kind === 'treeline') { const c0 = col(step()); for (const t of l.trees) tree(V, t, c0); }
+      else if (l.kind === 'treeline') { const c0 = col(step()); for (const t of l.trees) tree(V, t, c0, l.f); }
       else if (l.kind === 'dunes') { const far = l.f < .5, base = lit() ? (far ? P.light : P.sandDk) : col(far ? 'far' : 'mid'), top = profile(V, l.prof, base); for (let gx = 0; gx < GW; gx++) if (top[gx + 2] > top[gx] + 1 || top[gx + 1] > top[gx]) for (let r = 0; r < 5; r++) if (bay(gx, top[gx] + r) < .5 - r * .1) px(gx, top[gx] + r, lit() ? P.sandDk : col('near')); }
       else if (l.kind === 'buildings') for (const b of l.items) building(V, b);
       else if (l.kind === 'sea') sea(V, l);
@@ -483,19 +551,21 @@
 
   window.ExpStyle = {
     draw(F) { if (F.scene !== 'K') throw new Error(`O pixel só desenha a cena K (kit de episódio), não ${F.scene}`); drawK(F); },
-    // O que draw desenha de cada boneco (contrato em check-motion.mjs), em px do mundo: traços em blocos (butt) e a cabeça.
+    // O que draw desenha de cada boneco (contrato em check-motion.mjs), em px do mundo: os traços com os raios da v5
+    // (r = raio·s·S/z, butt) e a cabeça de headBase ao alto do mapa de cabelo.
     parts(a, F) {
       const J = a.pose.joints, z = F.cam.z; if (!J) return [];
       // Com reach, o braço desenhado é o girado: o braço de cima sai do ombro com o mesmo comprimento; antebraço e mão (mais o
       // dedo do point) vão como traço do ombro pelos pontos desenhados (to = null: já não estão sobre o osso).
-      const V = view(F, a.layer), hb = headBox(a, V), groups = pieces(a, z), rc = reach(a, V, hb, groups[4][0][3]), w = q => [V.wx(q[0]), V.wy(q[1])];
-      const out = groups.flat().map(([name, from, to, lw]) => {
-        const p = { actor: a.id, name, from, to, pts: [J[from], name.startsWith('hand') ? w(short(V.p(J[from]), V.p(J[to]))) : J[to]], r: lw * S / z / 2, cap: 'butt' };
-        if (!rc) return p;
-        const sh = 'shoulder' + rc.n, path = [J[sh], w(rc.E), w(rc.W)];
-        if (rc.rot && name === 'upperArm' + rc.n) p.pts = [J[sh], w(rc.E)];
-        if (rc.rot && name === 'forearm' + rc.n) Object.assign(p, { from: sh, to: null, pts: path });
-        if ((rc.rot || rc.tip) && name === 'hand' + rc.n) Object.assign(p, { from: sh, to: null, pts: [...path, w(rc.H), ...(rc.tip ? [w(rc.tip)] : [])] });
+      const V = view(F, a.layer), hb = headBox(a, V), rcs = reaches(a, V, hb), w = q => [V.wx(q[0]), V.wy(q[1])];
+      const out = pieces(a).map(([name, from, to, r]) => {
+        const p = { actor: a.id, name, from, to, pts: [J[from], name.startsWith('hand') ? w(short(V.p(J[from]), V.p(J[to]))) : J[to]], r: r * hb.s * S / z, cap: 'butt' };
+        for (const rc of rcs) {
+          const sh = 'shoulder' + rc.n, path = [J[sh], w(rc.E), w(rc.W)];
+          if (rc.rot && name === 'upperArm' + rc.n) p.pts = [J[sh], w(rc.E)];
+          if (rc.rot && name === 'forearm' + rc.n) Object.assign(p, { from: sh, to: null, pts: path });
+          if ((rc.rot || rc.tip) && name === 'hand' + rc.n) Object.assign(p, { from: sh, to: null, pts: [...path, w(rc.H), ...(rc.tip ? [w(rc.tip)] : [])] });
+        }
         return p;
       });
       return [...out, { actor: a.id, name: 'head', from: 'headBase', to: null, pts: [J.headBase, hb.top], r: hb.w * S / z / 2, cap: 'round' }];

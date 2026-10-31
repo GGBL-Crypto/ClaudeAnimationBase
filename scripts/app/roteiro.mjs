@@ -9,7 +9,6 @@ import { epId } from './production.mjs';
 
 const BAD_FORMAT = 'Resposta do Claude fora do formato';
 const ID = /^[a-z][a-z0-9-]*$/, HEX = /^#[0-9a-fA-F]{6}$/;
-const COLORS = ['skin', 'hair', 'shirt', 'pants']; // ponytail: chaves de cor do elenco copiadas de src/episode/kit.js (o KIT_CATALOG não as exporta)
 const LANG = { pt: 'português do Brasil', en: 'inglês' };
 const MAX_CHARS = 100000; // ponytail: trechos das fontes cortados para caber em ~100 mil caracteres por prompt; subir se o Claude pedir mais contexto
 const str = (s, n) => typeof s === 'string' && s.trim() !== '' && s.length <= n;
@@ -46,7 +45,8 @@ export function validateOutline(o, { catalog, budget, numbers }) {
     if (!m || !ID.test(m.id) || o.elenco.filter(x => x?.id === m.id).length > 1) fail('id único em minúsculas (a-z, 0-9 e hífen)');
     if (!catalog.bodies.includes(m.body)) fail(`body fora do catálogo (${catalog.bodies.join(', ')})`);
     if (m.gear != null && (!Array.isArray(m.gear) || m.gear.some(g => !catalog.gear.includes(g)))) fail(`gear fora do catálogo (${catalog.gear.join(', ')})`);
-    if (m.colors != null && (typeof m.colors !== 'object' || Object.entries(m.colors).some(([k, v]) => !COLORS.includes(k) || !HEX.test(v)))) fail(`colors com ${COLORS.join(', ')} em #RRGGBB`);
+    if (m.hair != null && !catalog.hairs.includes(m.hair)) fail(`hair fora do catálogo (${catalog.hairs.join(', ')})`);
+    if (m.colors != null && (typeof m.colors !== 'object' || Object.entries(m.colors).some(([k, v]) => !catalog.colors.includes(k) || !HEX.test(v)))) fail(`colors com ${catalog.colors.join(', ')} em #RRGGBB`);
   });
   o.capitulos.forEach((c, i) => {
     if (!c || !str(c.titulo, 80) || !str(c.resumo, 400) || !Number.isInteger(c.palavras) || c.palavras < 1) throw new Error(`Capítulo ${i + 1}: titulo até 80 caracteres, resumo até 400 e palavras inteiro`);
@@ -56,7 +56,7 @@ export function validateOutline(o, { catalog, budget, numbers }) {
   if (sum < budget.min || sum > budget.max) throw new Error(`Soma das palavras dos capítulos (${sum}) fora da meta de ${budget.min} a ${budget.max}`);
   return {
     titulo: o.titulo.trim(),
-    elenco: o.elenco.map(m => ({ id: m.id, body: m.body, colors: m.colors ?? {}, gear: m.gear ?? [] })),
+    elenco: o.elenco.map(m => ({ id: m.id, body: m.body, colors: m.colors ?? {}, gear: m.gear ?? [], ...(m.hair != null && { hair: m.hair }) })),
     capitulos: o.capitulos.map((c, i) => ({ id: `c${i + 1}`, titulo: c.titulo.trim(), resumo: c.resumo.trim(), palavras: c.palavras })),
   };
 }
@@ -99,7 +99,7 @@ export function validateChapter(o, { catalog, cast, nSources, words: meta, wpm, 
       if (!cast.includes(a.cast)) fail(`ator ${a.cast} fora do elenco (${cast.join(', ')})`);
       if (actors.filter(b => b.cast === a.cast).length > 1) fail(`ator ${a.cast} repetido`);
       if (!catalog.actions.includes(a.action)) fail(`ação ${a.action} fora do catálogo (${catalog.actions.join(', ')})`);
-      if (a.action === 'walk' && !K.exterior) fail(`walk só em cena de exterior, não em ${p.cena.id}`);
+      if ((a.action === 'walk' || a.action === 'run') && !K.exterior) fail(`${a.action} só em cena de exterior, não em ${p.cena.id}`);
     }
     const hud = p.hud == null ? null : p.hud;
     if (hud) {
@@ -168,7 +168,7 @@ const common = ({ theme, lang, sources, analyses }) => ({ tema: oneLine(theme), 
 export function outlinePrompt(template, { theme, lang, targetMin, budget, sources, analyses, catalog }) {
   const capMin = Math.max(3, Math.round(targetMin / 5)), capMax = Math.min(30, Math.max(capMin + 1, Math.round(targetMin / 2)));
   return fill(template, { ...common({ theme, lang, sources, analyses }), minutos: String(targetMin), min: String(budget.min), max: String(budget.max), alvo: String(budget.target),
-    capMin: String(capMin), capMax: String(capMax), corpos: catalog.bodies.join(', '), gear: catalog.gear.join(', '), cores: COLORS.join(', ') });
+    capMin: String(capMin), capMax: String(capMax), corpos: catalog.bodies.join(', '), gear: catalog.gear.join(', '), cores: catalog.colors.join(', '), cabelos: catalog.hairs.join(', ') });
 }
 
 // index: capítulo a escrever (0…); prev: fim da narração do capítulo anterior (continuidade).

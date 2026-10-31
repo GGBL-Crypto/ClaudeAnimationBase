@@ -1,4 +1,4 @@
-import {inflateSync} from 'node:zlib';
+import {inflateSync,deflateSync,crc32} from 'node:zlib';
 import {imageInfo} from '../src/assets/format.js';
 // Bounded, complete PNG decode at admission. The layered profile deliberately requires RGBA8, non-interlaced.
 export function decodeRgba(bytes,{requireTransparency=true}={}){
@@ -13,4 +13,11 @@ export function decodeRgba(bytes,{requireTransparency=true}={}){
  for(let y=0;y<info.height;y++){const f=raw[y*(stride+1)];if(f>4)throw Error('PNG filtro inválido');for(let x=0;x<stride;x++){const a=x>=4?rgba[y*stride+x-4]:0,b=y?rgba[(y-1)*stride+x]:0,c=y&&x>=4?rgba[(y-1)*stride+x-4]:0;rgba[y*stride+x]=(raw[y*(stride+1)+1+x]+[0,a,b,Math.floor((a+b)/2),paeth(a,b,c)][f])&255;}}
  let transparent=0,visible=0,soft=0;for(let k=3;k<rgba.length;k+=4){if(rgba[k]===0)transparent++;else visible++;if(rgba[k]>0&&rgba[k]<255)soft++;}
  if(requireTransparency&&(!transparent||!visible))throw Error('PNG sem transparência real ou vazio');return {...info,rgba,transparent,visible,soft};
+}
+// PNG RGB8 sem filtro, rgb = w·h·3 bytes por linha (folhas de conferência do pixel).
+export function encodeRgb(w,h,rgb){
+ const raw=Buffer.alloc((w*3+1)*h);for(let y=0;y<h;y++)raw.set(rgb.subarray(y*w*3,(y+1)*w*3),y*(w*3+1)+1);
+ const chunk=(type,data)=>{const len=Buffer.alloc(4),td=Buffer.concat([Buffer.from(type),data]),c=Buffer.alloc(4);len.writeUInt32BE(data.length);c.writeUInt32BE(crc32(td));return Buffer.concat([len,td,c]);};
+ const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(w,0);ihdr.writeUInt32BE(h,4);ihdr[8]=8;ihdr[9]=2;
+ return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr),chunk('IDAT',deflateSync(raw)),chunk('IEND',Buffer.alloc(0))]);
 }
