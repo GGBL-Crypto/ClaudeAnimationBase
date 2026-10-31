@@ -76,3 +76,14 @@ test('throwing listeners and failing saves do not block the queue', async () => 
   assert.deepEqual(await end(jobs, b), { status: 'done', result: 9 });
   assert.equal(jobs.get(a).status, 'done');
 });
+test('cancel aborts the running job and drops a queued one, both canceled', async () => {
+  const db = openDb(':memory:'), jobs = createJobs(db); let seen;
+  const a = jobs.start('x', (r, signal) => new Promise((ok, bad) => { seen = signal; signal.addEventListener('abort', () => bad(new Error('morto'))); }));
+  const b = jobs.start('x', async () => 1), c = jobs.start('x', async () => 2);
+  await new Promise(ok => setTimeout(ok, 5));
+  assert.equal(jobs.cancel(b), true); assert.deepEqual(await end(jobs, b), { status: 'canceled' });
+  assert.equal(jobs.cancel(a), true); assert.equal(seen.aborted, true); assert.deepEqual(await end(jobs, a), { status: 'canceled' });
+  assert.deepEqual(await end(jobs, c), { status: 'done', result: 2 });
+  assert.equal(jobs.cancel(a), false); assert.equal(jobs.cancel('nope'), false); assert.equal(jobs.get(b).status, 'canceled');
+  assert.deepEqual(db.raw.prepare('SELECT status FROM jobs WHERE id IN (?,?)').all(a, b).map(r => r.status), ['canceled', 'canceled']);
+});

@@ -3,6 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { channelRow, videoRow } from './metrics.mjs';
+import { STEPS } from './production.mjs';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS channels(id TEXT PRIMARY KEY, title, handle, country, lang, avatar, created_at, uploads, topics, hidden_subs INT, tag, faceless INT, added_at);
@@ -21,6 +22,9 @@ CREATE TABLE IF NOT EXISTS alerts(id INTEGER PRIMARY KEY, at TEXT NOT NULL, kind
 CREATE TABLE IF NOT EXISTS models(id INTEGER PRIMARY KEY, anchor_id TEXT NOT NULL REFERENCES channels(id), created_at TEXT, input TEXT, output TEXT);
 CREATE TABLE IF NOT EXISTS my_channels(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE, tag, lang, style, voice, speed REAL, target_min INT, tolerance_min INT, anchor_id TEXT, model_id INT REFERENCES models(id) ON DELETE SET NULL, concept_index INT, title_templates TEXT, description_template TEXT, format TEXT, created_at, updated_at);
 CREATE TABLE IF NOT EXISTS my_competitors(my_id INT NOT NULL REFERENCES my_channels(id) ON DELETE CASCADE, channel_id TEXT NOT NULL REFERENCES channels(id), PRIMARY KEY(my_id, channel_id));
+CREATE TABLE IF NOT EXISTS productions(id INTEGER PRIMARY KEY, my_id INT NOT NULL REFERENCES my_channels(id) ON DELETE CASCADE, theme, target_min, tolerance_min, style, created_at);
+CREATE TABLE IF NOT EXISTS production_steps(prod_id INT NOT NULL REFERENCES productions(id) ON DELETE CASCADE, step TEXT NOT NULL, status, started_at, finished_at, ms INT, result TEXT, error, PRIMARY KEY(prod_id, step));
+CREATE TABLE IF NOT EXISTS script_analyses(video_id TEXT PRIMARY KEY, at, lang, output TEXT);
 `;
 export const FAV = 1; // coleção fixa Favoritos
 const n = x => x ?? null; // node:sqlite não aceita undefined
@@ -29,6 +33,11 @@ const MY_COLS = ['name', 'tag', 'lang', 'style', 'voice', 'speed', 'target_min',
 const myArgs = x => [x.name, n(x.tag), n(x.lang), n(x.style), n(x.voice), n(x.speed), n(x.targetMin), n(x.toleranceMin), n(x.anchorId), n(x.modelId), n(x.conceptIndex), j(x.titleTemplates), n(x.descriptionTemplate), n(x.format)];
 const myRow = r => ({ id: r.id, name: r.name, tag: r.tag, lang: r.lang, style: r.style, voice: r.voice, speed: r.speed, targetMin: r.target_min, toleranceMin: r.tolerance_min, anchorId: r.anchor_id, modelId: r.model_id, conceptIndex: r.concept_index, titleTemplates: p(r.title_templates), descriptionTemplate: r.description_template, format: r.format });
 const p = s => (s == null ? null : JSON.parse(s));
+// Etapa sem linha no banco vale pending; result só no detalhe da produção.
+const PENDING = { status: 'pending', startedAt: null, finishedAt: null, ms: null, result: null, error: null };
+const stepRow = r => ({ status: r.status, startedAt: r.started_at, finishedAt: r.finished_at, ms: r.ms, result: p(r.result), error: r.error });
+const prodRow = (r, rows, full) => ({ id: r.id, myId: r.my_id, theme: r.theme, targetMin: r.target_min, toleranceMin: r.tolerance_min, style: r.style, createdAt: r.created_at,
+  steps: Object.fromEntries(STEPS.map(k => { const x = rows.find(y => y.step === k), v = x ? stepRow(x) : { ...PENDING }; if (!full) delete v.result; return [k, v]; })) });
 
 export function openDb(file) {
   if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
@@ -99,6 +108,18 @@ export function openDb(file) {
     compOff: q('DELETE FROM my_competitors WHERE channel_id=?'),
     compIn: q('INSERT OR IGNORE INTO my_competitors(my_id,channel_id) VALUES(?,?)'),
     job: q('INSERT OR REPLACE INTO jobs(id,kind,status,created_at,finished_at,result,error) VALUES(?,?,?,?,?,?,?)'),
+    prodNew: q('INSERT INTO productions(my_id,theme,target_min,tolerance_min,style,created_at) VALUES(?,?,?,?,?,?)'),
+    prodUp: q('UPDATE productions SET theme=?,target_min=?,tolerance_min=?,style=? WHERE id=?'),
+    prodOne: q('SELECT * FROM productions WHERE id=?'),
+    prodAll: q('SELECT * FROM productions ORDER BY id DESC'),
+    prodOf: q('SELECT * FROM productions WHERE my_id=? ORDER BY id DESC'),
+    prodDel: q('DELETE FROM productions WHERE id=?'),
+    stepsOf: q('SELECT * FROM production_steps WHERE prod_id=?'),
+    stepsAll: q('SELECT prod_id,step,status,started_at,finished_at,ms,error FROM production_steps'),
+    stepSet: q('INSERT OR REPLACE INTO production_steps(prod_id,step,status,started_at,finished_at,ms,result,error) VALUES(?,?,?,?,?,?,?,?)'),
+    stepsStop: q("UPDATE production_steps SET status='error',error='Interrompida (servidor reiniciado)',finished_at=? WHERE status='running'"),
+    anSet: q('INSERT OR REPLACE INTO script_analyses(video_id,at,lang,output) VALUES(?,?,?,?)'),
+    anOne: q('SELECT * FROM script_analyses WHERE video_id=?'),
   };
   const watchOf = r => ({ monitor: !!r?.monitor, competitor: !!r?.competitor, since: r?.since ?? null, lastRun: r?.last_run ?? null });
   const channelSnapshots = id => s.snaps.all(id).map(r => ({ ...r }));
@@ -178,6 +199,23 @@ export function openDb(file) {
       raw.exec('BEGIN');
       try { s.compClr.run(id); for (const c of ids) { s.compIn.run(id, c); this.setWatch(c, { competitor: true }); } raw.exec('COMMIT'); } catch (e) { raw.exec('ROLLBACK'); throw e; }
     },
+    // Fase 6: produções (pauta mínima na criação; etapas em production_steps) e análises de roteiro por vídeo.
+    createProduction: x => Number(s.prodNew.run(x.myId, n(x.theme), n(x.targetMin), n(x.toleranceMin), n(x.style), new Date().toISOString()).lastInsertRowid),
+    updateProduction: (id, x) => s.prodUp.run(n(x.theme), n(x.targetMin), n(x.toleranceMin), n(x.style), id).changes > 0,
+    production(id) { const r = s.prodOne.get(id); return r ? prodRow(r, s.stepsOf.all(id), true) : null; },
+    productions({ myId } = {}) {
+      const by = Map.groupBy(s.stepsAll.all(), r => r.prod_id);
+      return (myId == null ? s.prodAll.all() : s.prodOf.all(myId)).map(r => prodRow(r, by.get(r.id) ?? [], false));
+    },
+    // patch só com os campos que mudam; o resto fica como estava.
+    setStep(id, step, patch) {
+      const r = s.stepsOf.all(id).find(x => x.step === step), v = { ...(r ? stepRow(r) : PENDING), ...patch };
+      s.stepSet.run(id, step, v.status, n(v.startedAt), n(v.finishedAt), n(v.ms), j(v.result), n(v.error));
+    },
+    deleteProduction: id => s.prodDel.run(id).changes > 0,
+    interruptRunning: () => Number(s.stepsStop.run(new Date().toISOString()).changes),
+    saveScriptAnalysis: (videoId, { lang, output }) => void s.anSet.run(videoId, new Date().toISOString(), n(lang), j(output)),
+    scriptAnalysis(videoId) { const r = s.anOne.get(videoId); return r ? { videoId: r.video_id, at: r.at, lang: r.lang, output: p(r.output) } : null; },
     close: () => raw.close(),
   };
 }
