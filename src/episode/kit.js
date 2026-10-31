@@ -238,8 +238,8 @@ var { KIT_SCENES, KIT_DEFAULTS, KIT_CATALOG, kitFrame, castActor } = (() => {
       const M = pt ? [r[0] + dir * .36 * size, r[1] - (.14 + .01 * cyc(phase, per(L, 4))) * size] : [r[0] + dir * (.27 + .05 * cyc(phase, per(L, 1.3))) * size, r[1] - (.08 + .08 * cyc(phase, per(L, .9), .25)) * size];
       pose = creaturePose(spec, { ...oo, gesture: [{ limb: arm, target: handTo(p0, spec, arm, M), k: 1, ...(pt && { hand: 'point' }) }] });
     } else if (action === 'cheer') {
-      // Pula h = 7·|sin πu| px por .7 s (o chão sob os pés sobe) e ergue as mãos para cima e para fora da cabeça.
-      const hop = 7 * Math.abs(Math.sin(Math.PI * phase * per(L, .7))), oc = { ...o, ground: x => ground(x) - hop, expression: 'happy', mouth: 'a' }, p0 = creaturePose(spec, oc);
+      // Pula h = 28·|sin πu| px por .7 s (7 células da grade de 480) (o chão sob os pés sobe) e ergue as mãos para cima e para fora da cabeça.
+      const hop = 28 * Math.abs(Math.sin(Math.PI * phase * per(L, .7))), oc = { ...o, ground: x => ground(x) - hop, expression: 'happy', mouth: 'a' }, p0 = creaturePose(spec, oc);
       const arms = ['armL', 'armR'].map((limb, i) => { const r = p0.limbs[limb].root; return { limb, k: 1, target: handTo(p0, spec, limb, [r[0] + dir * (i ? 1 : -1) * (.26 + .015 * cyc(phase, per(L, .45), i / 2)) * size, r[1] - .2 * size]) }; });
       pose = creaturePose(spec, { ...oc, gesture: arms });
     } else if (action === 'kneel' || action === 'cower') {

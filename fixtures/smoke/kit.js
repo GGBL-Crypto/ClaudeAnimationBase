@@ -34,7 +34,7 @@ var EST = (() => {
     [day(104), [A('viajante', 'look-up', .3, 1), A('ferreira', 'walk', .5, -1), A('vigia', 'point', .75, -1)]],
     [day(105), [A('viajante', 'stand', .3, -1), A('crianca', 'walk', .5, 1), A('ferreira', 'sit', .8, -1)]],
     [{ ...day(106), time: 'night' }, [A('viajante', 'walk', .5, -1), A('leitor', 'stand', .25, 1), A('vigia', 'read', .8, -1)]],
-    [day(107), [A('viajante', 'run', .5, 1), A('crianca', 'cheer', .25, 1), A('leitor', 'talk', .75, -1)]],
+    [day(107), [A('viajante', 'run', .5, 1), A('crianca', 'cheer', .25, 1), A('leitor', 'talk', .85, -1)]],
     [day(108), [A('ferreira', 'kneel', .25, 1), A('vigia', 'cower', .5, 1), A('leitor', 'lie', .75, -1)]],
   ].map(([params, actors]) => ({ scene: 'campo', params, actors, cast: crew }));
   // Plano i em [i, i + 1): o loop da cena no tempo OFF + lt; F.t volta a ser o tempo do vídeo.
