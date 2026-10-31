@@ -606,3 +606,4 @@ test('canopy is stable per seed', () => {
 - Armas, golpes e efeitos de impacto.
 - Serra com face clara e neve e nuvens em tufos do protótipo v4: as nuvens do kit já têm forma própria; voltam se a Task 8 mostrar que destoam.
 - Formato vertical 9:16.
+- Capuz em mapa melhor: o `hood` atual emoldura o rosto em 3 mechas grandes; um mapa mais desenhado fica para depois (pedido em 31/10/2026).
