@@ -197,6 +197,14 @@ function familyOf(hex, role, ramps) {
   return best;
 }
 
+// Rampa do elenco: a família de familyOf deslocada para guardar o valor da cor pedida. d = (índice do tom da família mais
+// perto dela) − 2; tom t → família[clamp(t + d, 0, 4)] (calça escura continua escura no volume, que mora nos tons 2 e 3).
+function rampFor(hex, role, ramps) {
+  const f = ramps[familyOf(hex, role, ramps)], rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)), c = rgb(hex), e = h => rgb(h).reduce((s, v, i) => s + (v - c[i]) ** 2, 0);
+  const d = f.reduce((b, h, i) => e(h) < e(f[b]) ? i : b, 0) - 2;
+  return f.map((_, t) => f[Math.max(0, Math.min(4, t + d))]);
+}
+
 // Variante da cabeça pela inclinação (+ para baixo, − para cima).
 function headVariant(tilt) { return tilt < -.25 ? 'up' : tilt > .25 ? 'down' : 'level'; }
 

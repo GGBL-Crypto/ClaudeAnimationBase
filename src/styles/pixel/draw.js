@@ -399,14 +399,15 @@
   }
   // Monta o boneco na ordem do protótipo (braço e perna de longe com viés −.55, tronco, perna de perto, cabeça com queixo e
   // nariz, cabelo, chapéu, orelha, braço de perto), rasteriza, pinta o rosto (facePlan), desce 1 tom à noite e no interior
-  // (shift) e espelha. Famílias por familyOf sobre as cores do elenco; bota leather, capacete grey, capuz na da camisa.
+  // (shift) e espelha. Rampas do elenco por rampFor (família de familyOf com o valor da cor); bota leather, capacete grey, capuz na da camisa.
   // Devolve { layer, O (px da grade da origem local), k }.
   function figureOf(a, F) {
     const V = view(F, a.layer), J = a.pose.joints, fc = a.pose.facing, hb = headBox(a, V), { s, sc } = hb, [dw, dr] = BODY[a.pose.body] || [0, 0], gear = a.gear || [];
     const near = fc > 0 ? 'L' : 'R', far = near === 'L' ? 'R' : 'L', rc = reach(a, V, hb, 2 * (2.1 + dr) * s), RO = rc ? { ['elbow' + rc.n]: rc.E, ['wrist' + rc.n]: rc.W, ['hand' + rc.n]: rc.H } : {};
     const O = V.p(J.pelvis).map(Math.round), loc = q => [(q[0] - O[0]) * fc, q[1] - O[1]], w = n => RO[n] || V.p(J[n]), g = n => loc(w(n)), hand = sd => loc(RO['hand' + sd] || short(w('wrist' + sd), w('hand' + sd)));
-    const R = STYLE.ramps, cc = { skin: P.body, hair: P.woodDk, shirt: P.sea, pants: P.ink, ...(a.colors || {}) };
-    const fam = { skin: familyOf(cc.skin, 'skin', R), hair: familyOf(cc.hair, 'hair', R), shirt: familyOf(cc.shirt, 'cloth', R), pants: familyOf(cc.pants, 'cloth', R) };
+    // Rampas do elenco por papel (rampFor: família de familyOf deslocada para guardar o valor da cor pedida).
+    const cc = { skin: P.body, hair: P.woodDk, shirt: P.sea, pants: P.ink, ...(a.colors || {}) }, fam = { skin: 'skin', hair: 'hair', shirt: 'shirt', pants: 'pants' };
+    const R = { ...STYLE.ramps, ...Object.fromEntries(Object.keys(fam).map(m => [m, rampFor(cc[m], m === 'shirt' || m === 'pants' ? 'cloth' : m, STYLE.ramps)])) };
     const r = x => (x + dr) * s, kind = sd => (a.role === 'point' || a.role === 'talk') && sd === near ? (a.role === 'point' ? 'point' : 'open') : HANDS[a.role] || 'relax';
     const arm = (sd, gr, bias) => { const S0 = g('shoulder' + sd), E = g('elbow' + sd), W0 = g('wrist' + sd), o = { g: gr, bias };
       return [quadPart(S0, E, r(2.4), r(2.1), fam.shirt, o), ellipsePart(E, r(2), r(2), fam.shirt, o), quadPart(E, W0, r(2.1), r(1.8), fam.shirt, o),
