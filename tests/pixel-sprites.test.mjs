@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 
 const ctx = vm.createContext({});
-vm.runInContext(readFileSync('src/styles/pixel/sprites.js', 'utf8') + '\nthis.S = { PIXEL_SPRITES, spriteCells, rampOf, headVariant, hairOf, familyOf };', ctx);
+vm.runInContext(readFileSync('src/styles/pixel/sprites.js', 'utf8') + '\nthis.S = { PIXEL_SPRITES, PIXEL_SPRITES5, spriteCells, rampOf, headVariant, hairOf, familyOf };', ctx);
 const { PIXEL_SPRITES: PS, spriteCells, rampOf, headVariant, hairOf, familyOf } = ctx.S;
 const cfg = vm.createContext({ AnimationPlatform: { registerStyle: s => (cfg.style = s) } });
 vm.runInContext(readFileSync('src/styles/pixel/config.js', 'utf8'), cfg);
@@ -53,4 +53,22 @@ test('familyOf maps cast colors', () => {
   assert.equal(familyOf('#5a3a28', 'skin', R), 'skinD'); assert.equal(familyOf('#c68a62', 'skin', R), 'skinM');
   assert.equal(familyOf('#111111', 'hair', R), 'hairBlack'); assert.equal(familyOf('#d8d4cc', 'hair', R), 'grey'); assert.equal(familyOf('#3a2a1e', 'hair', R), 'hairBrown');
   assert.equal(familyOf('#3f6e9a', 'cloth', R), 'blue'); assert.equal(familyOf('#e0b040', 'cloth', R), 'yellow'); assert.equal(familyOf('#2e5a46', 'cloth', R), 'green');
+});
+const S5 = ctx.S.PIXEL_SPRITES5, tonal = /^[.0-4]+$/;
+test('sprite set is complete and well formed', () => {
+  for (const h of ['short', 'long', 'spiky', 'bun', 'hood', 'helmet']) assert.ok(S5.hair[h], h);
+  for (const k of ['fist', 'relax', 'point', 'open', 'hold']) assert.ok(S5.hands[k], k);
+  for (const e of ['neutral', 'curious', 'surprised', 'happy', 'blink']) assert.ok(S5.eyes[e], e);
+  for (const m of ['none', 'm', 'e', 'a', 'o', 'grin']) assert.ok(S5.mouths[m], m);
+  const maps = [...Object.values(S5.hair), S5.hat], tones = [...Object.values(S5.hands), S5.boot, S5.ear];
+  for (const s of [...maps, ...tones]) { const w = s.rows[0].length; for (const r of s.rows) assert.equal(r.length, w); assert.ok(s.ax >= 0 && s.ax < w && s.ay >= 0 && s.ay < s.rows.length); }
+  for (const s of maps) for (const r of s.rows) for (const ch of r) assert.ok(ch === '.' || s.locks.includes(ch), ch);
+  for (const s of tones) for (const r of s.rows) assert.match(r, tonal);
+});
+test('hair leaves the face free', () => {
+  for (const [name, s] of Object.entries(S5.hair)) for (let y = 0; y <= 6; y++) for (let x = 2; x <= 9; x++)
+    assert.equal((s.rows[s.ay + y] || '')[s.ax + x] || '.', '.', `${name} cobre o rosto em ${x},${y}`);
+});
+test('happy eyes read as arcs, not as a closed line', () => {
+  const n = S5.eyes.happy.near; assert.ok(n.length >= 2 && n[0].includes('K') && /K.*\.+.*K/.test(n[n.length - 1]));
 });

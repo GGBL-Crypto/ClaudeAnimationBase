@@ -1,8 +1,183 @@
-// Sprites do boneco do pixel, desenhados em código (script clássico, sem import; draw.js usa). Sprite = {w, h, ax, ay,
-// rows}: rows.length = h, cada linha com w caracteres da LEGEND; (ax, ay) é a célula que cai sobre a junta âncora. Todo
-// sprite olha para a direita; facing < 0 espelha em x em torno de ax. Tom 0 = escuro, 1 = médio, 2 = claro (rampOf).
-// Cabeça: âncora em headBase (pescoço), face = a célula do rosto (olhos e boca usam a mesma âncora). Tronco: âncora no
-// pescoço. Mão: âncora no meio. Bota: âncora no tornozelo.
+// Sprites do boneco do pixel, desenhados à mão (script clássico, sem import). Todos olham para a direita; o boneco espelha a
+// camada pronta (flipCells). PIXEL_SPRITES5 entra em spritePart (figure.js):
+// - cabelo e chapéu: mapas de mechas { ax, ay, locks, lockBias?, rows }, âncora no centro da cabeça; cada letra é uma mecha
+//   (ordem de trás para a frente em locks), sombreada por lockTone. Rosto livre em x 2..9, y 0..6 da âncora.
+// - mãos, bota e orelha: { ax, ay, rows } com dígitos 0–4 (tom da rampa); mão no meio da palma, bota no tornozelo.
+// - olho: { near, far, brow, dy?, blush? }; boca: rows. Glifos do rosto: K tinta, W olho, B sobrancelha (tom 0 do cabelo),
+//   S boca fechada (tom 1 da pele), T língua (red3), P blush, . vazio. Posições na Task 4 (draw.js), relativas ao centro.
+var PIXEL_SPRITES5 = (() => {
+  // Cabelos de 24 colunas com a âncora na coluna 12 (spiky = HAIR5 do protótipo, 26 colunas, âncora na 14); a linha da
+  // âncora varia com o alto do sprite.
+  const hair = {
+    short: { ax: 12, ay: 11, locks: 'abcde', lockBias: { a: -1 }, rows: [
+      '........bb..ccc.........',
+      '......bbbbbcccccdd......',
+      '....abbbbbccccccddd.....',
+      '...aabbbbbcccccdddde....',
+      '..aaabbbbcccccddddeee...',
+      '.aaaabbbbccccdddddeeee..',
+      '.aaabbbbcccccddddeeeeee.',
+      'aaaabbbbccccdddd.eeeeee.',
+      'aaaabbbcccc.ddd...eeee..',
+      'aaaabbbccc..........ee..',
+      'aaaabbbcc...............',
+      '.aaabbb.................',
+      '.aaabb..................',
+      '..aab...................',
+      '..aa....................'] },
+    long: { ax: 12, ay: 11, locks: 'abcde', lockBias: { a: -1 }, rows: [
+      '........bb..ccc.........',
+      '......bbbbbcccccdd......',
+      '....abbbbbccccccddd.....',
+      '...aabbbbbcccccdddde....',
+      '..aaabbbbcccccddddeee...',
+      '.aaaabbbbccccdddddeeee..',
+      '.aaabbbbcccccddddeeeeee.',
+      'aaaabbbbccccdddd.eeeeee.',
+      'aaaabbbbccc.ddd...eeee..',
+      'aaaabbbbcc..........ee..',
+      'aaaabbbbc...............',
+      'aaaabbbb................',
+      'aaaabbbb................',
+      'aaaabbbb................',
+      'aaaabbbb................',
+      'aaaabbbbb...............',
+      'aaaabbbbb...............',
+      '.aaaabbbb...............',
+      '..aaabbbb...............',
+      '.aaa.bbb................',
+      'aaa..bb.................',
+      'aa..bb..................',
+      'a...b...................'] },
+    bun: { ax: 12, ay: 14, locks: 'fabcde', lockBias: { a: -1 }, rows: [
+      '...ffff.................',
+      '..ffffff................',
+      '..ffffff................',
+      '..ffffff................',
+      '..ffffffbbbcccc.........',
+      '...ffffbbbbccccdd.......',
+      '....abbbbbccccccddd.....',
+      '...aabbbbbcccccdddde....',
+      '..aaabbbbcccccddddeee...',
+      '.aaaabbbbccccdddddeeee..',
+      '.aaabbbbcccccddddeeeeee.',
+      'aaaabbbbccccdddd.eeeeee.',
+      'aaaabbbcccc.ddd...eeee..',
+      'aaaabbbccc..........ee..',
+      'aaaabbbcc...............',
+      '.aaabbb.................',
+      '.aaabb..................',
+      '..aab...................',
+      '..aa....................'] },
+    spiky: { ax: 14, ay: 15, locks: 'efdabchig', lockBias: { e: -1, f: -1 }, rows: [
+      '.....a.......b............',
+      '.....aa......bb...........',
+      '......aa.....bbb.....c....',
+      '......aaa...bbbb....cc....',
+      '..d....aaa.bbbbb...ccc....',
+      '..dd...aaaabbbbbb.cccc....',
+      '...ddd.aaaabbbbbbccccc....',
+      '...dddddaaaabbbbbcccccg...',
+      '..dddddddaaabbbbbccccggg..',
+      '.edddddddddabbbbbcccgggg..',
+      'eeeddddddddddbbbhhcgggggg.',
+      'eeeedddddddddhhhhhiigggggg',
+      '.eeeddddddddhhhhh.iii.ggg.',
+      '..eedddddddd.hh....ii..gg.',
+      '...eddddddd..h......i.....',
+      '...fdddddd................',
+      '...ffddddd................',
+      '...ffdddd.................',
+      '....ffddd.................',
+      '....ffdd..................',
+      '.....fff..................',
+      '......f...................'] },
+    // Capuz: caimento atrás (a), alto (b) e a borda (c) que emoldura o rosto e desce pela bochecha até o queixo.
+    hood: { ax: 12, ay: 12, locks: 'abc', lockBias: { a: -1 }, rows: [
+      '.......bbbbbbbb.........',
+      '.....bbbbbbbbbbbbb......',
+      '...abbbbbbbbbbbbbbbc....',
+      '..aabbbbbbbbbbbbbbccc...',
+      '.aaabbbbbbbbbbbbbcccccc.',
+      '.aaabbbbbbbbbbbbccccccc.',
+      'aaaabbbbbbbbbbbcccccccc.',
+      'aaaabbbbbbbbbbccccccccc.',
+      'aaaabbbbbbbbbccccccccccc',
+      'aaaabbbbbbbbcccccccccccc',
+      'aaaabbbbbbbccc..........',
+      'aaaabbbbbbccc...........',
+      'aaaabbbbbbccc...........',
+      'aaaabbbbbbccc...........',
+      'aaaabbbbbbccc...........',
+      'aaaabbbbbbccc...........',
+      'aaaabbbbbbccc...........',
+      'aaaabbbbbbccc...........',
+      'aaaabbbbbbbccc..........',
+      '.aaabbbbbbbbccc.........',
+      '..aabbbbbbbbbbcc........',
+      '...........bbbbb........'] },
+    // Capacete: calota (a), aba com nuca (b) e um rebite (r) de 2 × 2; a última linha vazia é a da âncora.
+    helmet: { ax: 12, ay: 11, locks: 'abr', rows: [
+      '........aaaaaa..........',
+      '......aaaaaaaaaa........',
+      '....aaaaaaaaaaaaaa......',
+      '...aaaaaaaaaaarraaa.....',
+      '..aaaaaaaaaaaarraaaa....',
+      '..aaaaaaaaaaaaaaaaaaa...',
+      '.aaaaaaaaaaaaaaaaaaaa...',
+      '.aaaaaaabbbbbbbbbbbbbbbb',
+      'bbbbbbbbbbbbbbbbbbbbbbbb',
+      'bbbbbbb.................',
+      '.bbbbb..................',
+      '........................'] },
+  };
+  // Chapéu sobre o cabelo: copa (a), fita (c) e aba (b); as linhas vazias levam a âncora ao centro da cabeça.
+  const hat = { ax: 12, ay: 15, locks: 'acb', rows: [
+    '........aaaaaaa.........',
+    '.......aaaaaaaaa........',
+    '......aaaaaaaaaaa.......',
+    '......aaaaaaaaaaa.......',
+    '......aaaaaaaaaaa.......',
+    '......ccccccccccc.......',
+    '......ccccccccccc.......',
+    '..bbbbbbbbbbbbbbbbbbbb..',
+    'bbbbbbbbbbbbbbbbbbbbbbbb',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................'] };
+  // Mãos v5 em tons de pele; âncora no meio da palma. hold: mão em C, de lado, fechando sobre o que segura.
+  const hands = {
+    fist: { ax: 2, ay: 2, rows: ['.343.', '34432', '33321', '32211', '.211.'] },
+    relax: { ax: 2, ay: 1, rows: ['.43.', '4332', '3332', '3321', '2321', '.21.'] },
+    point: { ax: 2, ay: 2, rows: ['.343.......', '34434444432', '33322222221', '3321.......', '.211.......'] },
+    open: { ax: 3, ay: 3, rows: ['.4.4.4', '.3.3.3', '.3.3.3', '433332', '333321', '.2221.'] },
+    hold: { ax: 1, ay: 2, rows: ['.3443.', '342211', '32....', '32....', '332221', '.2211.'] },
+  };
+  // Bota v5: cano dobrado claro, vinco, bico com brilho e sola; âncora no tornozelo. Orelha v5: âncora no meio.
+  const boot = { ax: 2, ay: 3, rows: ['.4443.....', '.1111.....', '.3322.....', '.33221....', '4332222331', '3222222221', '0000000000'] };
+  const ear = { ax: 1, ay: 2, rows: ['.43.', '4321', '3211', '321.', '.21.'] };
+  // Olhos: neutral e blink da v4; happy em arco (os cantos descem), dy desce o olho, brow sobe (−) a sobrancelha.
+  const eyes = {
+    neutral: { near: ['.KK', 'WKW', 'WKK', '.KK'], far: ['K', 'K', 'K', 'K'], brow: 0, blush: true },
+    curious: { near: ['.KK', 'WKK', 'WWW', '.WW'], far: ['K', 'K', 'W', '.'], brow: -1, blush: true },
+    surprised: { near: ['.WW.', 'WKKW', 'WKKW', '.WW.'], far: ['K', 'K', 'K', 'K'], brow: -1 },
+    happy: { near: ['.KK.', 'K..K'], far: ['K.', '.K'], brow: -1, dy: 1, blush: true },
+    blink: { near: ['....', '....', 'KKK.', '....'], far: ['.', '.', 'K', '.'], brow: 0, blush: true },
+  };
+  // Bocas da v4; none = boca fechada de 1 px.
+  const mouths = { none: ['S'], m: ['SS'], a: ['KK', 'KT'], o: ['.K', 'KK', '.K'], e: ['KKK', '.T.'], grin: ['KKKK', '.TT.'] };
+  return { hair, hat, hands, boot, ear, eyes, mouths };
+})();
+
+// legado: sai na Task 4 (draw.js ainda usa PIXEL_SPRITES, LEGEND, heads, torsos e rampOf).
+// Sprite = {w, h, ax, ay, rows}: rows.length = h, cada linha com w caracteres da LEGEND; (ax, ay) é a célula que cai sobre a
+// junta âncora. facing < 0 espelha em x em torno de ax. Tom 0 = escuro, 1 = médio, 2 = claro (rampOf). Cabeça: âncora em
+// headBase (pescoço), face = a célula do rosto (olhos e boca usam a mesma âncora). Tronco: âncora no pescoço. Mão: âncora no
+// meio. Bota: âncora no tornozelo.
 var PIXEL_SPRITES = (() => {
   const sp = (ax, ay, rows, more) => ({ w: rows[0].length, h: rows.length, ax, ay, rows, ...more });
   const LEGEND = { '.': null, o: ['ink'], 1: ['skin', 0], 2: ['skin', 1], 3: ['skin', 2], 4: ['hair', 0], 5: ['hair', 1], 6: ['hair', 2],
@@ -87,6 +262,7 @@ function spriteCells(s, flip) {
   return out;
 }
 
+// legado: sai na Task 4.
 // [escuro, médio, claro] da paleta: médio = a mais próxima; escuro = mais escura que o médio, com a luminância mais perto da
 // cor escurecida 35% para #000010; claro = mais clara, perto da clareada 30% para #FFF4E0. Nos extremos a distância soma o
 // croma (rgb − luminância) da cor pedida: o tom não troca de matiz (cabelo castanho não ganha luz cinza, nem a jaqueta azul
