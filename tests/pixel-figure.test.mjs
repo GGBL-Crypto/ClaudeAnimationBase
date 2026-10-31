@@ -5,8 +5,8 @@ import { readFileSync } from 'node:fs';
 
 // hash vem de motion.js no navegador; aqui vai a mesma fórmula.
 const ctx = vm.createContext({ hash: i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); } });
-vm.runInContext(readFileSync('src/styles/pixel/figure.js', 'utf8') + '\nthis.F = { ellipsePart, capsulePart, quadPart, polyPart, spritePart, figureLayer, lockTone, scaleRows, flipCells, rotateCells };', ctx);
-const { ellipsePart, quadPart, figureLayer, lockTone, scaleRows, flipCells, rotateCells } = ctx.F;
+vm.runInContext(readFileSync('src/styles/pixel/figure.js', 'utf8') + '\nthis.F = { ellipsePart, capsulePart, quadPart, polyPart, spritePart, figureLayer, lockTone, scaleRows, flipCells, rotateCells, canopyParts };', ctx);
+const { ellipsePart, quadPart, figureLayer, lockTone, scaleRows, flipCells, rotateCells, canopyParts } = ctx.F;
 const R = { m: ['#000001', '#000002', '#000003', '#000004', '#000005'] }, tone = c => R.m.indexOf(c);
 const box = { W: 24, H: 24, OX: 12, OY: 12 }, ink = '#ffffff', at = (L, x, y) => L.cells[y * L.W + x];
 
@@ -59,4 +59,8 @@ test('rotate turns clockwise around the origin pixel', () => {
   const L = { W: 8, H: 8, OX: 4, OY: 4, cells: Array(64).fill(null) }; L.cells[4 * 8 + 4] = 'o'; L.cells[4 * 8 + 6] = 'r';
   const Q = rotateCells(L, 1); assert.equal(Q.cells[4 * 8 + 4], 'o'); assert.equal(Q.cells[6 * 8 + 4], 'r');
   assert.deepEqual([...rotateCells(Q, -1).cells], L.cells); assert.throws(() => rotateCells({ ...L, W: 4, cells: Array(32).fill(null) }, 1));
+});
+test('canopy is stable per seed', () => {
+  assert.deepEqual(canopyParts(9, 5, 9, 7, -9), canopyParts(9, 5, 9, 7, -9));
+  assert.notDeepEqual(canopyParts(9, 5, 9, 7, -9), canopyParts(9, 6, 9, 7, -9));
 });

@@ -118,6 +118,16 @@ function figureLayer(parts, { W, H, OX, OY }, { ramps, light = [-.55, -.7, .5], 
   return { W, H, OX, OY, cells, groups: cell.map(c => c && c.g) };
 }
 
+// Copa em tufos (canopy() do protótipo): n elipses 'green' espalhadas numa elipse rx × ry centrada em (0, cy), da de cima para a de baixo.
+function canopyParts(n, seed, rx, ry, cy) {
+  const parts = [];
+  for (let j = 0; j < n; j++) {
+    const a = hash(seed + j * 3.3) * Math.PI * 2, d = Math.sqrt(hash(seed + j * 1.7)), r = 3.6 + hash(seed + j) * 3;
+    parts.push(ellipsePart([Math.cos(a) * rx * d, cy + Math.sin(a) * ry * d], r, r * .9, 'green'));
+  }
+  return parts.sort((p, q) => p.c[1] - q.c[1]);
+}
+
 // Amplia por vizinho mais próximo para round(w·k) × round(h·k).
 function scaleRows(rows, k) {
   const h = rows.length, w = rows[0].length, H2 = Math.round(h * k), W2 = Math.round(w * k);

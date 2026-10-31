@@ -174,8 +174,22 @@
     }
     if (l.surface === 'grass') for (let gx = 0; gx < GW; gx++) if (hash((gx - ox) * 3.7 + K.seed) < .22) px(gx, top[gx] - 1, dark);  // tufos da borda
   }
-  // Pinheiro serrilhado (camadas que crescem e recuam), árvore larga em bolha, palmeira.
-  function tree(V, t, color) {
+  // Lado da luz de um objeto em sx (px da tela): 1 se está à direita do astro (no interior, ou sem astro, a primeira luz; sem nenhuma, 1).
+  function sideOf(F, sx) { const src = (!K.interior && K.sky.celestial) || K.lights[0]; return src ? (sx >= view(F, src.f || 0).x(src.x) ? 1 : -1) : 1; }
+  const blit = (L, ox, oy) => L.cells.forEach((q, i) => { if (q) px(i % L.W - L.OX + ox, (i / L.W | 0) - L.OY + oy, q); });
+  // Copa em tufos (e tronco) rasterizada pelo núcleo do boneco, na luz do astro, 1 tom abaixo à noite e no interior, luz de borda só
+  // de dia; guardada por (semente, tamanho, clima, lado) só dentro do quadro (tufts é refeito em drawK).
+  let tufts = new Map();
+  function tuft(parts, seed, hw, hh, x, y) {
+    hw = Math.ceil(hw); hh = Math.ceil(hh);
+    const side = sideOf(F0, x), shift = K.mood === 'night' || K.mood === 'interior' ? 1 : 0, key = [seed, hw, hh, K.mood, side].join(), hit = tufts.get(key);
+    const L = hit || figureLayer(parts, { W: 2 * hw, H: hh + 4, OX: hw, OY: hh },
+      { ramps: STYLE.ramps, light: [-.55 * side, -.7, .5], rim: lit(), ink: K.mood === 'night' ? P.stoneDk : P.black, shift });
+    if (!hit) tufts.set(key, L);
+    blit(L, x, y);
+  }
+  // Pinheiro serrilhado (camadas que crescem e recuam), árvore larga em bolha (copa em tufos nas camadas de f ≥ .45), palmeira.
+  function tree(V, t, color, f) {
     const x = Math.round(V.x(t.x)), y = Math.round(V.y(t.y)), h = Math.max(4, Math.round(t.h * V.k));
     if (t.kind === 'pine') {
       const hw = h * .3, tier = Math.max(3, Math.round(h / 4));
@@ -184,6 +198,8 @@
     } else if (t.kind === 'palm') {
       seg([x, y], [x + h * .15, y - h], 1, color, 0);
       for (const a of [-2.6, -2, -1.1, -.5]) seg([x + h * .15, y - h], [x + h * .15 + Math.cos(a) * h * .35, y - h - Math.sin(-a) * h * .12 + h * .1], 1, color, 0);
+    } else if (f >= .45) {
+      tuft([capsulePart([0, 0], [0, -h * .55], Math.max(1.5, h * .05), Math.max(1, h * .035), 'leather'), ...canopyParts(Math.round(h / 2), t.seed, h * .3, h * .18, -h * .62)], t.seed, h * .3 + 8, h * .8 + 8, x, y);
     } else { rect(x, y - h * .4, 1, h * .4, color); disc(x, y - h * .62, h * .3, color); disc(x - h * .18, y - h * .5, h * .2, color); disc(x + h * .18, y - h * .52, h * .22, color); }
   }
   const woods = () => K.mood === 'night' ? [P.woodDk, P.black] : [P.wood, P.woodDk];  // madeira do primeiro plano
@@ -252,12 +268,9 @@
       const [wc, wd] = woods(), x0 = Math.round(V.x(o.x0)), x1 = Math.round(V.x(o.x1)), h = Math.max(4, Math.round(o.h * V.k));
       for (const k of [.35, .75]) { const ry = y - Math.round(k * h); rect(x0, ry, x1 - x0, 1, wc); rect(x0, ry + 1, x1 - x0, 1, wd); }
       for (let wx = o.x0; wx <= o.x1 + 1e-6; wx += 60) { const p0 = Math.round(V.x(wx)) - 1; rect(p0, y - h, 2, h, wc); rect(p0 + 1, y - h + 1, 1, h - 1, wd); }
-    } else if (o.kind === 'bush') {  // tufos em disco com a calota de cima clara, do mais baixo ao mais alto; sombra de 1 px no pé
-      const [base, hi, dk] = lit() ? [P.foliage, P.ground, P.ink] : [col('near'), col('far'), P.black];  // far: a calota não some no morro do meio atrás
-      // 5 tufos de alturas pela semente sobre uma base cheia (sem vão embaixo entre os tufos de fora).
-      const L = [0, 1, 2, 3, 4].map(i => { const r = s * (.26 + .1 * hash(o.seed * 3 + i)); return { x: x + (i - 2) * s * .27 + (hash(o.seed * 5 + i) - .5) * 2, r, y: y - r - (i % 4 ? s * (.12 + .25 * hash(o.seed * 7 + i)) : 0) }; });
-      rect(x - s * .6, y - s * .45, s * 1.2, s * .45, base);
-      L.sort((a, b) => b.y - a.y).forEach(l => disc(l.x, l.y, l.r, dy => dy < -l.r * .55 ? hi : base));
+    } else if (o.kind === 'bush') {  // tufos da copa sobre o chão, sombra de 1 px no pé
+      const k = s / 22;
+      tuft(canopyParts(14, o.seed, 9 * k, 5 * k, -7 * k), o.seed, 9 * k + 8, 16 * k + 8, x, y);
       rect(x - s * .7, y - 1, s * 1.4, 1, dk);
     } else if (o.kind === 'post') {  // poste de 2 px e lanterna 4 × 6 com telhado; o vidro acende ao entardecer e à noite
       const h = Math.round(o.h * V.k), pc = lit() ? P.ink : P.black, on = K.time === 'dusk' || K.time === 'night', yl = y - h;
@@ -414,7 +427,7 @@
   function figureOf(a, F) {
     const V0 = view(F, a.layer), J = a.pose.joints, fc = a.pose.facing, gear = a.gear || [], lying = a.lying === 1;
     // Luz: o astro (no interior, ou sem astro, a primeira luz; sem nenhuma, à esquerda) e o lado do peito em relação a ele.
-    const src = (!K.interior && K.sky.celestial) || K.lights[0], side = src ? (V0.p(J.chest)[0] >= view(F, src.f || 0).x(src.x) ? 1 : -1) : 1, shift = K.mood === 'night' || K.mood === 'interior' ? 1 : 0;
+    const side = sideOf(F, V0.p(J.chest)[0]), shift = K.mood === 'night' || K.mood === 'interior' ? 1 : 0;
     // Ondulação do cachecol e da capa: fase da passada quando anda, senão t/L · round(L / 1,6) (K.phase = t/L).
     const sw = gear.includes('scarf') || gear.includes('cape') ? sway(a.role === 'walk' || a.role === 'run' ? a.phase : K.phase * Math.max(1, Math.round(K.L / 1.6))) : 0;
     // Chave: tudo o que muda o desenho (pose, ator, câmera e camada, luz, ondulação); limite de 40 desenhos (os repetidos vêm em sequência).
@@ -489,7 +502,7 @@
       const age = Math.min(2, Math.floor(a.phase * 2 % 1 * 3)), ak = J.ankleL[1] > J.ankleR[1] ? J.ankleL : J.ankleR, gd = a.ground(ak[0]), snow = ((K.layers.find(l => l.kind === 'ground') || {}).surface) === 'snow';
       if (gd - ak[1] < 16) for (let i = 0; i < 4 - age; i++) px(V.x(ak[0]) - a.pose.facing * (5 + 2 * i + Math.floor(2 * hash(Math.round(ak[0] / 24) * 3.7 + i))), V.y(gd) - 1 - (i + age) % 2, snow ? P.snowShade : P.sand);
     }
-    L.cells.forEach((q, i) => { if (q) px(i % L.W - L.OX + O[0], (i / L.W | 0) - L.OY + O[1], q); });
+    blit(L, O[0], O[1]);
     if (a.holds === 'book') {
       const [hL, hR] = ['L', 'R'].map(sd => short(V.p(J['wrist' + sd]), V.p(J['hand' + sd]))), x = (hL[0] + hR[0]) / 2, y = (hL[1] + hR[1]) / 2, ink = K.mood === 'night' ? P.stoneDk : P.black;
       rect(x - 3, y - 3, 6, 4, ink); rect(x - 2, y - 2, 4, 2, P.shadow); rect(x - 2, y - 2, 4, 1, P.cloud);
@@ -497,7 +510,7 @@
   }
 
   function drawK(F) {
-    K = F.world.kit; R = STYLE.moods[K.mood]; F0 = F; clip = null;
+    K = F.world.kit; R = STYLE.moods[K.mood]; F0 = F; clip = null; tufts = new Map();
     const V0 = view(F, 0), V1 = view(F, 1), I = K.interior, win = I && I.window;
     if (K.map) map(V1, K.map);
     else if (I) {
@@ -518,7 +531,7 @@
       while (fogAt.length && l.f >= fogAt[0]) { fogAt.shift(); shiftPass(LIFT, () => 1); }
       const V = view(F, l.f);
       if (l.kind === 'ridge') profile(V, l.prof, col(step()));
-      else if (l.kind === 'treeline') { const c0 = col(step()); for (const t of l.trees) tree(V, t, c0); }
+      else if (l.kind === 'treeline') { const c0 = col(step()); for (const t of l.trees) tree(V, t, c0, l.f); }
       else if (l.kind === 'dunes') { const far = l.f < .5, base = lit() ? (far ? P.light : P.sandDk) : col(far ? 'far' : 'mid'), top = profile(V, l.prof, base); for (let gx = 0; gx < GW; gx++) if (top[gx + 2] > top[gx] + 1 || top[gx + 1] > top[gx]) for (let r = 0; r < 5; r++) if (bay(gx, top[gx] + r) < .5 - r * .1) px(gx, top[gx] + r, lit() ? P.sandDk : col('near')); }
       else if (l.kind === 'buildings') for (const b of l.items) building(V, b);
       else if (l.kind === 'sea') sea(V, l);
